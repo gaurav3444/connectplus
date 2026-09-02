@@ -1,0 +1,463 @@
+{
+  "_comment": [
+    "Locked Vietnamese terminology for CONNECT Plus.",
+    "Safety-critical wording must not drift between answers. A senior who learns",
+    "'xac thuc hai buoc' in one answer and meets 'xac minh 2 yeu to' in the next",
+    "has to relearn the concept. Worse, a mistranslated proper noun ('myGov' ->",
+    "'chinh phu cua toi') makes the instruction impossible to follow.",
+    "Edit this file rather than the prompt templates: it is injected into every",
+    "prompt and audited after every answer."
+  ],
+  "protected_nouns": [
+    "myGov",
+    "Centrelink",
+    "Medicare",
+    "Services Australia",
+    "Scamwatch",
+    "ACCC",
+    "ATO",
+    "NBN",
+    "Be Connected",
+    "eSafety Commissioner",
+    "Australia Post",
+    "Express Plus",
+    "MyMedicare",
+    "Telstra",
+    "Optus",
+    "Vodafone",
+    "Android",
+    "iPhone",
+    "iPad",
+    "Google",
+    "Apple",
+    "Microsoft",
+    "Facebook",
+    "Messenger",
+    "WhatsApp",
+    "Viber",
+    "Zalo",
+    "Zoom",
+    "Gmail",
+    "App Store",
+    "Google Play",
+    "Wi-Fi",
+    "Bluetooth",
+    "SMS",
+    "OTP",
+    "PIN"
+  ],
+  "glossary": [
+    {
+      "en": "scam",
+      "vi": "lừa đảo",
+      "forbidden": [
+        "gian lận",
+        "lường gạt"
+      ],
+      "note": "The community-standard word. 'gian lận' means cheating, which is a different accusation."
+    },
+    {
+      "en": "scam text message",
+      "vi": "tin nhắn lừa đảo",
+      "forbidden": []
+    },
+    {
+      "en": "phishing",
+      "vi": "lừa đảo lấy thông tin",
+      "forbidden": [
+        "tấn công giả mạo"
+      ],
+      "note": "Descriptive rather than transliterated; 'phishing' means nothing to the reader."
+    },
+    {
+      "en": "two-factor authentication",
+      "vi": "xác thực hai bước",
+      "forbidden": [
+        "xác minh 2 yếu tố",
+        "bảo mật hai lớp"
+      ],
+      "note": "The single most important lock in the file. This is the concept behind 'my phone keeps asking for a code'."
+    },
+    {
+      "en": "verification code",
+      "vi": "mã xác minh",
+      "forbidden": [
+        "mật mã",
+        "mã bí mật"
+      ]
+    },
+    {
+      "en": "one-time password",
+      "vi": "mã OTP",
+      "forbidden": [
+        "mật khẩu một lần"
+      ],
+      "note": "Banks and telcos in Australia send the letters OTP, so the reader must see OTP."
+    },
+    {
+      "en": "password",
+      "vi": "mật khẩu",
+      "forbidden": [
+        "mã khóa"
+      ]
+    },
+    {
+      "en": "account",
+      "vi": "tài khoản",
+      "forbidden": []
+    },
+    {
+      "en": "log in",
+      "vi": "đăng nhập",
+      "forbidden": [
+        "vào hệ thống"
+      ]
+    },
+    {
+      "en": "log out",
+      "vi": "đăng xuất",
+      "forbidden": []
+    },
+    {
+      "en": "sign up",
+      "vi": "đăng ký",
+      "forbidden": []
+    },
+    {
+      "en": "settings",
+      "vi": "cài đặt",
+      "forbidden": [
+        "thiết lập"
+      ]
+    },
+    {
+      "en": "app",
+      "vi": "ứng dụng",
+      "forbidden": [
+        "áp",
+        "phần mềm ứng dụng"
+      ]
+    },
+    {
+      "en": "link",
+      "vi": "đường liên kết",
+      "forbidden": []
+    },
+    {
+      "en": "update",
+      "vi": "cập nhật",
+      "forbidden": []
+    },
+    {
+      "en": "bank account",
+      "vi": "tài khoản ngân hàng",
+      "forbidden": []
+    },
+    {
+      "en": "personal information",
+      "vi": "thông tin cá nhân",
+      "forbidden": []
+    },
+    {
+      "en": "privacy",
+      "vi": "quyền riêng tư",
+      "forbidden": []
+    },
+    {
+      "en": "hang up",
+      "vi": "cúp máy",
+      "forbidden": [
+        "gác máy"
+      ]
+    },
+    {
+      "en": "block a number",
+      "vi": "chặn số",
+      "forbidden": []
+    },
+    {
+      "en": "report",
+      "vi": "báo cáo",
+      "forbidden": [
+        "tố giác"
+      ],
+      "note": "'tố giác' is a criminal-complaint word and reads as far more serious than reporting a scam SMS."
+    },
+    {
+      "en": "video call",
+      "vi": "gọi video",
+      "forbidden": [
+        "cuộc gọi hình ảnh"
+      ]
+    },
+    {
+      "en": "mobile data",
+      "vi": "dữ liệu di động",
+      "forbidden": []
+    },
+    {
+      "en": "browser",
+      "vi": "trình duyệt",
+      "forbidden": []
+    },
+    {
+      "en": "email",
+      "vi": "email",
+      "forbidden": [
+        "thư điện tử"
+      ],
+      "note": "Everyone says email. 'thư điện tử' is textbook Vietnamese, not spoken Vietnamese."
+    },
+    {
+      "en": "screenshot",
+      "vi": "ảnh chụp màn hình",
+      "forbidden": []
+    },
+    {
+      "en": "trusted",
+      "vi": "đáng tin cậy",
+      "forbidden": []
+    },
+    {
+      "en": "free of charge",
+      "vi": "miễn phí",
+      "forbidden": []
+    },
+    {
+      "en": "interpreter",
+      "vi": "thông dịch viên",
+      "forbidden": [
+        "phiên dịch viên"
+      ],
+      "note": "Spoken interpreting, not document translation - the distinction matters when telling someone to ask for one on the phone."
+    }
+  ],
+  "register": {
+    "_comment": [
+      "Vietnamese has no neutral second person. Every sentence commits to a",
+      "relationship. Addressing a 75-year-old as 'ban' (peer) is not informal,",
+      "it is disrespectful, and for a service built for seniors that is a",
+      "product failure, not a style nit."
+    ],
+    "preferred_address": [
+      "ông",
+      "bà",
+      "quý vị",
+      "ông/bà"
+    ],
+    "forbidden_address": [
+      "bạn",
+      "mày",
+      "cậu",
+      "em"
+    ],
+    "self_reference": "chúng tôi",
+    "note": "Default to 'ông/bà'. 'quý vị' is acceptable when the sentence addresses the reader generally."
+  },
+  "plain_language": {
+    "_comment": [
+      "Sino-Vietnamese formal register. Each of these is correct Vietnamese and",
+      "each has a plain everyday equivalent. Government and telco pages are",
+      "written in the left column; a senior reads the right one."
+    ],
+    "prefer_plain": {
+      "truy cập": "vào",
+      "thực hiện": "làm",
+      "tiến hành": "làm",
+      "khởi tạo": "tạo",
+      "cấu hình": "cài đặt",
+      "kích hoạt": "bật",
+      "vô hiệu hóa": "tắt",
+      "sử dụng": "dùng",
+      "cung cấp": "cho",
+      "hỗ trợ": "giúp",
+      "lựa chọn": "chọn",
+      "phương thức": "cách",
+      "trường hợp": "khi",
+      "yêu cầu": "hỏi",
+      "định danh": "nhận dạng",
+      "tương tác": "làm việc với"
+    }
+  },
+  "query_expansion": {
+    "_comment": [
+      "Vietnamese intent phrase (folded, no diacritics) -> English retrieval terms.",
+      "This is the deterministic floor under the LLM rewrite: it runs even when",
+      "the provider is down, and it is what the eval scores the rewrite against."
+    ],
+    "lua dao": [
+      "scam",
+      "fraud",
+      "scamwatch"
+    ],
+    "tin nhan la": [
+      "scam text message",
+      "sms phishing",
+      "unknown sender"
+    ],
+    "tin nhan lua dao": [
+      "scam text message",
+      "sms phishing"
+    ],
+    "trung thuong": [
+      "prize scam",
+      "you have won scam",
+      "lottery scam"
+    ],
+    "doi ma": [
+      "two-factor authentication",
+      "verification code",
+      "one time password"
+    ],
+    "ma xac minh": [
+      "verification code",
+      "two-factor authentication"
+    ],
+    "quen mat khau": [
+      "reset password",
+      "forgot password"
+    ],
+    "mat khau": [
+      "password",
+      "password security"
+    ],
+    "dang nhap": [
+      "sign in",
+      "log in"
+    ],
+    "tai khoan bi khoa": [
+      "account locked",
+      "account recovery"
+    ],
+    "goi video": [
+      "video call",
+      "make a video call"
+    ],
+    "goi dien cho con chau": [
+      "video call family",
+      "make a video call"
+    ],
+    "dien thoai cham": [
+      "phone running slow",
+      "free up storage"
+    ],
+    "het dung luong": [
+      "mobile data usage",
+      "data limit"
+    ],
+    "wifi": [
+      "connect to wifi",
+      "wi-fi setup"
+    ],
+    "ngan hang": [
+      "online banking safety",
+      "bank scam"
+    ],
+    "chuyen tien": [
+      "transfer money",
+      "payment scam"
+    ],
+    "thong dich": [
+      "interpreter service",
+      "TIS National",
+      "free interpreter"
+    ],
+    "hoc su dung dien thoai": [
+      "digital literacy training",
+      "Be Connected",
+      "free computer course"
+    ],
+    "bao cao lua dao": [
+      "report a scam",
+      "scamwatch report"
+    ],
+    "cham": [
+      "phone running slow",
+      "free up storage"
+    ],
+    "cang ngay cang cham": [
+      "phone running slow",
+      "free up storage"
+    ],
+    "day nguoi gia": [
+      "digital literacy training",
+      "Be Connected",
+      "free course"
+    ],
+    "lop hoc": [
+      "digital literacy training",
+      "free course",
+      "Be Connected"
+    ],
+    "hoc dung dien thoai": [
+      "digital literacy training",
+      "Be Connected",
+      "free course"
+    ],
+    "mien phi": [
+      "free"
+    ],
+    "mygov": [
+      "myGov"
+    ],
+    "medicare": [
+      "Medicare",
+      "Express Plus",
+      "claim"
+    ],
+    "centrelink": [
+      "Centrelink",
+      "phone self service"
+    ],
+    "bao thu nhap": [
+      "report income",
+      "phone self service"
+    ],
+    "bao cao": [
+      "report a scam",
+      "scamwatch"
+    ],
+    "chan so": [
+      "block scam calls",
+      "block a number"
+    ],
+    "tin nhan": [
+      "text message"
+    ],
+    "3g": [
+      "mobile data"
+    ],
+    "4g": [
+      "mobile data"
+    ],
+    "het tien": [
+      "mobile data",
+      "data limit"
+    ],
+    "hoi ma": [
+      "scam",
+      "verification code",
+      "never share code"
+    ],
+    "xung la": [
+      "scam call",
+      "impersonation"
+    ],
+    "that hay gia": [
+      "how to tell if a message is a scam",
+      "scam"
+    ],
+    "bam vao link": [
+      "clicked a scam link",
+      "report a scam"
+    ],
+    "so tai khoan": [
+      "bank details",
+      "bank scam"
+    ],
+    "an toan": [
+      "safety",
+      "secure"
+    ]
+  }
+}

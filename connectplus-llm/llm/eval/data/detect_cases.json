@@ -1,0 +1,63 @@
+{
+  "_comment": [
+    "D2 - the language-detection test set. Forty short strings.",
+    "",
+    "Every string is the length a real query is: three to twelve syllables. That",
+    "is the point. Statistical detectors are trained on paragraphs and are",
+    "unreliable here, and the half of the Vietnamese cases written without",
+    "diacritics is where they fail hardest.",
+    "",
+    "'expect' is the language a Vietnamese-speaking human would assign. Cases",
+    "marked hard=true are the ones where langdetect is expected to be wrong;",
+    "they are the reason this module exists rather than a one-line import.",
+    "",
+    "Owner: Deval Patel."
+  ],
+  "cases": [
+    { "text": "Tôi bị lừa đảo", "expect": "vi", "hard": false },
+    { "text": "Điện thoại cứ đòi mã", "expect": "vi", "hard": false },
+    { "text": "Làm sao để chặn số này?", "expect": "vi", "hard": false },
+    { "text": "Tôi quên mật khẩu rồi", "expect": "vi", "hard": false },
+    { "text": "Cháu tôi ở Việt Nam", "expect": "vi", "hard": false },
+    { "text": "Xin cho tôi thông dịch viên", "expect": "vi", "hard": false },
+    { "text": "Tin nhắn này có thật không?", "expect": "vi", "hard": false },
+    { "text": "Tôi muốn gọi video", "expect": "vi", "hard": false },
+    { "text": "Máy tính của tôi bị chậm", "expect": "vi", "hard": false },
+    { "text": "Tài khoản ngân hàng bị khóa", "expect": "vi", "hard": false },
+
+    { "text": "toi bi lua dao", "expect": "vi", "hard": true },
+    { "text": "dien thoai cu doi ma", "expect": "vi", "hard": true },
+    { "text": "lam sao de chan so nay", "expect": "vi", "hard": true },
+    { "text": "toi quen mat khau roi", "expect": "vi", "hard": true },
+    { "text": "chau toi o Viet Nam", "expect": "vi", "hard": true },
+    { "text": "xin cho toi thong dich vien", "expect": "vi", "hard": true },
+    { "text": "tin nhan nay co that khong", "expect": "vi", "hard": true },
+    { "text": "toi muon goi video cho con", "expect": "vi", "hard": true },
+    { "text": "may tinh cua toi bi cham", "expect": "vi", "hard": true },
+    { "text": "tai khoan ngan hang bi khoa", "expect": "vi", "hard": true },
+
+    { "text": "how do I block this number", "expect": "en", "hard": false },
+    { "text": "I forgot my myGov password", "expect": "en", "hard": false },
+    { "text": "is this text message real", "expect": "en", "hard": false },
+    { "text": "my phone keeps asking for a code", "expect": "en", "hard": false },
+    { "text": "how to make a video call", "expect": "en", "hard": false },
+    { "text": "report a scam to Scamwatch", "expect": "en", "hard": false },
+    { "text": "free english classes for seniors", "expect": "en", "hard": false },
+    { "text": "connect my phone to wifi", "expect": "en", "hard": false },
+    { "text": "why is my phone so slow", "expect": "en", "hard": false },
+    { "text": "I need an interpreter please", "expect": "en", "hard": false },
+
+    { "text": "toi can help", "expect": "vi", "hard": true },
+    { "text": "myGov khong vao duoc", "expect": "vi", "hard": true },
+    { "text": "Medicare app bi loi", "expect": "vi", "hard": true },
+    { "text": "wifi khong ket noi duoc", "expect": "vi", "hard": true },
+    { "text": "Centrelink goi cho toi", "expect": "vi", "hard": true },
+
+    { "text": "我收到一条奇怪的短信", "expect": "zh", "hard": false },
+    { "text": "请问怎么设置密码", "expect": "zh", "hard": false },
+
+    { "text": "myGov", "expect": "und", "hard": true },
+    { "text": "OTP", "expect": "und", "hard": true },
+    { "text": "123456", "expect": "und", "hard": true }
+  ]
+}
