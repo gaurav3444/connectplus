@@ -1,191 +1,142 @@
 # connectplus-rag
 
-Trusted-knowledge and verification service for **CONNECT Plus**, a digital navigation and referral platform for culturally and linguistically diverse (CALD) seniors.
+Trusted-knowledge pipeline for **CONNECT Plus** — a digital navigation and referral platform for culturally and linguistically diverse (CALD) seniors. This repo owns the RAG side of the project: crawling the client's approved trusted sources, cleaning that content, splitting it into retrievable chunks, and embedding it into a searchable index.
 
-This repo owns the client's **approved domain list** and everything built from it: the crawled knowledge base, retrieval over it, and the check that decides whether a generated answer is actually supported by it.
+This is a class project (CW2, Monash TAP) built stage by stage, testing each stage against real crawled data before moving to the next — not just synthetic examples. That mattered: several real bugs only showed up once real data was run through the pipeline, and they're documented below rather than swept under the rug.
 
-[`connectplus-llm`](../connectplus-llm) imports this package and calls it twice per question: once to **retrieve** source material before generating, once to **verify** the answer afterwards. Nothing reaches a senior that this repo has not signed off.
+## Status
 
-This is a **library, not a service.** Separate repo for separate ownership and git history; at runtime it's two function calls inside the `connectplus-llm` process. No second server, no port, no HTTP between your own repos.
-
----
-
-## Why this exists
-
-CONNECT Plus does not publish digital literacy content. Trusted content already exists at Be Connected, eSafety, myGov and Scamwatch. The platform's job is to find the right page on one of those sites and have it explained in the senior's language.
-
-That makes this repo the trust boundary. Two rules drive everything here:
-
-- **The approved domain list is enforced in code**, at fetch time and again at verification time. Not in config, not in a comment, not in a seed list. Content from an unapproved domain never enters the index, and a citation pointing outside the list fails verification.
-- **Every chunk carries provenance** (source URL, domain, title, fetch date) with no exceptions. Answers shown to seniors must cite where they came from. A chunk without provenance can't be cited, so it's unusable.
-
-## Two jobs
-
-### 1. Retrieve, before generation
-
-Cross-language search over the approved knowledge base. A Mandarin query must hit an English source page, so the embeddings are multilingual and the retrieval is hybrid (vector + keyword).
-
-Returns ranked chunks with provenance and **one confidence number**. Low confidence is how the system knows to refuse rather than bluff.
-
-### 2. Verify, after generation
-
-Grades the LLM's draft answer against the chunks that were actually retrieved. Four checks, all of which must pass:
-
-| Check | Fails when |
-|---|---|
-| **Grounded** | The answer states a fact that is not in the supplied chunks |
-| **Cited** | A citation marker doesn't resolve to a real chunk, or points off the approved domain list |
-| **Confident** | Retrieval confidence is below threshold, so there was never good enough source material |
-| **Safe** | The answer tells the user to share a password, an MFA code, or payment details |
-
-Fail any of them and the answer is **dropped, not patched**. What the senior gets instead is *"I don't have trusted information on that"* plus a mentor offer. In a scam-and-safety domain a confident wrong answer about myGov is real harm, not a quality bug.
-
-> **Verification is not a substitute for retrieval.** If the LLM answered from its own training data and this repo only graded the result, almost everything would fail as ungrounded, and the failures that slipped through would be the plausible ones. Retrieval feeds the generator the material the grader will measure it against. That's why it's two calls, not one.
-
-## Scope
-
-| Stage | Module | What it does |
+| Stage | What it does | Status |
 |---|---|---|
-| 01 | `s01_ingest.py` | Allowlist → robots.txt/sitemap → polite crawl → raw HTML disk cache |
-| 02 | `s02_extract.py` | trafilatura strips nav/ads/footers → clean text + provenance + language |
-| 03 | `s03_chunk.py` | Heading-aware splits that never cut a numbered procedure |
-| 04 | `s04_embed.py` | BGE-m3 embeddings → pgvector HNSW + Postgres `tsvector` |
-| 05 | `s05_retrieve.py` | Vector + keyword search, RRF fusion, rerank, confidence score |
-| 06 | `s06_verify.py` | Grounding, citation resolution, threshold, safety deny-list |
+| 01 — Ingest | Allowlisted crawl, robots.txt/sitemap-aware, cached to disk | ✅ Done — both domains fully crawled |
+| 02 — Extract | HTML/PDF → clean text + structure, via trafilatura + pypdf | ✅ Done — real content-loss bugs found and fixed |
+| 03 — Chunk | Heading-aware, list-safe, token-budgeted chunking | ✅ Done — 3 real bugs found and fixed against real data |
+| 04 — Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Scamwatch fully indexed; Be Connected in progress |
 
-Stages 01-04 are the offline ingest job, run from the CLI. 05 and 06 are the two functions this package exports.
+**Approved sources:** `beconnected.esafety.gov.au`, `scamwatch.gov.au`. A third domain, `esafety.gov.au`, was dropped after confirming it blocks automated crawlers — see `rag/config/domain_decisions.md`.
 
-Query translation, prompt construction, generation and the user-facing API live in `connectplus-llm`.
+**Current real numbers** (last full run):
 
-## Architecture
+| Domain | Pages crawled | Docs extracted | Chunks |
+|---|---:|---:|---:|
+| Be Connected | 1,094 | 929 | 4,148 |
+| Scamwatch | 500 | 314 | 1,184 |
+
+## Pipeline
 
 ```
-OFFLINE                         ONLINE
-approved_domains                connectplus-llm
-   │                                 │
-[01] Ingest                          ├──►  [05] Retrieve  ──► chunks + confidence
-[02] Extract                         │
-[03] Chunk                           └──►  [06] Verify    ──► pass | refuse(reason)
-[04] Embed + Index ──► pgvector ──────────────┘
+approved_domains.json
+        │
+   [01] Ingest ──────► raw HTML/PDF cache (.cache/html/)
+        │
+   [02] Extract ─────► clean text + structure (.cache/extracted/)
+        │
+   [03] Chunk ───────► retrievable chunks, ~300-500 tokens (.cache/chunked/)
+        │
+   [04] Embed+Index ─► Supabase Postgres (pgvector + tsvector)
 ```
 
-Each stage is a **pure function** `stage(input) -> output`, one module each, no hidden state. Every boundary has a frozen schema in `schemas.py` and a committed fixture in `fixtures/`, so each stage is developed against the upstream fixture and nobody waits on anybody.
+Each stage reads the previous stage's JSON output and writes its own — no stage needs the others in memory, so any stage can be re-run independently once its input exists.
+
+## Methods
+
+### Stage 01 — Ingest
+Domain-level allowlist enforced in code before any network call. Discovers pages via `sitemap.xml` (falling back to same-domain link-following if a sitemap is empty or missing). Caches raw responses to disk, keyed by a hash of the URL, so re-running a domain that's already been crawled makes zero network calls. A circuit breaker aborts a domain after 5 consecutive fetch failures rather than grinding through hundreds of guaranteed timeouts — this is exactly how `esafety.gov.au` was confirmed to be blocking the crawler. Binary content (PDFs) is cached as raw bytes separately from text, after discovering that decoding a PDF's bytes as text silently corrupts it.
+
+### Stage 02 — Extract
+`trafilatura` for HTML, `pypdf` for PDFs. Two real content-loss bugs were found and fixed here, both confirmed against actual crawled pages before being treated as real:
+
+- **Recovered content.** `trafilatura`'s boilerplate-detection sometimes drops entire content blocks that are structurally marked as "callout" components — a real Scamwatch page had its entire "what to do if you've been scammed" procedure silently excluded this way. A recovery pass detects `<ol>`/`<ul>` content trafilatura excluded but that looks like real content (long-ish text per item, not a nav menu), and adds it back. Confirmed at scale: 315 of 929 Be Connected docs and 34 of 314 Scamwatch docs gained recovered content this way — over 1,000,000 characters total, mostly full video transcripts hidden behind toggle/expand widgets.
+- **Deduplication.** Scamwatch's sitemap lists both `http://` and `https://` versions of many pages. 162 of 477 raw Scamwatch docs were exact-duplicate content; deduplication keeps one canonical copy per unique text, preferring the `https://` version.
+
+Known, deliberately deferred: two Chinese-language pages that `trafilatura` can't extract at all (a documented limitation of readability-style extractors on CJK text), and lower text-extraction quality on some non-English PDFs (Hindi, Greek), likely a `pypdf` limitation with complex scripts.
+
+### Stage 03 — Chunk
+Structure comes from `trafilatura`'s XML output (headings, paragraphs, lists as real elements) — not from raw HTML and not from a markdown re-rendering, after finding that markdown's text serialization introduces real structural bugs (a heading glued to its own next paragraph with no separating newline) that don't exist in XML.
+
+Chunks target 300–500 tokens, measured with **BGE-m3's own tokenizer** — not a generic approximation — since the corpus has confirmed real content in Vietnamese, Chinese, Hindi, and Greek, and a tokenizer tuned for English/code underrepresents non-Latin scripts. Small adjacent sections merge under a shared heading ancestor; oversized sections split at paragraph boundaries, then sentence boundaries, then (as a last resort) a word-boundary-respecting token slice — each level only kicking in if the previous one wasn't enough.
+
+**Numbered procedures are never split** — the one hard correctness rule the whole design serves. Three real bugs were found and fixed while getting this right:
+1. Recovered content (see above) was represented as an atomic "list," making genuine prose (like a 9,000-token transcript) impossible to split.
+2. `trafilatura` sometimes captures an entire transcript *natively* inside a single `<ul><li>` (an accordion/"read transcript" widget) — a list is now only treated as atomic when its items are flat text with no nested headings.
+3. A single oversized paragraph (a transcript merged into one `<p>` tag) had no mechanism to split it internally at all.
+
+The worst chunk in the real test data went from 8,968 tokens (before these fixes) to 479 tokens (after).
+
+### Stage 04 — Embed + Index
+`BAAI/bge-m3` (1024-dim, multilingual) via `sentence-transformers`, batched, upserted into Supabase Postgres. The table (`rag/config/schema.sql`) carries a `vector(1024)` column with an HNSW index for similarity search, and a generated `tsvector` column with a GIN index for keyword search — both from the same table, since stage 06 (retrieval, not yet built) needs to fuse both. Re-running `index` on the same chunks is idempotent (`ON CONFLICT (id) DO UPDATE`), since chunk IDs are stable hashes from stage 03.
+
+## Project structure
 
 ```
 rag/
-  schemas.py         # every contract, frozen; changes need team agreement
-  fixtures/          # f01_pages.json ... f06_verdict.json
-  s01_ingest.py      s04_embed.py
-  s02_extract.py     s05_retrieve.py
-  s03_chunk.py       s06_verify.py
-  __init__.py        # exports retrieve() and verify(), the whole public surface
+  schemas.py          # every contract between stages, frozen
+  main.py             # CLI: ingest / extract / chunk / index
+  s01_ingest.py
+  s02_extract.py
+  s03_chunk.py
+  s04_embed.py
+  config/
+    approved_domains.json
+    domain_decisions.md
+    schema.sql
+  fixtures/
+    f01_pages.json    # 6 real pages, used to test every stage
+    sample_little_book_of_scams.pdf
 tests/
+  test_s01_ingest.py
+  test_s02_extract.py
+  test_s03_chunk.py
+  test_s04_embed.py
+.github/workflows/ci.yml
 ```
-
-### Contracts
-
-```python
-Chunk = {
-    id, doc_id, url, domain, title, lang, fetched_at,
-    heading_path,        # ["Staying safe", "Recognising scam texts"]
-    text, token_count, order_idx,
-}
-
-Retrieved = Chunk + { score, method }    # method: "vector" | "keyword" | "fused"
-
-Verdict = {
-    passed,
-    reason,              # "ungrounded" | "bad_citation" | "low_confidence" | "unsafe" | None
-    grounded_score,
-    citations: [ { n, url, title, domain, resolved } ],
-    confidence,
-    chunk_ids,
-}
-```
-
-`fixtures/f03_chunks.json` holds ~30 hand-written chunks. That file unblocks retrieval, verification and the whole `connectplus-llm` repo before a single page has been crawled, so keep it committed and current.
-
-## Stack
-
-| Concern | Choice | Why |
-|---|---|---|
-| Crawl | `httpx` + `urllib.robotparser` | Stdlib robots parsing; no crawler framework needed for a handful of domains |
-| Extraction | `trafilatura` | Strips boilerplate far better than a hand-written parser, and it's one call |
-| Embeddings | BGE-m3 via `sentence-transformers`, local | Genuinely multilingual and free. A Mandarin query must hit an English page, and monolingual embeddings break that core use case |
-| Vector store | Supabase Postgres + pgvector (HNSW) | Vector index and keyword index in one database, one connection, free tier |
-| Keyword | Postgres `tsvector` | Already in the same database. No second search engine |
-| Grounding check | Chunk-level NLI cross-encoder + citation resolution | Deterministic where it can be; no second LLM judging the first one on the hot path |
-| Tests | `pytest` | Enough for a prototype |
-
-Model name and embedding dimensions are stored alongside the vectors. Changing the embedding model invalidates the index, and you need to be able to tell.
 
 ## Setup
 
 ```bash
-python -m venv .venv && .venv/Scripts/activate     # Windows
-pip install -r requirements.txt
-cp .env.example .env                                # fill in Supabase URL + key
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python3 -m pip install -e ".[dev]"
 ```
 
-Python 3.11+. First run downloads BGE-m3 weights (~2 GB), so expect a wait.
+For stage 04, you also need a Supabase project:
 
-```
-SUPABASE_URL=
-SUPABASE_SERVICE_KEY=       # server-side only, never in a client bundle
-EMBED_MODEL=BAAI/bge-m3
-CACHE_DIR=.cache/html
-CONFIDENCE_THRESHOLD=0.45
-GROUNDING_THRESHOLD=0.7
-```
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In the SQL Editor, run `create extension if not exists vector;`, then run the full contents of `rag/config/schema.sql`.
+3. Copy `.env.example` to `.env` and fill in your **Session pooler** connection string (Supabase dashboard → Connect → Session pooler — not "Direct connection", which fails with "No route to host" on many networks due to an IPv6 routing issue).
 
-## Usage
-
-Build the knowledge base:
+## Running it
 
 ```bash
-python -m rag.main ingest                     # 01 → 04
-python -m rag.main ingest --domain esafety.gov.au
+# Stage 01 — crawl (idempotent; re-running an already-crawled domain makes no network calls)
+python -m rag.main ingest --domain scamwatch.gov.au
+python -m rag.main ingest --domain beconnected.esafety.gov.au --max-pages 1200
+
+# Stage 02 — extract
+python -m rag.main extract --domain scamwatch.gov.au
+python -m rag.main extract --domain beconnected.esafety.gov.au
+
+# Stage 03 — chunk
+python -m rag.main chunk --domain scamwatch.gov.au
+python -m rag.main chunk --domain beconnected.esafety.gov.au
+
+# Stage 04 — embed + index (needs Supabase set up, see above)
+python -m rag.main index --domain scamwatch.gov.au
+python -m rag.main index --domain beconnected.esafety.gov.au
 ```
 
-Ingest is **idempotent**. Re-running does not duplicate chunks, and cached pages are not re-fetched.
+`beconnected.esafety.gov.au` needs `--max-pages 1200` on ingest — its real sitemap has 1,094 URLs, above the default 500-page safety cap.
 
-Use it from `connectplus-llm`:
+First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `index` downloads the full BGE-m3 model (~2GB). Both are one-time downloads, cached afterward. Embedding a full domain on CPU (no GPU) can take a while — the CLI prints live batch progress (`embedding batch 47/259...`) so this doesn't look like a hang.
 
-```python
-from rag import retrieve, verify
-
-chunks, confidence = retrieve(query, lang="zh")   # stage 05
-verdict = verify(answer_md, chunks)               # stage 06
-```
-
-That's the entire public surface. Everything else is internal.
-
-Either function from the CLI, against fixtures:
+## Testing
 
 ```bash
-python -m rag.s05_retrieve "how do I know if a text message is a scam?" --lang zh
-python -m rag.s06_verify fixtures/f07_draft.json
+pytest tests/ -v
 ```
 
-## Verifying a stage
+84 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) — several of the bugs described above were only caught because of this. Network calls, the BGE-m3 model/tokenizer, and the Supabase connection are all injectable (`httpx.Client`, a token-counter callable, an embed function, an upsert function), so the test suite runs with no internet access and no live services.
 
-Done conditions. Acceptance criteria, not suggestions:
+## What's next
 
-- **01.** A non-allowlisted domain is rejected; a second run makes zero network calls.
-- **02.** Five pages per domain read by eye and confirmed clean. Extraction quality caps everything downstream.
-- **03.** No chunk starts or ends inside a numbered list; every chunk has a URL that resolves.
-- **04.** Running ingest twice produces no duplicate chunks.
-- **05.** hit@3 recorded over the eval set **in Mandarin as well as English**. Measure before and after the reranker; if it doesn't move the number, drop it.
-- **06.** A hand-written answer containing one invented step is caught; a citation swapped to an unapproved domain is caught; a "reply with the code you received" answer is caught.
-
-Adversarial fixtures matter more than happy-path ones here. Keep a file of drafts that *should* be rejected and run them on every change.
-
-## Adding an approved domain
-
-Domains live in the `approved_domains` table, not in code. A curator adds a row, then re-runs ingest for it. The LLM may *propose* a domain; a human approves it. That approval step is deliberate and must not be automated away. The platform's value is that everything a senior sees comes from somewhere a person vouched for.
-
-## Status
-
-Prototype for CW2 (Digital Literacy Platform for CALD Seniors). Runs locally; no deployment or CI in scope.
-
-**Critical path:** the client's approved-domain list gates stages 01-04. Stages 05-06 develop against `f03_chunks.json` and are not blocked by it.
+Stage 05 (query understanding) and stage 07 (grounded generation) belong to the LLM side of the team (`connectplus-llm`). Remaining on this side: stage 06 (hybrid retrieval) and stage 08 (guardrails + citation check), per the original stage map.
