@@ -184,6 +184,52 @@ def test_reindexing_the_same_chunks_is_idempotent_via_upsert_by_id() -> None:
     assert len(fake_table) == 3  # not 6 — no duplicates from running twice
 
 
+def test_upsert_happens_per_batch_not_once_at_the_end() -> None:
+    """Regression test for a real, confirmed data-loss scenario: a crash
+    on real hardware (PyTorch's Metal/MPS backend running out of GPU
+    memory on Apple Silicon) happened mid-run, at batch 99 of 260. The old
+    design collected every embedded chunk in memory and only upserted
+    once at the very end — meaning that crash would have lost all 98
+    already-successfully-embedded batches, since nothing had been written
+    to the database yet. upsert_fn must be called once per batch, not once
+    overall, so a crash only costs the batch in progress.
+    """
+    upsert_call_sizes = []
+
+    def fake_upsert(rows):
+        upsert_call_sizes.append(len(rows))
+
+    chunks = [_chunk(f"c{i}") for i in range(10)]
+    index_chunks(chunks, embed_fn=fake_embedder(), upsert_fn=fake_upsert, batch_size=3)
+
+    assert upsert_call_sizes == [3, 3, 3, 1], "must upsert after each batch, not collect until the end"
+
+
+def test_crash_partway_through_preserves_earlier_batches() -> None:
+    """The actual resilience property that matters: if embedding raises
+    partway through, whatever was already upserted must remain — not be
+    silently lost because it was only held in memory."""
+    fake_table: dict[str, dict] = {}
+
+    def fake_upsert(rows):
+        for row in rows:
+            fake_table[row["id"]] = row
+
+    def crashes_on_third_batch(texts):
+        crashes_on_third_batch.calls += 1
+        if crashes_on_third_batch.calls == 3:
+            raise RuntimeError("simulated GPU out-of-memory crash")
+        return fake_embedder()(texts)
+    crashes_on_third_batch.calls = 0
+
+    chunks = [_chunk(f"c{i}") for i in range(10)]
+    with pytest.raises(RuntimeError, match="simulated GPU"):
+        index_chunks(chunks, embed_fn=crashes_on_third_batch, upsert_fn=fake_upsert, batch_size=3)
+
+    # Batches 1 and 2 (6 chunks) succeeded and were upserted before the crash on batch 3.
+    assert len(fake_table) == 6
+
+
 # ---------------------------------------------------------------------------
 # End to end with real stage 01-03 fixture data (fake embedder/upsert only)
 # ---------------------------------------------------------------------------

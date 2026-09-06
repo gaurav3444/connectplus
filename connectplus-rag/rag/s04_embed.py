@@ -28,6 +28,13 @@ Design decisions made explicit here:
   student prototype, and a smaller batch fails more gracefully on
   memory-constrained machines. Override with --batch-size if your
   machine can handle more.
+- get_default_embedder() forces device="cpu" explicitly, rather than
+  letting sentence-transformers auto-select a GPU backend. Confirmed
+  necessary, not just cautious: on real hardware (Apple M3), PyTorch's
+  Metal/MPS GPU backend ran out of memory partway through a real
+  indexing run (crashed at batch 99 of 260) — a known class of issue
+  with MPS not always releasing memory cleanly across many sequential
+  batches. CPU is slower but doesn't have this failure mode.
 - Embedding dimension is validated against what the model actually
   returns, not just assumed to be 1024: if a different model is swapped
   in later (env var change, per README_llm.md's "swapping providers is
@@ -65,7 +72,14 @@ def get_default_embedder(model_name: str = DEFAULT_MODEL_NAME) -> EmbedFunction:
     """
     from sentence_transformers import SentenceTransformer
 
-    model = SentenceTransformer(model_name)
+    # device="cpu" is deliberate, not the default: a real crash on Apple
+    # Silicon (M3) confirmed PyTorch's Metal/MPS GPU backend can run out
+    # of memory partway through a long embedding run (crashed at batch
+    # 99/260) — a known class of issue with MPS not always releasing
+    # memory cleanly across many sequential batches. CPU is slower but
+    # doesn't have this failure mode, and reliability matters more than
+    # speed for a one-time indexing job.
+    model = SentenceTransformer(model_name, device="cpu")
 
     def embed(texts: list[str]) -> list[list[float]]:
         return model.encode(texts, show_progress_bar=False).tolist()
@@ -80,6 +94,7 @@ def embed_chunks(
     expected_dim: int = DEFAULT_EMBEDDING_DIM,
     batch_size: int = DEFAULT_BATCH_SIZE,
     on_batch_done: Callable[[int, int], None] | None = None,
+    on_batch_embedded: Callable[[list[EmbeddedChunk]], None] | None = None,
 ) -> tuple[list[EmbeddedChunk], int]:
     """Embeds chunks in batches. Returns (embedded_chunks, batch_count).
 
@@ -91,10 +106,19 @@ def embed_chunks(
     on_batch_done(completed, total), if given, fires after every batch —
     real, confirmed need: with no feedback at all, a large domain (Be
     Connected: 4148 chunks, 259 batches) silently encoding on CPU is
-    indistinguishable from a hang, and got Ctrl+C'd because of it. Kept
-    optional and separate from the core loop (not a bare print()) so this
-    function stays silent and easy to test — the CLI supplies a real
-    print-based callback; tests don't need to care about it at all.
+    indistinguishable from a hang, and got Ctrl+C'd because of it.
+
+    on_batch_embedded(batch_chunks), if given, fires with just that
+    batch's EmbeddedChunks — real, confirmed need: index_chunks uses this
+    to upsert incrementally rather than only at the very end, after a real
+    crash (PyTorch's Metal/MPS backend running out of GPU memory on Apple
+    Silicon, mid-run) lost all progress from 98 already-successfully-
+    embedded batches because nothing had been written to the database yet.
+
+    Both callbacks are optional and separate from the core loop (not bare
+    calls to print()/a database) so this function stays silent, has no
+    side effects, and is easy to test — the CLI supplies real
+    implementations; tests don't need to care about either.
     """
     embed_fn = embed_fn or get_default_embedder(model_name)
     if not chunks:
@@ -107,8 +131,6 @@ def embed_chunks(
         batch = chunks[i : i + batch_size]
         vectors = embed_fn([c.text for c in batch])
         batch_count += 1
-        if on_batch_done:
-            on_batch_done(batch_count, total_batches)
 
         if len(vectors) != len(batch):
             raise ValueError(
@@ -116,6 +138,7 @@ def embed_chunks(
                 "batching contract broken, refusing to guess which vector belongs to which chunk"
             )
 
+        batch_embedded: list[EmbeddedChunk] = []
         for chunk, vector in zip(batch, vectors):
             if len(vector) != expected_dim:
                 raise ValueError(
@@ -123,13 +146,19 @@ def embed_chunks(
                     f"{len(vector)}-dim. The `chunks` table's vector(1024) column won't accept "
                     "this — check DEFAULT_EMBEDDING_DIM matches the model actually in use."
                 )
-            embedded.append(EmbeddedChunk(
+            batch_embedded.append(EmbeddedChunk(
                 id=chunk.id, doc_id=chunk.doc_id, url=chunk.url, domain=chunk.domain,
                 title=chunk.title, lang=chunk.lang, fetched_at=chunk.fetched_at,
                 heading_path=chunk.heading_path, text=chunk.text, token_count=chunk.token_count,
                 order_idx=chunk.order_idx, embedding=vector, embedding_model=model_name,
                 embedding_dim=expected_dim,
             ))
+
+        embedded.extend(batch_embedded)
+        if on_batch_embedded:
+            on_batch_embedded(batch_embedded)
+        if on_batch_done:
+            on_batch_done(batch_count, total_batches)
 
     return embedded, batch_count
 
@@ -188,10 +217,22 @@ def index_chunks(
     on_batch_done: Callable[[int, int], None] | None = None,
 ) -> IndexRunSummary:
     """Orchestrates embed_chunks -> _to_row -> upsert_fn for a full domain's
-    worth of chunks. upsert_fn defaults to None deliberately (not to
+    worth of chunks, upserting after EVERY batch rather than once at the
+    end. upsert_fn defaults to None deliberately (not to
     make_postgres_upserter) — a connection string is required to build a
     real one, and this function shouldn't silently assume where that
     comes from; the CLI wires that up explicitly.
+
+    Per-batch upserting is a real, confirmed fix, not a hypothetical
+    safety measure: a crash on real hardware (PyTorch's Metal/MPS backend
+    running out of GPU memory on Apple Silicon, mid-run at batch 99/260)
+    previously lost all progress, because the old version collected every
+    embedded chunk in memory and only upserted once at the very end. Now a
+    crash only costs the batch in progress when it happened — everything
+    upserted before that stays in the database, and thanks to
+    upsert-by-id, simply re-running the whole command afterward is safe
+    (re-embeds and overwrites already-good rows with identical data,
+    rather than duplicating them).
     """
     if upsert_fn is None:
         raise ValueError(
@@ -199,14 +240,21 @@ def index_chunks(
             "for real use, or pass a fake for testing."
         )
 
+    upserted_count = 0
+
+    def upsert_batch(batch_chunks: list[EmbeddedChunk]) -> None:
+        nonlocal upserted_count
+        rows = [_to_row(c) for c in batch_chunks]
+        upsert_fn(rows)
+        upserted_count += len(rows)
+
     embedded, batch_count = embed_chunks(
         chunks, embed_fn=embed_fn, model_name=model_name,
-        expected_dim=expected_dim, batch_size=batch_size, on_batch_done=on_batch_done,
+        expected_dim=expected_dim, batch_size=batch_size,
+        on_batch_done=on_batch_done, on_batch_embedded=upsert_batch,
     )
-    rows = [_to_row(c) for c in embedded]
-    upsert_fn(rows)
 
     return IndexRunSummary(
-        total_chunks=len(chunks), embedded=len(embedded), upserted=len(rows),
+        total_chunks=len(chunks), embedded=len(embedded), upserted=upserted_count,
         embedding_model=model_name, embedding_dim=expected_dim, batches=batch_count,
     )
