@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stage 07 — Query Understanding Demo</title>
+<style>
+  :root {
+    --ink: #1a2420; --ink-soft: #5b6b64; --paper: #f3f6f4; --surface: #ffffff;
+    --line: #d8e0dc; --accent: #1e6e6a; --accent-deep: #123f3d; --accent-soft: #dcebe9;
+    --amber: #a9691f; --amber-soft: #f3e3cd; --red: #a8453a; --red-soft: #f3ddd9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8efec; --ink-soft: #a9bab3; --paper: #101614; --surface: #16201d;
+      --line: #2b3733; --accent: #5fc0b7; --accent-deep: #9cddd4; --accent-soft: #1d3835;
+      --amber: #dda05a; --amber-soft: #3a2c19; --red: #dd897d; --red-soft: #3a2320;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: 40px 20px;
+  }
+  .page { width: 100%; max-width: 720px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--ink-soft); margin: 0 0 28px; font-size: 0.95rem; }
+  .scope {
+    background: var(--accent-soft); border: 1px solid var(--accent);
+    border-radius: 10px; padding: 12px 16px; font-size: 0.85rem;
+    color: var(--ink); margin-bottom: 28px;
+  }
+  textarea {
+    width: 100%; min-height: 80px; padding: 12px 14px; font-size: 1rem;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+    color: var(--ink); resize: vertical; font-family: inherit;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; }
+  .chip {
+    font-size: 0.78rem; background: var(--surface); border: 1px solid var(--line);
+    color: var(--ink-soft); padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent-deep); }
+  button#go {
+    background: var(--accent); color: white; border: none; border-radius: 10px;
+    padding: 11px 22px; font-size: 1rem; font-weight: 600; cursor: pointer;
+  }
+  button#go:disabled { opacity: 0.6; cursor: default; }
+  #result { margin-top: 28px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .badge {
+    font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.02em;
+  }
+  .badge.lang { background: var(--accent-soft); color: var(--accent-deep); }
+  .badge.ok { background: var(--accent-soft); color: var(--accent-deep); }
+  .badge.degraded { background: var(--amber-soft); color: var(--amber); }
+  .badge.provider { background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); }
+  .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); margin-bottom: 4px; }
+  .original { font-size: 0.95rem; color: var(--ink-soft); margin-bottom: 16px; }
+  .rewritten { font-size: 1.2rem; font-weight: 600; }
+  .meta { font-size: 0.8rem; color: var(--ink-soft); margin-top: 14px; }
+  .error { background: var(--red-soft); color: var(--red); border-radius: 10px; padding: 14px 16px; }
+  .hint { font-size: 0.8rem; color: var(--ink-soft); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Stage 07 — Query Understanding</h1>
+  <p class="sub">Detect language, translate, and rewrite a senior's question into an English, retrieval-ready search query.</p>
+  <div class="scope">
+    <b>Scope of this demo:</b> steps [1] detect language and [2] translate + rewrite only.
+    No retrieval, no answer generation — that's connectplus-rag, not built or called here.
+    Only <b>English, Chinese, and Vietnamese</b> are supported — anything else (try the Korean example) is refused before any LLM call.
+  </div>
+
+  <textarea id="query" placeholder="Type a question in English or Chinese, e.g. 我的手机一直要我输入验证码"></textarea>
+  <div class="chips" id="chips"></div>
+  <button id="go">Understand this query</button>
+  <div class="hint">Calls the real backend (Gemini, or the offline stub if no key is configured) — not a mock.</div>
+
+  <div id="result"></div>
+</div>
+
+<script>
+const EXAMPLES = [
+  "my phone keeps asking for a code",
+  "the writing is too small on my screen",
+  "我的手机一直要我输入验证码",
+  "银行发短信说我账户有问题叫我点链接是真的吗",
+  "điện thoại của tôi cứ hỏi mã xác minh",
+  "có người gọi điện nói tôi trúng thưởng",
+  "이 문자 메시지가 사기인가요",
+];
+
+const chipsEl = document.getElementById('chips');
+EXAMPLES.forEach(ex => {
+  const chip = document.createElement('span');
+  chip.className = 'chip';
+  chip.textContent = ex.length > 28 ? ex.slice(0, 26) + '…' : ex;
+  chip.title = ex;
+  chip.onclick = () => { document.getElementById('query').value = ex; };
+  chipsEl.appendChild(chip);
+});
+
+const goBtn = document.getElementById('go');
+const resultEl = document.getElementById('result');
+
+async function run() {
+  const raw_query = document.getElementById('query').value.trim();
+  if (!raw_query) return;
+  goBtn.disabled = true;
+  goBtn.textContent = 'Thinking…';
+  resultEl.innerHTML = '';
+
+  try {
+    const res = await fetch('/understand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw_query }),
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+
+    if (!data.supported) {
+      resultEl.innerHTML = `
+        <div class="card">
+          <div class="row">
+            <span class="badge degraded">unsupported language</span>
+          </div>
+          <div class="label">Original query</div>
+          <div class="original">${escapeHtml(data.query_original)}</div>
+          <div class="rewritten">Refused before any LLM call — this app only supports English, Chinese, and Vietnamese.</div>
+          <div class="meta">${data.latency_ms} ms</div>
+        </div>
+      `;
+      return;
+    }
+
+    const LANG_LABELS = { zh: 'Chinese', en: 'English', vi: 'Vietnamese' };
+    const langLabel = LANG_LABELS[data.lang] || data.lang;
+    resultEl.innerHTML = `
+      <div class="card">
+        <div class="row">
+          <span class="badge lang">${langLabel}</span>
+          <span class="badge ${data.degraded ? 'degraded' : 'ok'}">${data.degraded ? 'degraded fallback' : 'LLM rewrite'}</span>
+          <span class="badge provider">${data.provider}</span>
+        </div>
+        <div class="label">Original query</div>
+        <div class="original">${escapeHtml(data.query_original)}</div>
+        <div class="label">Rewritten (English, retrieval-ready)</div>
+        <div class="rewritten">${escapeHtml(data.query_rewritten)}</div>
+        <div class="meta">${data.latency_ms} ms</div>
+      </div>
+    `;
+  } catch (err) {
+    resultEl.innerHTML = `<div class="error">Request failed: ${escapeHtml(String(err.message || err))}<br>Is the server running? (uvicorn scripts.demo_server:app --port 8000)</div>`;
+  } finally {
+    goBtn.disabled = false;
+    goBtn.textContent = 'Understand this query';
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+goBtn.addEventListener('click', run);
+document.getElementById('query').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) run();
+});
+</script>
+</body>
+</html>
