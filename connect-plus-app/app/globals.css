@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Nocturne palette, lifted from the CW2 hi-fi screens mockup
+   ("CW2 Screens v1 (standalone).html"). Contrast on the dark surface:
+   text #e9e9ed on #161826 ~14:1, muted #b2b6ca on #232532 ~8:1 — both clear
+   the 7:1 target for ageing eyes. */
+@theme {
+  --color-bg: #161826; /* the screen */
+  --color-shell: #0e0f18; /* deeper backdrop behind the screen */
+  --color-surface: #232532; /* tiles, cards */
+  --color-line: #3f424d; /* default border */
+  --color-accent: #9184d9; /* selected / focus — never the only signal */
+  --color-ink: #e9e9ed; /* body text */
+  --color-muted: #b2b6ca; /* secondary text */
+
+  /* Base is 20px (see html below), so 1rem = 20px and everything scales with zoom.
+     Fluid between phone and desktop: the mockup's phone sizes are the floor,
+     never the ceiling — a senior on a laptop gets bigger text, not a phone
+     column stranded in the middle of the screen. */
+  --text-latin: 0.9rem; /* 18px — smallest text anywhere, the floor */
+  --text-body: clamp(1rem, 0.9rem + 0.5vw, 1.3rem); /* 20 → 26px */
+  --text-heading: clamp(1.5rem, 1.2rem + 1.5vw, 2.4rem); /* 30 → 48px */
+  /* capped at 44px: above that "Tiếng Việt" no longer fits a tile on one line */
+  --text-native: clamp(1.6rem, 1.3rem + 1.4vw, 2.2rem); /* 32 → 44px */
+
+  --spacing-target: 3.5rem; /* 56px minimum tap target */
+}
+
+html {
+  font-size: 20px; /* not 16 — base size for the whole app */
+}
+
+body {
+  background: var(--color-shell);
+  color: var(--color-ink);
+  /* Inter covers Latin + Vietnamese; the CJK faces after it cover 中文. */
+  font-family:
+    var(--font-inter), system-ui, "Microsoft YaHei", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+  line-height: 1.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
