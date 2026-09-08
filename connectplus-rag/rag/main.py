@@ -1,19 +1,20 @@
-"""CLI entry point. Wires up stages 01, 02, 03, and 04.
+"""CLI entry point. Wires up stages 01, 02, 03, 04, and 05.
 
-Usage (from README_rag.md, extended for 02, 03, and 04):
+Usage (from README_rag.md, extended for 02-05):
     python -m rag.main ingest
     python -m rag.main ingest --domain scamwatch.gov.au
     python -m rag.main extract --domain scamwatch.gov.au
     python -m rag.main chunk --domain scamwatch.gov.au
     python -m rag.main index --domain scamwatch.gov.au
+    python -m rag.main retrieve "how do I know if a text message is a scam"
 
-`index` reads DATABASE_URL from a .env file in the project root (or the
-real environment) — Supabase's SESSION POOLER connection string
-specifically (dashboard -> "Connect" -> "Session pooler"), not "Direct
-connection" and not "Project URL". Confirmed real issue: Supabase's
-direct connection only resolves over IPv6 by default, which fails with
-"No route to host" on networks that don't route IPv6 — the session
-pooler works over IPv4. See .env.example and rag/config/schema.sql.
+`index` and `retrieve` read DATABASE_URL from a .env file in the project
+root (or the real environment) — Supabase's SESSION POOLER connection
+string specifically (dashboard -> "Connect" -> "Session pooler"), not
+"Direct connection" and not "Project URL". Confirmed real issue:
+Supabase's direct connection only resolves over IPv6 by default, which
+fails with "No route to host" on networks that don't route IPv6 — the
+session pooler works over IPv4. See .env.example and rag/config/schema.sql.
 """
 
 from __future__ import annotations
@@ -34,12 +35,72 @@ from rag.s02_extract import (
 )
 from rag.s03_chunk import chunk_docs
 from rag.s04_embed import DEFAULT_BATCH_SIZE, index_chunks, make_postgres_upserter
+from rag.s05_retrieve import (
+    DEFAULT_TOP_K_FINAL,
+    get_default_reranker,
+    make_postgres_chunk_fetcher,
+    make_postgres_keyword_search,
+    make_postgres_vector_search,
+    retrieve,
+)
 from rag.schemas import Chunk, ExtractedDoc
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config" / "approved_domains.json"
 DEFAULT_CACHE_DIR = Path(".cache/html")
 DEFAULT_EXTRACTED_DIR = Path(".cache/extracted")
 DEFAULT_CHUNKED_DIR = Path(".cache/chunked")
+
+
+def _get_db_url() -> str | None:
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        env_path = Path(__file__).parent.parent / ".env"
+        print(
+            f"DATABASE_URL is not set. Checked for a .env file at: {env_path}\n"
+            "  - Does that file exist and contain a DATABASE_URL=... line?\n"
+            "  - Is python-dotenv installed? "
+            "(`python3 -c \"import dotenv\"` should print nothing, not an error)\n"
+            "  - Use Supabase's SESSION POOLER connection string (dashboard -> Connect -> "
+            "'Session pooler'), not 'Direct connection' or 'Project URL' — direct connections "
+            "often fail with IPv6 routing issues; the pooler works over IPv4."
+        )
+        return None
+    return db_url
+
+
+def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
+    db_url = _get_db_url()
+    if not db_url:
+        return
+
+    if not use_reranker:
+        print(
+            "Note: running WITHOUT the reranker. Confirmed real risk, not just a slower/"
+            "faster trade-off: on real data, RRF fusion without reranking ranked a generic "
+            "chunk above the one that specifically answered the query, because keyword "
+            "search's ts_rank can't tell a common domain word from a real relevance signal. "
+            "Use this flag for the README's own before/after comparison, not for real use.\n"
+        )
+
+    vector_search_fn = make_postgres_vector_search(db_url)
+    keyword_search_fn = make_postgres_keyword_search(db_url)
+    fetch_chunks_fn = make_postgres_chunk_fetcher(db_url)
+    rerank_fn = get_default_reranker() if use_reranker else None
+
+    results, confidence = retrieve(
+        query, vector_search_fn=vector_search_fn, keyword_search_fn=keyword_search_fn,
+        fetch_chunks_fn=fetch_chunks_fn, rerank_fn=rerank_fn, top_k_final=top_k,
+    )
+
+    print(f"Query: {query!r}")
+    print(f"Confidence: {confidence:.3f}  (reranker {'on' if use_reranker else 'off'})")
+    print(f"\nTop {len(results)} results:\n")
+    for i, r in enumerate(results, 1):
+        print(f"#{i}  score={r.score:.3f}  method={r.method}")
+        print(f"    url: {r.url}")
+        print(f"    heading_path: {r.heading_path}")
+        print(f"    text: {r.text[:200]}...")
+        print()
 
 
 def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
@@ -92,18 +153,8 @@ def _run_index(domain: str, chunked_dir: Path, batch_size: int) -> None:
         print(f"{domain}: no chunked file found at {chunked_path} — run `chunk` for this domain first")
         return
 
-    db_url = os.environ.get("DATABASE_URL")
+    db_url = _get_db_url()
     if not db_url:
-        env_path = Path(__file__).parent.parent / ".env"
-        print(
-            f"DATABASE_URL is not set. Checked for a .env file at: {env_path}\n"
-            "  - Does that file exist and contain a DATABASE_URL=... line?\n"
-            "  - Is python-dotenv installed? "
-            "(`python3 -c \"import dotenv\"` should print nothing, not an error)\n"
-            "  - Use Supabase's SESSION POOLER connection string (dashboard -> Connect -> "
-            "'Session pooler'), not 'Direct connection' or 'Project URL' — direct connections "
-            "often fail with IPv6 routing issues; the pooler works over IPv4."
-        )
         return
 
     chunks = [Chunk.model_validate(c) for c in json.loads(chunked_path.read_text())]
@@ -178,6 +229,18 @@ def main() -> None:
              "has GPU/memory to spare; lower it if encoding runs out of memory.",
     )
 
+    retrieve_parser = subparsers.add_parser(
+        "retrieve", help="Run stage 05 hybrid retrieval against a real query"
+    )
+    retrieve_parser.add_argument("query", help="The question to search for, in quotes.")
+    retrieve_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K_FINAL)
+    retrieve_parser.add_argument(
+        "--no-rerank", action="store_true",
+        help="Skip the bge-reranker-v2-m3 cross-encoder step — useful for the README's own "
+             "DONE criterion: measure hit@3 before and after the reranker, and drop it if it "
+             "doesn't move the number.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
@@ -193,6 +256,8 @@ def main() -> None:
     elif args.command == "index":
         for domain in args.domain:
             _run_index(domain, args.chunked_dir, args.batch_size)
+    elif args.command == "retrieve":
+        _run_retrieve(args.query, args.top_k, use_reranker=not args.no_rerank)
 
 
 if __name__ == "__main__":

@@ -208,3 +208,37 @@ class IndexRunSummary(BaseModel):
     embedding_model: str
     embedding_dim: int
     batches: int
+
+
+class Retrieved(Chunk):
+    """Stage 05 output (README_rag.md's own internal numbering — the
+    unified whole-project stage map calls this "stage 06", Hybrid
+    Retrieval). Literally README's contract: "Chunk + {score, method}".
+    Subclasses Chunk directly rather than repeating every field, since a
+    Retrieved chunk carries full provenance forward — stage 08 (guardrails)
+    needs the same url/domain/heading_path a plain Chunk has, plus these
+    two additional fields.
+    """
+
+    score: float = Field(
+        description=(
+            "Final ranking score. With reranking: bge-reranker-v2-m3's own [0,1] relevance "
+            "probability, used directly — this model's default CrossEncoder activation "
+            "already calibrates it, so it is NOT re-sigmoided (a real, confirmed bug did "
+            "this once: re-applying sigmoid to an already-[0,1] value collapsed every score "
+            "toward 0.5 regardless of true relevance). Without reranking: the chunk's own "
+            "vector cosine similarity or keyword ts_rank — whichever method found it (vector "
+            "preferred when both did). IMPORTANT: without reranking, `score` is only "
+            "safely comparable *within* the same `method` — a vector score and a keyword "
+            "score are on different, incompatible scales. For any cross-query or "
+            "threshold-style decision (e.g. 'is this good enough to answer with'), use "
+            "the separate `confidence` value retrieve() returns, not any individual score."
+        )
+    )
+    method: str = Field(
+        description=(
+            "'vector' or 'keyword' if this chunk was found by only one search method, "
+            "'fused' if both methods surfaced it (independently confirmed relevance, not "
+            "just a single method's opinion)."
+        )
+    )
