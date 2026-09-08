@@ -11,7 +11,8 @@ This is a class project (CW2, Monash TAP) built stage by stage, testing each sta
 | 01 — Ingest | Allowlisted crawl, robots.txt/sitemap-aware, cached to disk | ✅ Done — both domains fully crawled |
 | 02 — Extract | HTML/PDF → clean text + structure, via trafilatura + pypdf | ✅ Done — real content-loss bugs found and fixed |
 | 03 — Chunk | Heading-aware, list-safe, token-budgeted chunking | ✅ Done — 3 real bugs found and fixed against real data |
-| 04 — Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Scamwatch fully indexed; Be Connected in progress |
+| 04 — Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done — both domains fully embedded and indexed |
+| 05 — Retrieve | Hybrid vector + keyword search, RRF fusion, optional reranking, confidence score | ✅ Built and tested — real-query verification pending |
 
 **Approved sources:** `beconnected.esafety.gov.au`, `scamwatch.gov.au`. A third domain, `esafety.gov.au`, was dropped after confirming it blocks automated crawlers — see `rag/config/domain_decisions.md`.
 
@@ -64,18 +65,28 @@ Chunks target 300–500 tokens, measured with **BGE-m3's own tokenizer** — not
 The worst chunk in the real test data went from 8,968 tokens (before these fixes) to 479 tokens (after).
 
 ### Stage 04 — Embed + Index
-`BAAI/bge-m3` (1024-dim, multilingual) via `sentence-transformers`, batched, upserted into Supabase Postgres. The table (`rag/config/schema.sql`) carries a `vector(1024)` column with an HNSW index for similarity search, and a generated `tsvector` column with a GIN index for keyword search — both from the same table, since stage 06 (retrieval, not yet built) needs to fuse both. Re-running `index` on the same chunks is idempotent (`ON CONFLICT (id) DO UPDATE`), since chunk IDs are stable hashes from stage 03.
+`BAAI/bge-m3` (1024-dim, multilingual) via `sentence-transformers`, batched, upserted into Supabase Postgres. The table (`rag/config/schema.sql`) carries a `vector(1024)` column with an HNSW index for similarity search, and a generated `tsvector` column with a GIN index for keyword search — both from the same table, since stage 05 needs to fuse both. Re-running `index` on the same chunks is idempotent (`ON CONFLICT (id) DO UPDATE`), since chunk IDs are stable hashes from stage 03. Upserting happens after every batch, not once at the end — a real crash (PyTorch's Metal/MPS backend running out of GPU memory on Apple Silicon, mid-run) confirmed that collecting everything in memory before writing loses all progress on failure; embedding now defaults to CPU-only for the same reason.
+
+### Stage 05 — Retrieve
+Vector search (pgvector cosine similarity) and keyword search (Postgres full-text search over the `tsvector` column) run independently, then combine via Reciprocal Rank Fusion — a chunk both methods agree on outranks one only a single method found. Reranking with `BAAI/bge-reranker-v2-m3` (the standard cross-encoder pairing for BGE-m3) is optional, not hardwired, per this stage's own DONE criterion in `README_rag.md`: measure hit@3 before and after the reranker, and drop it if it doesn't move the number.
+
+The single confidence number stage 08 will refuse on comes from bge-reranker-v2-m3's own output directly (its default CrossEncoder activation already returns a calibrated [0,1] relevance probability — confirmed via the official sentence-transformers docs, not assumed) when reranking is used, or the top result's raw vector similarity as a lower-fidelity fallback otherwise. Worth knowing before tuning a threshold: real BGE-m3 similarity scores for confirmed-relevant results on this project's own data landed in the 0.53–0.78 range, not 0.85+ — cosine similarity from dense embedding models doesn't behave like a percentage-match score, and a published benchmark (Ros et al., arXiv 2605.22099) reports comparable top-1 similarity (~0.70) for BGE-M3 on correct matches.
+
+Two real bugs were found and fixed against real query results, not synthetic tests: (1) RRF fusion without reranking could rank a generic chunk above the one that specifically answered the query, because keyword search's `ts_rank` can't tell a corpus-common word ("scam", present in nearly every document) from a genuine relevance signal — reranking is now the effectively mandatory default, not just an available option. (2) A real nonsense query ("purple elephant quantum banana recipe") returned 5 completely unrelated results that all scored exactly 0.500 — traced to double-applying sigmoid to a reranker score that was already a calibrated [0,1] probability, collapsing every genuinely-different low score toward 0.5. Confirmed and fixed by checking the official sentence-transformers documentation rather than assuming the model's output shape.
+
+Every external dependency (vector search, keyword search, chunk fetching, reranking) is injectable, so the fusion and scoring logic is fully tested without a live database or downloaded models — see `tests/test_s05_retrieve.py`.
 
 ## Project structure
 
 ```
 rag/
   schemas.py          # every contract between stages, frozen
-  main.py             # CLI: ingest / extract / chunk / index
+  main.py             # CLI: ingest / extract / chunk / index / retrieve
   s01_ingest.py
   s02_extract.py
   s03_chunk.py
   s04_embed.py
+  s05_retrieve.py
   config/
     approved_domains.json
     domain_decisions.md
@@ -83,11 +94,15 @@ rag/
   fixtures/
     f01_pages.json    # 6 real pages, used to test every stage
     sample_little_book_of_scams.pdf
+scripts/
+  verify_index.sql       # manual sanity checks for stage 04's output
+  spot_check_index.py    # manual vector-search-only smoke test (superseded by `retrieve`, kept for reference)
 tests/
   test_s01_ingest.py
   test_s02_extract.py
   test_s03_chunk.py
   test_s04_embed.py
+  test_s05_retrieve.py
 .github/workflows/ci.yml
 ```
 
@@ -123,11 +138,16 @@ python -m rag.main chunk --domain beconnected.esafety.gov.au
 # Stage 04 — embed + index (needs Supabase set up, see above)
 python -m rag.main index --domain scamwatch.gov.au
 python -m rag.main index --domain beconnected.esafety.gov.au
+
+# Stage 05 — retrieve (query against the real index)
+python -m rag.main retrieve "how do I know if a text message is a scam"
+python -m rag.main retrieve "what is mygov" --top-k 3
+python -m rag.main retrieve "artificial intelligence scams" --no-rerank
 ```
 
 `beconnected.esafety.gov.au` needs `--max-pages 1200` on ingest — its real sitemap has 1,094 URLs, above the default 500-page safety cap.
 
-First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `index` downloads the full BGE-m3 model (~2GB). Both are one-time downloads, cached afterward. Embedding a full domain on CPU (no GPU) can take a while — the CLI prints live batch progress (`embedding batch 47/259...`) so this doesn't look like a hang.
+First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `index` downloads the full BGE-m3 model (~2GB); first run of `retrieve` with reranking on additionally downloads `bge-reranker-v2-m3`. All are one-time downloads, cached afterward. Embedding a full domain on CPU (no GPU) can take a while — the CLI prints live batch progress (`embedding batch 47/259...`) so this doesn't look like a hang.
 
 ## Testing
 
@@ -135,8 +155,8 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-84 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) — several of the bugs described above were only caught because of this. Network calls, the BGE-m3 model/tokenizer, and the Supabase connection are all injectable (`httpx.Client`, a token-counter callable, an embed function, an upsert function), so the test suite runs with no internet access and no live services.
+105 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) — several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## What's next
 
-Stage 05 (query understanding) and stage 07 (grounded generation) belong to the LLM side of the team (`connectplus-llm`). Remaining on this side: stage 06 (hybrid retrieval) and stage 08 (guardrails + citation check), per the original stage map.
+Stage 08 (guardrails + citation check) — grounding, citation resolution, the confidence threshold this repo's `retrieve()` now produces, and a safety deny-list. One naming note worth keeping in mind: this repo's own file numbering (01-05) doesn't match the unified whole-project stage map's numbering (which calls this repo's stage 05 "stage 06", and reserves its own "05" and "07" for the LLM team's query-understanding and generation work in `connectplus-llm`).
