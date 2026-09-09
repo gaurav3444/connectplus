@@ -1,0 +1,10 @@
+transformers
+datasets
+accelerate
+sentencepiece
+evaluate
+sacrebleu
+opencc-python-reimplemented
+pandas
+torch
+hanzidentifier
