@@ -1,8 +1,8 @@
 """Tests for stage 02.
 
 Two kinds, deliberately: tests against the REAL fixture data (this is what
-README_rag.md's stage 02 DONE criterion — "five pages read by eye and
-confirmed clean" — becomes as an automated, repeatable check instead of a
+README_rag.md's stage 02 DONE criterion - "five pages read by eye and
+confirmed clean" - becomes as an automated, repeatable check instead of a
 one-time manual look), and synthetic edge-case tests for failure paths
 real data hasn't (yet) exercised, like malformed PDFs.
 """
@@ -72,7 +72,7 @@ def test_extracted_text_has_no_boilerplate_leakage(real_docs) -> None:
 
 
 def test_extracted_content_actually_matches_the_known_topic(real_docs) -> None:
-    """Spot-checks specific to each real page — this is the part a human
+    """Spot-checks specific to each real page - this is the part a human
     would do by eye; encoding it means it never has to be re-checked by
     hand again after this."""
     docs, _ = real_docs
@@ -92,7 +92,7 @@ def test_extracted_content_actually_matches_the_known_topic(real_docs) -> None:
 def test_pdf_running_header_is_stripped_not_repeated_forty_times(real_docs) -> None:
     """The real PDF fixture repeats 'ACCC | How to spot and avoid scams' on
     every one of its ~40 pages. Without de-duplication this phrase would
-    appear ~40 times in the extracted text — a real, confirmed behaviour,
+    appear ~40 times in the extracted text - a real, confirmed behaviour,
     not a hypothetical, checked against the actual PDF before this test
     was written."""
     docs, _ = real_docs
@@ -121,12 +121,12 @@ def test_content_xml_preserves_heading_structure_html_lacks(real_docs) -> None:
     Not a universal guarantee, by design: one real page (Scamwatch's
     text-or-sms-scams, the same heavily Drupal-componentized page the list
     recovery fix targets) has 11 real <h*> tags in its raw HTML but
-    trafilatura excludes all of them from main-content extraction — a
+    trafilatura excludes all of them from main-content extraction - a
     different symptom of the same root cause. Recovering headings with
     correct position (unlike list recovery, which can just append at the
     end) is a materially harder problem, so it's deliberately not attempted
     here. Stage 03 must handle a doc with zero headings as a valid,
-    expected case, not an error — this test documents that rather than
+    expected case, not an error - this test documents that rather than
     asserting a guarantee real data doesn't support."""
     docs, _ = real_docs
     by_url = {str(d.url): d for d in docs}
@@ -145,7 +145,7 @@ def test_content_xml_preserves_heading_structure_html_lacks(real_docs) -> None:
 
 
 def test_pdf_content_xml_is_empty_not_a_fake_copy_of_text(real_docs) -> None:
-    """pypdf gives no heading-level info — content_xml is honestly empty
+    """pypdf gives no heading-level info - content_xml is honestly empty
     for PDFs, not a lie that there's structure where there isn't."""
     docs, _ = real_docs
     pdf_doc = next(d for d in docs if d.source_content_type == "application/pdf")
@@ -212,7 +212,7 @@ def test_strip_repeated_lines_removes_running_header() -> None:
 
 
 def test_strip_repeated_lines_leaves_short_documents_alone() -> None:
-    """With only 1-2 pages, "repeated" isn't a meaningful signal — must not
+    """With only 1-2 pages, "repeated" isn't a meaningful signal - must not
     strip content from a short real document just because a line happens
     to appear on both its pages."""
     pages = ["Same line\nUnique content A", "Same line\nUnique content B"]
@@ -245,7 +245,7 @@ def test_extract_pages_summary_counts_each_skip_reason_correctly() -> None:
 
 def test_scorm_ui_chrome_text_is_filtered_as_not_real_content() -> None:
     """Regression test for a real finding: 4 real Be Connected SCORM
-    mini-game pages all extracted to this exact 72-character string — UI
+    mini-game pages all extracted to this exact 72-character string - UI
     chrome from the game player, not course content. It's longer than the
     original 50-char floor (which is why raising the threshold, not just
     adding a denylist entry, was the right fix)."""
@@ -259,7 +259,7 @@ def test_scorm_ui_chrome_text_is_filtered_as_not_real_content() -> None:
 
 
 def test_short_but_real_content_survives_the_threshold() -> None:
-    """The shortest genuinely real page in the full corpus was 145 chars —
+    """The shortest genuinely real page in the full corpus was 145 chars -
     a category landing blurb. The threshold must not be raised so far that
     content like this gets wrongly filtered."""
     real_short_html = (
@@ -273,19 +273,19 @@ def test_short_but_real_content_survives_the_threshold() -> None:
 
 
 def test_lang_detect_falls_back_to_unknown_on_empty_text() -> None:
-    from rag.s02_extract import _detect_lang
-    assert _detect_lang("") == "unknown"
+    from rag.lang import detect_lang
+    assert detect_lang("") == "unknown"
 
 
 # ---------------------------------------------------------------------------
-# List recovery — built from a real, confirmed content-loss bug: trafilatura
+# List recovery - built from a real, confirmed content-loss bug: trafilatura
 # silently dropped an entire numbered "what to do if scammed" procedure on a
 # real Scamwatch page because it's wrapped in a Drupal "callout" component.
 # ---------------------------------------------------------------------------
 
 def test_real_missing_procedure_is_recovered() -> None:
     """The actual real-world failure this fix exists for."""
-    data = json.loads((FIXTURES_DIR / "f01_pages.json").read_text())
+    data = json.loads((FIXTURES_DIR / "f01_pages.json").read_text(encoding="utf-8"))
     page = next(p for p in data if "scamwatch.gov.au/types-of-scams/text-or-sms-scams" in p["url"])
 
     result = _extract_html(page["html"], page["url"])
@@ -297,13 +297,13 @@ def test_real_missing_procedure_is_recovered() -> None:
 
 
 def test_real_negative_control_pages_get_nothing_appended() -> None:
-    """The other 4 real fixture HTML pages must NOT have anything appended —
+    """The other 4 real fixture HTML pages must NOT have anything appended -
     proves the fix is precise (fires on the one page with a real problem),
     not just broadly permissive (which would silently let nav/breadcrumb
     boilerplate back in everywhere)."""
     import trafilatura as traf
 
-    data = json.loads((FIXTURES_DIR / "f01_pages.json").read_text())
+    data = json.loads((FIXTURES_DIR / "f01_pages.json").read_text(encoding="utf-8"))
     for page in data:
         if page["content_type"].startswith("application"):
             continue
@@ -366,7 +366,7 @@ def test_list_extractor_does_not_crash_on_malformed_html() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Deduplication — built directly from a real finding: 125 of 477 real
+# Deduplication - built directly from a real finding: 125 of 477 real
 # Scamwatch docs were byte-identical duplicates (same page fetched as both
 # http:// and https://, discovered as separate sitemap entries).
 # ---------------------------------------------------------------------------
@@ -408,7 +408,7 @@ def test_dedup_leaves_genuinely_different_docs_alone() -> None:
 
 def test_dedup_is_deterministic_across_runs() -> None:
     """Same input, run twice (e.g. two people extracting independently),
-    must keep the same survivor both times — not "whichever happened to
+    must keep the same survivor both times - not "whichever happened to
     come first in the list", which would depend on manifest ordering."""
     from rag.s02_extract import deduplicate_docs
 
@@ -492,7 +492,7 @@ def test_stage01_to_stage02_end_to_end_including_a_pdf(tmp_path: Path) -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     ingest_domain("example-approved.test", approved, tmp_path, client=client)
 
-    # From here on, nothing touches the network or the ingest internals —
+    # From here on, nothing touches the network or the ingest internals -
     # this is exactly what `python -m rag.main extract --domain ...` does.
     pages = load_pages_from_manifest("example-approved.test", tmp_path)
     inputs = load_extraction_inputs_from_cache(pages, tmp_path)

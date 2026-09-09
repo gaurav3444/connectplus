@@ -1,6 +1,6 @@
 """Tests for stage 05 (hybrid retrieval).
 
-Uses controlled fake vector/keyword search functions throughout — not
+Uses controlled fake vector/keyword search functions throughout - not
 real BGE-m3, not a real Postgres connection, not the real reranker. This
 sandbox can't reach any of those. What's tested here is the actual
 retrieval LOGIC (RRF fusion math, method labeling, confidence scoring,
@@ -41,7 +41,7 @@ def _real_chunks() -> list[Chunk]:
 
 
 # ---------------------------------------------------------------------------
-# Reciprocal Rank Fusion — pure logic, no fakes needed at all
+# Reciprocal Rank Fusion - pure logic, no fakes needed at all
 # ---------------------------------------------------------------------------
 
 def test_rrf_single_ranking_matches_the_formula_directly() -> None:
@@ -63,7 +63,7 @@ def test_rrf_agreement_across_both_rankings_beats_appearing_in_only_one() -> Non
 
 
 def test_rrf_ignores_the_original_scores_only_uses_rank_position() -> None:
-    """RRF is rank-based by design — a vector similarity of 0.99 and a
+    """RRF is rank-based by design - a vector similarity of 0.99 and a
     keyword ts_rank of 8.2 aren't on the same scale, so RRF must not try
     to compare the raw numbers directly, only their rank positions."""
     ranking_a = [("x", 999.0)]  # huge raw score
@@ -161,7 +161,7 @@ def test_retrieve_without_reranker_uses_top_vector_similarity_as_confidence() ->
 def test_score_is_never_the_shared_rrf_fusion_value_when_unreranked() -> None:
     """Regression test for a real, confirmed bug: every unreranked result's
     `score` used to be set to the shared internal RRF fusion value (tiny
-    numbers capping near 0.03), not that chunk's own similarity — which
+    numbers capping near 0.03), not that chunk's own similarity - which
     contradicted this module's own documented contract and looked like
     "very low confidence" to anyone reading it without that context.
     """
@@ -185,19 +185,19 @@ def test_score_is_never_the_shared_rrf_fusion_value_when_unreranked() -> None:
     )
     by_id = {r.id: r for r in results}
 
-    # 'a' is fused (found by both) — score should be its vector similarity
+    # 'a' is fused (found by both) - score should be its vector similarity
     # (0.65), never an RRF value (which would be a small fraction near 0.03).
     assert by_id[a.id].method == "fused"
     assert by_id[a.id].score == 0.65
 
-    # 'b' is vector-only — same expectation, its own vector similarity.
+    # 'b' is vector-only - same expectation, its own vector similarity.
     assert by_id[b.id].method == "vector"
     assert by_id[b.id].score == 0.60
 
 
 def test_keyword_only_chunk_gets_its_own_ts_rank_as_score() -> None:
     """The other half of the fix: a chunk found ONLY by keyword search
-    (never by vector search) has no vector similarity to fall back to —
+    (never by vector search) has no vector similarity to fall back to -
     it must get its own keyword ts_rank, not a fabricated or borrowed value."""
     chunks = _real_chunks()
     keyword_only_chunk = chunks[2]
@@ -219,7 +219,7 @@ def test_retrieve_with_reranker_uses_its_output_directly_not_resigmoided() -> No
     (confirmed via official sentence-transformers docs), so it must be
     used as-is. Re-applying sigmoid to it was a real bug: on a genuine
     nonsense query, 5 different irrelevant texts each got their own tiny
-    real probability, but sigmoid(anything near 0) rounds to ~0.5 —
+    real probability, but sigmoid(anything near 0) rounds to ~0.5 -
     collapsing every score to the same misleading "medium confidence"
     value regardless of true relevance."""
     chunks = _real_chunks()
@@ -243,7 +243,7 @@ def test_retrieve_with_reranker_uses_its_output_directly_not_resigmoided() -> No
 def test_reranker_output_near_zero_stays_near_zero_not_pulled_to_half() -> None:
     """The exact real symptom, reproduced directly: a reranker correctly
     reporting near-zero relevance for irrelevant content must be reflected
-    as near-zero confidence — not collapsed toward 0.5 by an extra sigmoid."""
+    as near-zero confidence - not collapsed toward 0.5 by an extra sigmoid."""
     chunks = _real_chunks()
     real_chunk = chunks[0]
 
@@ -273,7 +273,7 @@ def test_retrieve_reorders_by_reranker_score_not_fusion_order() -> None:
         return [(a.id, 0.9), (b.id, 0.5)]  # a ranks first going in
 
     def fake_rerank(query, texts):
-        # texts arrive in fusion order [a, b] — score b higher to flip the order
+        # texts arrive in fusion order [a, b] - score b higher to flip the order
         return [1.0, 9.0]
 
     results, _ = retrieve(
@@ -303,7 +303,7 @@ def test_retrieve_labels_method_correctly_when_both_searches_agree() -> None:
 
 def test_retrieve_skips_stale_ids_missing_from_fetch_results() -> None:
     """Real, expected scenario: search returns an id the chunks table no
-    longer has (stale index, deleted doc) — must be skipped, not crash."""
+    longer has (stale index, deleted doc) - must be skipped, not crash."""
     chunks = _real_chunks()
     real_chunk = chunks[0]
 
@@ -337,7 +337,7 @@ def test_retrieve_respects_top_k_final() -> None:
 
 def test_retrieve_preserves_full_chunk_provenance_fields() -> None:
     """Retrieved must carry every real Chunk field forward (url, domain,
-    heading_path, etc.) — stage 08 needs full provenance, not just text
+    heading_path, etc.) - stage 08 needs full provenance, not just text
     and a score."""
     chunks = _real_chunks()
     real_chunk = chunks[0]

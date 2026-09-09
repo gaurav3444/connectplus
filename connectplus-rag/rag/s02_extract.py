@@ -1,21 +1,21 @@
-"""Stage 02 — Content Extraction.
+"""Stage 02 - Content Extraction.
 
 trafilatura strips nav/ads/footers from HTML -> clean text + provenance +
 language. Extended (deliberately, on top of README_rag.md's original
 wording) to also extract real text from PDFs via pypdf, since Scamwatch's
-real sitemap links 44 of them — a page's-worth of trusted content that
+real sitemap links 44 of them - a page's-worth of trusted content that
 "only handle HTML" would silently drop.
 
 Design decisions made explicit here:
 
 - Core extraction functions (extract_page, extract_pages) take plain
-  in-memory data — a PageRecord plus optional raw bytes — not file paths.
+  in-memory data - a PageRecord plus optional raw bytes - not file paths.
   Reading from disk (cache dirs, fixture files) is a thin adapter at the
   edges (load_extraction_inputs_from_cache / _from_fixture). Same pattern
   as stage 01's injectable httpx.Client: keep the logic testable without
   needing real files or a real crawl to test it against.
 - A page's raw HTML lives directly on its PageRecord (stage 01 stores it
-  there for text content). A page's raw PDF bytes do NOT — stage 01
+  there for text content). A page's raw PDF bytes do NOT - stage 01
   deliberately keeps binary content out of the `html: str` field and
   caches it separately as <hash>.bin. ExtractionInput.raw_bytes is how
   that binary content reaches this stage.
@@ -23,11 +23,11 @@ Design decisions made explicit here:
   Scamwatch "Little Book of Scams" fixture confirmed this) commonly repeat
   a running header/footer line on every page. trafilatura strips this kind
   of boilerplate automatically for HTML; pypdf does not for PDF, so we do
-  it ourselves — any line appearing on more than half the document's pages
+  it ourselves - any line appearing on more than half the document's pages
   is treated as boilerplate and dropped.
 - Document-level de-duplication by exact text match: confirmed on real
   Scamwatch data that 125 of 477 docs (26%) were byte-identical duplicates
-  — the same page fetched as both http:// and https://, discovered as two
+  - the same page fetched as both http:// and https://, discovered as two
   separate sitemap entries. Deliberately not "fixed" at stage 01 by
   recording the post-redirect resolved URL instead: that wouldn't actually
   prevent the duplicate fetch (both URLs are still separately discovered
@@ -37,12 +37,12 @@ Design decisions made explicit here:
   output here is simpler, solves the measured problem directly, and needs
   no re-crawl.
 - Known, deliberately deferred gap: trafilatura returned nothing at all
-  (not "too short" — nothing) for two real Scamwatch pages, the Chinese
+  (not "too short" - nothing) for two real Scamwatch pages, the Chinese
   Simplified and Traditional versions of a "scams targeting the Chinese
   community" page. This is a documented real limitation of readability-
   style extractors on CJK text: their content-vs-boilerplate heuristics
   commonly rely on word/whitespace counting, which breaks down on text
-  with no spaces between words. Not fixed here — logged as a known
+  with no spaces between words. Not fixed here - logged as a known
   limitation rather than silently accepted, so it doesn't get rediscovered
   from scratch when multilingual sourcing gets a real look later.
 """
@@ -61,22 +61,21 @@ from pathlib import Path
 from xml.sax import saxutils
 
 import trafilatura
-from langdetect import LangDetectException, detect
 from pydantic import HttpUrl
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
+from rag.lang import detect_lang
 from rag.schemas import ExtractedDoc, ExtractionRunSummary, PageRecord
 
 logger = logging.getLogger("rag.extract")
 
 # Content types this stage knows how to extract. Anything else (RSS feeds,
-# zip files, images) is skipped with a counted, logged reason — not
+# zip files, images) is skipped with a counted, logged reason - not
 # silently dropped, not guessed at.
 HTML_CONTENT_TYPES_PREFIX = "text/html"
 PDF_CONTENT_TYPE = "application/pdf"
 
-LANG_DETECT_SAMPLE_CHARS = 2000  # enough for a reliable langdetect call, fast even on a 40-page PDF
 MIN_EXTRACTED_TEXT_LENGTH = 100  # see the comment at its use site for where this number comes from
 
 
@@ -130,22 +129,12 @@ def _doc_id(url: str) -> str:
     return "doc-" + hashlib.sha256(url.encode()).hexdigest()[:16]
 
 
-def _detect_lang(text: str) -> str:
-    sample = text[:LANG_DETECT_SAMPLE_CHARS].strip()
-    if not sample:
-        return "unknown"
-    try:
-        return detect(sample)
-    except LangDetectException:
-        return "unknown"
-
-
 def _extract_html(html: str, url: str) -> tuple[str, str, str] | None:
     """Returns (title, text, content_xml), or None if trafilatura found
     nothing usable (e.g. a page that's all navigation, or malformed markup
     it can't parse).
 
-    content_xml uses trafilatura's XML output, not markdown — confirmed on
+    content_xml uses trafilatura's XML output, not markdown - confirmed on
     real data that markdown's *text serialization* introduces real
     structural bugs XML doesn't have (see the field's docstring in
     schemas.py for the two confirmed cases: a heading glued onto its own
@@ -156,14 +145,14 @@ def _extract_html(html: str, url: str) -> tuple[str, str, str] | None:
     Includes a recovery pass for a real, confirmed failure mode: trafilatura
     silently dropped an entire numbered "what to do if you've been scammed"
     procedure on a real Scamwatch page, because it's wrapped in a Drupal
-    component literally classed paragraph--type--accc-next-steps-call-out —
+    component literally classed paragraph--type--accc-next-steps-call-out -
     a reusable "callout" block type. Confirmed at scale afterward: 315 of
     929 real Be Connected docs and 34 of 314 real Scamwatch docs gained
-    recovered content this way, over 1,000,000 characters total — mostly
+    recovered content this way, over 1,000,000 characters total - mostly
     full video transcripts hidden behind a similar toggle/expand component.
     Recovered content is appended to both text and content_xml (as a plain
     paragraph and as a <p> element respectively) so heading-based
-    chunking in stage 03 doesn't lose it either — as plain paragraphs, not
+    chunking in stage 03 doesn't lose it either - as plain paragraphs, not
     an atomic list (see the comment at the recovery call site for why).
     """
     result = trafilatura.extract(
@@ -183,18 +172,18 @@ def _extract_html(html: str, url: str) -> tuple[str, str, str] | None:
     recovered = _recover_missed_lists(html, text)
     if recovered:
         text = text + "\n\n" + "\n\n".join(recovered)
-        # Deliberately <p> paragraphs, not <list><item> — confirmed real bug:
+        # Deliberately <p> paragraphs, not <list><item> - confirmed real bug:
         # representing recovered content as a <list> made stage 03 treat it
         # as an atomic, unsplittable unit (correct for a genuine short
         # numbered procedure, catastrophic for what most recovered content
         # actually is). Real example: a recovered podcast transcript became
-        # a single 8,968-token chunk — 18x the 500-token budget — because
+        # a single 8,968-token chunk - 18x the 500-token budget - because
         # it was structurally a <ul><li> accordion widget in the source
         # HTML, not a procedure, and got list-shaped recovery formatting
         # regardless. Paragraphs let normal size-based packing apply. The
         # one confirmed genuine short procedure this recovery exists for
         # (the "Act fast / Get help / Report the scam" 3-item list) is
-        # short enough to still land in one chunk under normal packing —
+        # short enough to still land in one chunk under normal packing -
         # this trades a small, unconfirmed risk of splitting a short
         # recovered procedure for definitely fixing a large, confirmed one.
         xml_items = "\n".join(
@@ -210,7 +199,7 @@ def _extract_html(html: str, url: str) -> tuple[str, str, str] | None:
 def _list_item_texts(html: str) -> list[list[str]]:
     """Returns the plain text of each <li> within each top-level <ol>/<ul>
     in the document, one inner list per outer list found. Uses a small
-    HTMLParser rather than regex — nested lists and nested tags inside
+    HTMLParser rather than regex - nested lists and nested tags inside
     <li> (a <p> inside an <a> inside an <li>, seen in the real failing
     case) aren't reliably matchable with regex.
     """
@@ -247,7 +236,7 @@ def _list_item_texts(html: str) -> list[list[str]]:
     parser = ListExtractor()
     try:
         parser.feed(html)
-    except Exception:  # noqa: BLE001 — same reasoning as the link-extraction guard in stage 01
+    except Exception:  # noqa: BLE001 - same reasoning as the link-extraction guard in stage 01
         return []
     return [items for items in parser.lists if items]
 
@@ -258,7 +247,7 @@ def _recover_missed_lists(html: str, extracted_text: str) -> list[str]:
     returns their text as recoverable blocks.
 
     The content-vs-navigation distinction is a length heuristic, not a
-    class-name allowlist — deliberately, so it isn't hand-tuned to this one
+    class-name allowlist - deliberately, so it isn't hand-tuned to this one
     Drupal component and silently misses the next site's equivalent. Real
     nav/breadcrumb items are short ("Home", "About us"); the real recovered
     case here averages well over 40 characters per item.
@@ -273,9 +262,9 @@ def _recover_missed_lists(html: str, extracted_text: str) -> list[str]:
             continue
         avg_len = sum(len(i) for i in items) / len(items)
         if avg_len < MIN_AVG_ITEM_LENGTH:
-            continue  # short items — looks like nav/breadcrumb, not content
+            continue  # short items - looks like nav/breadcrumb, not content
 
-        # Already captured? Check the first item's text as a fingerprint —
+        # Already captured? Check the first item's text as a fingerprint -
         # cheap, and good enough since a coincidental full-sentence match
         # is vanishingly unlikely.
         fingerprint = items[0][:60]
@@ -287,7 +276,7 @@ def _recover_missed_lists(html: str, extracted_text: str) -> list[str]:
 
 
 def _strip_repeated_lines(pages_text: list[str]) -> list[str]:
-    """Drops lines that repeat across more than half a PDF's pages —
+    """Drops lines that repeat across more than half a PDF's pages -
     running headers/footers like page numbers and a document title banner.
     Confirmed necessary against a real fixture, not a hypothetical: every
     page of the Scamwatch "Little Book of Scams" PDF repeats
@@ -316,7 +305,7 @@ def _strip_repeated_lines(pages_text: list[str]) -> list[str]:
 def _extract_pdf(raw_bytes: bytes) -> tuple[str, str, str] | None:
     """Returns (title, text, content_xml), or None if the PDF can't be
     parsed at all or yields no extractable text (e.g. a scanned image PDF
-    with no text layer — a real possibility we haven't hit yet but
+    with no text layer - a real possibility we haven't hit yet but
     shouldn't crash on). content_xml is empty, not a copy of text: pypdf
     gives no font-size or heading-tag information, so there's no real
     structure to represent, and pretending otherwise (e.g. by echoing text
@@ -331,7 +320,7 @@ def _extract_pdf(raw_bytes: bytes) -> tuple[str, str, str] | None:
     for page in reader.pages:
         try:
             pages_text.append(page.extract_text() or "")
-        except Exception:  # noqa: BLE001 — pypdf's per-page failure modes aren't a fixed set either
+        except Exception:  # noqa: BLE001 - pypdf's per-page failure modes aren't a fixed set either
             pages_text.append("")
 
     pages_text = _strip_repeated_lines(pages_text)
@@ -391,7 +380,7 @@ def _extract_page_outcome(inp: ExtractionInput, log: logging.LoggerAdapter) -> E
     if len(text) < MIN_EXTRACTED_TEXT_LENGTH:
         # Threshold set from real data, not a guess: real Be Connected SCORM
         # mini-game pages extract to exactly "Please rotate your device\nThis
-        # game is designed for use in Portrait Mode" (72 chars) — UI chrome,
+        # game is designed for use in Portrait Mode" (72 chars) - UI chrome,
         # not content. The shortest genuinely real page found across the
         # whole corpus was 145 chars (a category landing blurb). 100 sits
         # cleanly in the 73-character gap between the two, confirmed against
@@ -403,7 +392,7 @@ def _extract_page_outcome(inp: ExtractionInput, log: logging.LoggerAdapter) -> E
         return ExtractionOutcome(doc=None, skip_reason="empty_after_extraction")
     doc = ExtractedDoc(
         doc_id=_doc_id(url), url=HttpUrl(url), domain=record.domain, title=title,
-        lang=_detect_lang(text), fetched_at=record.fetched_at, text=text, content_xml=content_xml,
+        lang=detect_lang(text), fetched_at=record.fetched_at, text=text, content_xml=content_xml,
         source_content_type=record.content_type,
     )
     return ExtractionOutcome(doc=doc, skip_reason=None)
@@ -413,7 +402,7 @@ def extract_page(inp: ExtractionInput, log: logging.LoggerAdapter) -> ExtractedD
     """Single-page convenience wrapper. Returns None (and logs exactly why)
     for anything that shouldn't become a doc: a failed fetch, an
     unsupported content type, or content that parsed but yielded nothing
-    usable. Use extract_pages for a batch — it gets the skip reasons for
+    usable. Use extract_pages for a batch - it gets the skip reasons for
     free from the same underlying logic, no re-derivation.
     """
     return _extract_page_outcome(inp, log).doc
@@ -422,7 +411,7 @@ def extract_page(inp: ExtractionInput, log: logging.LoggerAdapter) -> ExtractedD
 def deduplicate_docs(docs: list[ExtractedDoc], log: logging.LoggerAdapter) -> tuple[list[ExtractedDoc], int]:
     """Drops exact-text duplicates, keeping one canonical doc per unique
     text. When duplicates differ only by http:// vs https://, keeps the
-    https version deterministically — not just "whichever came first",
+    https version deterministically - not just "whichever came first",
     since that depends on manifest ordering, not anything meaningful.
     """
     groups: dict[str, list[ExtractedDoc]] = {}
@@ -435,7 +424,7 @@ def deduplicate_docs(docs: list[ExtractedDoc], log: logging.LoggerAdapter) -> tu
         if len(group) == 1:
             kept.append(group[0])
             continue
-        # Prefer https, then shorter URL, then doc_id — all just tie-breaks
+        # Prefer https, then shorter URL, then doc_id - all just tie-breaks
         # for determinism; which exact duplicate survives doesn't matter,
         # only that the choice doesn't silently change between runs.
         group.sort(key=lambda d: (not str(d.url).startswith("https://"), len(str(d.url)), d.doc_id))
@@ -481,7 +470,7 @@ def extract_pages(
 def load_extraction_inputs_from_cache(pages: list[PageRecord], cache_dir: Path) -> list[ExtractionInput]:
     """Production adapter: pairs each PageRecord with its raw bytes from
     stage 01's on-disk cache when the content is binary. Text content
-    doesn't need this — record.html already has it.
+    doesn't need this - record.html already has it.
     """
     inputs = []
     for record in pages:
@@ -499,14 +488,14 @@ def load_extraction_inputs_from_cache(pages: list[PageRecord], cache_dir: Path) 
 def load_extraction_inputs_from_fixture(fixture_json_path: Path, fixture_dir: Path) -> list[ExtractionInput]:
     """Fixture adapter for f01_pages.json: PDF entries in that file have
     html="" by design (see rag/fixtures/f01_pages.json) with the real bytes
-    in a sibling file — sample_little_book_of_scams.pdf for the one PDF we
+    in a sibling file - sample_little_book_of_scams.pdf for the one PDF we
     currently have. Extend PDF_FIXTURE_FILES if more binary fixtures are added.
     """
     PDF_FIXTURE_FILES = {
         "https://scamwatch.gov.au/system/files/little-book-scams-2024-english.pdf":
             "sample_little_book_of_scams.pdf",
     }
-    pages = [PageRecord.model_validate(p) for p in json.loads(fixture_json_path.read_text())]
+    pages = [PageRecord.model_validate(p) for p in json.loads(fixture_json_path.read_text(encoding="utf-8"))]
     inputs = []
     for record in pages:
         raw_bytes = None

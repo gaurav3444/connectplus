@@ -9,11 +9,11 @@ Usage (from README_rag.md, extended for 02-05):
     python -m rag.main retrieve "how do I know if a text message is a scam"
 
 `index` and `retrieve` read DATABASE_URL from a .env file in the project
-root (or the real environment) — Supabase's SESSION POOLER connection
+root (or the real environment) - Supabase's SESSION POOLER connection
 string specifically (dashboard -> "Connect" -> "Session pooler"), not
 "Direct connection" and not "Project URL". Confirmed real issue:
 Supabase's direct connection only resolves over IPv6 by default, which
-fails with "No route to host" on networks that don't route IPv6 — the
+fails with "No route to host" on networks that don't route IPv6 - the
 session pooler works over IPv4. See .env.example and rag/config/schema.sql.
 """
 
@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from rag.s01_ingest import MAX_PAGES_PER_DOMAIN as DEFAULT_MAX_PAGES
@@ -51,6 +52,21 @@ DEFAULT_EXTRACTED_DIR = Path(".cache/extracted")
 DEFAULT_CHUNKED_DIR = Path(".cache/chunked")
 
 
+def _use_utf8_stdout() -> None:
+    """Windows consoles still default to a legacy codepage (cp1252 here),
+    and printing a Mandarin query to one raises UnicodeEncodeError before
+    a single result is shown. Confirmed real: `understand` on a Chinese
+    question crashed on its own output.
+
+    errors="replace" as well as utf-8, so a genuinely incapable terminal
+    prints boxes instead of taking the command down.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def _get_db_url() -> str | None:
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -61,7 +77,7 @@ def _get_db_url() -> str | None:
             "  - Is python-dotenv installed? "
             "(`python3 -c \"import dotenv\"` should print nothing, not an error)\n"
             "  - Use Supabase's SESSION POOLER connection string (dashboard -> Connect -> "
-            "'Session pooler'), not 'Direct connection' or 'Project URL' — direct connections "
+            "'Session pooler'), not 'Direct connection' or 'Project URL' - direct connections "
             "often fail with IPv6 routing issues; the pooler works over IPv4."
         )
         return None
@@ -116,7 +132,10 @@ def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
 
     extracted_dir.mkdir(parents=True, exist_ok=True)
     out_path = extracted_dir / f"{domain}.json"
-    out_path.write_text(json.dumps([d.model_dump(mode="json") for d in docs], ensure_ascii=False, indent=2))
+    out_path.write_text(
+        json.dumps([d.model_dump(mode="json") for d in docs], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     print(f"{domain}: {summary.extracted}/{summary.total_input_pages} pages extracted -> {out_path}")
     print(f"  skipped non-200: {summary.skipped_non_200_status}")
@@ -128,15 +147,18 @@ def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
 def _run_chunk(domain: str, extracted_dir: Path, chunked_dir: Path) -> None:
     extracted_path = extracted_dir / f"{domain}.json"
     if not extracted_path.exists():
-        print(f"{domain}: no extracted docs found at {extracted_path} — run `extract` for this domain first")
+        print(f"{domain}: no extracted docs found at {extracted_path} - run `extract` for this domain first")
         return
 
-    docs = [ExtractedDoc.model_validate(d) for d in json.loads(extracted_path.read_text())]
-    chunks = chunk_docs(docs)  # real BGE-m3 tokenizer here — no injected counter in production use
+    docs = [ExtractedDoc.model_validate(d) for d in json.loads(extracted_path.read_text(encoding="utf-8"))]
+    chunks = chunk_docs(docs)  # real BGE-m3 tokenizer here - no injected counter in production use
 
     chunked_dir.mkdir(parents=True, exist_ok=True)
     out_path = chunked_dir / f"{domain}.json"
-    out_path.write_text(json.dumps([c.model_dump(mode="json") for c in chunks], ensure_ascii=False, indent=2))
+    out_path.write_text(
+        json.dumps([c.model_dump(mode="json") for c in chunks], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     with_headings = sum(1 for c in chunks if c.heading_path)
     over_budget = sum(1 for c in chunks if c.token_count > 500)
@@ -150,14 +172,14 @@ def _run_chunk(domain: str, extracted_dir: Path, chunked_dir: Path) -> None:
 def _run_index(domain: str, chunked_dir: Path, batch_size: int) -> None:
     chunked_path = chunked_dir / f"{domain}.json"
     if not chunked_path.exists():
-        print(f"{domain}: no chunked file found at {chunked_path} — run `chunk` for this domain first")
+        print(f"{domain}: no chunked file found at {chunked_path} - run `chunk` for this domain first")
         return
 
     db_url = _get_db_url()
     if not db_url:
         return
 
-    chunks = [Chunk.model_validate(c) for c in json.loads(chunked_path.read_text())]
+    chunks = [Chunk.model_validate(c) for c in json.loads(chunked_path.read_text(encoding="utf-8"))]
     upsert_fn = make_postgres_upserter(db_url)
 
     def print_progress(done: int, total: int) -> None:
@@ -172,16 +194,17 @@ def _run_index(domain: str, chunked_dir: Path, batch_size: int) -> None:
 
 
 def main() -> None:
-    # Load a .env file if present — the natural place for DATABASE_URL to
+    _use_utf8_stdout()
+    # Load a .env file if present - the natural place for DATABASE_URL to
     # live, matching README_rag.md's `cp .env.example .env` setup step.
     # Explicit path (project root, i.e. one level up from this file's own
     # rag/ package directory) rather than relying on load_dotenv()'s
-    # implicit cwd-based search — that search is relative to where the
+    # implicit cwd-based search - that search is relative to where the
     # command happens to be run from, which is fragile. A missing
     # python-dotenv install now prints a clear warning instead of silently
     # doing nothing: that silence is exactly what made a real, confirmed
     # case of this ("DATABASE_URL is not set" despite a correctly filled
-    # .env file) confusing to diagnose — stages 01-03 still work fine
+    # .env file) confusing to diagnose - stages 01-03 still work fine
     # either way, only stage 04 (index) actually needs this.
     env_path = Path(__file__).parent.parent / ".env"
     try:
@@ -236,7 +259,7 @@ def main() -> None:
     retrieve_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K_FINAL)
     retrieve_parser.add_argument(
         "--no-rerank", action="store_true",
-        help="Skip the bge-reranker-v2-m3 cross-encoder step — useful for the README's own "
+        help="Skip the bge-reranker-v2-m3 cross-encoder step - useful for the README's own "
              "DONE criterion: measure hit@3 before and after the reranker, and drop it if it "
              "doesn't move the number.",
     )

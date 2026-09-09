@@ -6,7 +6,7 @@ __pycache__/
 .venv/
 *.egg-info/
 
-# Raw crawl cache — regenerate locally with `python -m rag.main ingest`.
+# Raw crawl cache - regenerate locally with `python -m rag.main ingest`.
 # Never commit real scraped HTML: it's large, it goes stale, and re-fetching
 # is how stage 01 proves idempotency in the first place.
 .cache/

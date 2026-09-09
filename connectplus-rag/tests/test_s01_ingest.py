@@ -1,4 +1,4 @@
-"""Tests for stage 01. Every test uses httpx.MockTransport — none of these
+"""Tests for stage 01. Every test uses httpx.MockTransport - none of these
 touch the real network, which also means they run the same whether or not
 the sandbox they're executed in can reach beconnected.esafety.gov.au etc.
 """
@@ -180,7 +180,7 @@ def test_malformed_content_does_not_crash_the_run(tmp_path: Path) -> None:
     """Regression test for a real failure: a domain that returns garbled,
     non-HTML bytes (observed in practice from what looked like a bot-check
     response) used to crash the entire ingest run with an unhandled
-    AssertionError from html.parser. It must now be logged and skipped —
+    AssertionError from html.parser. It must now be logged and skipped -
     stage 01's job is to record what happened per page, not to assume
     every response is well-formed HTML.
     """
@@ -205,14 +205,14 @@ def test_malformed_content_does_not_crash_the_run(tmp_path: Path) -> None:
 
     assert len(records) == 1
     assert records[0].status == 200
-    assert records[0].html == garbled_body  # still recorded — we just don't crash extracting links from it
+    assert records[0].html == garbled_body  # still recorded - we just don't crash extracting links from it
 
 
 def test_circuit_breaker_stops_after_consecutive_failures(tmp_path: Path) -> None:
     """Regression test for a real failure: esafety.gov.au returned a valid
     sitemap with 500+ URLs, then every single page fetch timed out. Without
-    a circuit breaker, that means ~500 sequential 15-second timeouts —
-    over two hours — before the run finishes. It should give up on a
+    a circuit breaker, that means ~500 sequential 15-second timeouts -
+    over two hours - before the run finishes. It should give up on a
     domain that looks fully blocked long before that.
     """
     sitemap_with_many_urls = """<?xml version="1.0" encoding="UTF-8"?>
@@ -237,7 +237,7 @@ def test_circuit_breaker_stops_after_consecutive_failures(tmp_path: Path) -> Non
     assert len(records) == CONSECUTIVE_FAILURE_LIMIT  # stopped, not all 20 attempted
     assert all(r.status == -1 for r in records)
 
-    manifest = json.loads((tmp_path / "example-approved.test" / "manifest.json").read_text())
+    manifest = json.loads((tmp_path / "example-approved.test" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["summary"]["circuit_breaker_tripped"] is True
 
 
@@ -248,7 +248,7 @@ def test_ingest_orchestrator_passes_max_pages_through(tmp_path: Path) -> None:
     from rag.s01_ingest import ingest
 
     config_path = tmp_path / "approved_domains.json"
-    config_path.write_text(json.dumps([a.model_dump() for a in APPROVED]))
+    config_path.write_text(json.dumps([a.model_dump() for a in APPROVED]), encoding="utf-8")
 
     sitemap_with_many_urls = """<?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -273,7 +273,7 @@ def test_ingest_orchestrator_passes_max_pages_through(tmp_path: Path) -> None:
 def test_manifest_does_not_duplicate_html_content(tmp_path: Path) -> None:
     """Regression test for a real failure: manifest.json used to embed the
     full HTML of every page a second time (on top of pages/<hash>.html),
-    which made it balloon to the size of the whole corpus — big enough that
+    which made it balloon to the size of the whole corpus - big enough that
     a text editor refused to open it with an 'invalid string length' error
     on a real ~500-page Scamwatch crawl. The manifest must stay a small
     index; HTML lives only in pages/.
@@ -289,17 +289,17 @@ def test_manifest_does_not_duplicate_html_content(tmp_path: Path) -> None:
     ingest_domain("example-approved.test", APPROVED, tmp_path, client=client)
 
     manifest_path = tmp_path / "example-approved.test" / "manifest.json"
-    manifest_text = manifest_path.read_text()
+    manifest_text = manifest_path.read_text(encoding="utf-8")
 
     assert "html" not in json.loads(manifest_text)["pages"][0]
-    # The manifest should be tiny even though the two real pages are ~50KB each —
+    # The manifest should be tiny even though the two real pages are ~50KB each -
     # if HTML ever leaks back into it, this is the assertion that catches it.
     assert len(manifest_text) < 5_000
 
 
 def test_second_run_rehydrates_full_html_from_disk_cache(tmp_path: Path) -> None:
     """The manifest no longer carries HTML, so a cached re-run must pull it
-    back from pages/<hash>.html — not just return empty bodies."""
+    back from pages/<hash>.html - not just return empty bodies."""
     responses = {
         "https://example-approved.test/robots.txt": (200, ROBOTS_TXT),
         "https://example-approved.test/sitemap.xml": (200, SITEMAP_XML),
@@ -370,7 +370,7 @@ def test_manifest_is_valid_json_and_matches_schema(tmp_path: Path) -> None:
 
     manifest_path = tmp_path / "example-approved.test" / "manifest.json"
     assert manifest_path.exists()
-    manifest = json.loads(manifest_path.read_text())
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["summary"]["domain"] == "example-approved.test"
     assert manifest["summary"]["pages_fetched"] == 2
     assert manifest["summary"]["pages_failed"] == 0

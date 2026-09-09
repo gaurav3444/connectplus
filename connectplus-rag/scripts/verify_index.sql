@@ -1,4 +1,4 @@
--- 1. Row counts per domain — should be 1184 (scamwatch.gov.au) and 4148 (beconnected.esafety.gov.au)
+-- 1. Row counts per domain - should be 1184 (scamwatch.gov.au) and 4148 (beconnected.esafety.gov.au)
 select domain, count(*) as chunk_count
 from chunks
 group by domain;

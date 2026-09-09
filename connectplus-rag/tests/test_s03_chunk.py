@@ -1,6 +1,6 @@
 """Tests for stage 03.
 
-Uses a lightweight stand-in token counter throughout — not BGE-m3's real
+Uses a lightweight stand-in token counter throughout - not BGE-m3's real
 tokenizer. This sandbox's network can't reach huggingface.co to download
 it, so the counter here (word count) is purely for exercising the
 chunking *logic* (boundaries, merging, list atomicity) deterministically.
@@ -25,7 +25,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "rag" / "fixtures"
 
 
 def word_count(text: str) -> int:
-    """Stand-in token counter for tests — see module docstring."""
+    """Stand-in token counter for tests - see module docstring."""
     return max(1, len(text.split()))
 
 
@@ -62,7 +62,7 @@ def test_real_recovered_procedure_stays_in_one_chunk() -> None:
 
 
 def test_real_docs_all_chunk_without_crashing() -> None:
-    """Every real doc — HTML with headings, HTML without any, and a PDF —
+    """Every real doc - HTML with headings, HTML without any, and a PDF -
     must chunk successfully. This is the practical equivalent of running
     the real corpus through and checking nothing blows up."""
     docs = _real_docs()
@@ -79,7 +79,7 @@ def test_real_html_doc_produces_heading_paths() -> None:
 
 
 def test_real_headingless_page_still_chunks_with_empty_heading_path() -> None:
-    """The one real page confirmed to have zero recoverable headings —
+    """The one real page confirmed to have zero recoverable headings -
     must produce valid chunks with heading_path == [], not an error."""
     docs = _real_docs()
     doc = next(d for d in docs if str(d.url) == "https://scamwatch.gov.au/types-of-scams/text-or-sms-scams")
@@ -122,7 +122,7 @@ def test_every_real_chunk_has_a_resolving_url_matching_its_doc() -> None:
 def test_nested_elements_inside_a_list_are_not_double_counted() -> None:
     """Regression test for a real, confirmed bug found on the AI-explained
     fixture page: lists containing nested <p>/<head> elements were being
-    counted twice — once via the list's own text aggregation, once again
+    counted twice - once via the list's own text aggregation, once again
     as a standalone paragraph/heading during the same tree walk."""
     docs = _real_docs()
     doc = next(d for d in docs if "artificial-intelligence-explained" in str(d.url))
@@ -136,7 +136,7 @@ def test_nested_elements_inside_a_list_are_not_double_counted() -> None:
 
 def test_native_list_with_nested_headings_is_unwrapped_not_atomic() -> None:
     """Regression test for a real, confirmed bug: trafilatura natively
-    captured an entire podcast transcript — headings and all — inside a
+    captured an entire podcast transcript - headings and all - inside a
     single <ul><li>, because the source HTML used an accordion/"read
     transcript" toggle widget, not because it's a numbered procedure.
     Treating it as atomic produced a single 2,630-token, heading-less
@@ -255,7 +255,7 @@ def test_small_sibling_sections_merge_using_common_ancestor() -> None:
     </main></doc>"""
     doc = _doc(content_xml=xml)
     chunks = chunk_doc(doc, count_tokens=word_count)
-    # Both tiny sections share "Getting started" as a common ancestor —
+    # Both tiny sections share "Getting started" as a common ancestor -
     # should merge into fewer chunks than sections, using that shared path.
     assert len(chunks) == 1
     assert chunks[0].heading_path == ["Getting started"]
@@ -277,8 +277,8 @@ def test_oversized_section_splits_with_consistent_heading_path() -> None:
 def test_single_oversized_paragraph_gets_sentence_split() -> None:
     """Regression test for a real, confirmed bug: 160 real Be Connected
     chunks (across 149 distinct pages) were stuck at 500-2,446 tokens
-    because a single oversized <p> — a whole video transcript trafilatura
-    merged into one paragraph element — had no mechanism to split it
+    because a single oversized <p> - a whole video transcript trafilatura
+    merged into one paragraph element - had no mechanism to split it
     internally. Unlike a list, a paragraph has no correctness reason to
     stay whole."""
     long_sentence_run = (
@@ -340,7 +340,7 @@ def test_run_on_text_with_no_punctuation_gets_token_boundary_split() -> None:
 
 def test_single_oversized_sentence_gets_token_boundary_split() -> None:
     """A single sentence (correctly identified as one by punctuation) that
-    is itself still oversized must not be accepted whole — falls through
+    is itself still oversized must not be accepted whole - falls through
     to the same token-boundary fallback."""
     huge_sentence = " ".join(f"word{i}" for i in range(900)) + "."
     normal_sentence = "This is a short second sentence."

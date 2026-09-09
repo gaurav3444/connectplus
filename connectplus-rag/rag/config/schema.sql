@@ -19,7 +19,7 @@ create table if not exists chunks (
     indexed_at      timestamptz not null default now()
 );
 
--- Keyword search — README's stack table: "Postgres tsvector | Already in the same database"
+-- Keyword search - README's stack table: "Postgres tsvector | Already in the same database"
 alter table chunks
     add column if not exists tsv tsvector
     generated always as (to_tsvector('english', coalesce(text, ''))) stored;
@@ -27,6 +27,6 @@ alter table chunks
 create index if not exists chunks_tsv_idx
     on chunks using gin (tsv);
 
--- Vector search — README's stack table: "pgvector (HNSW)"
+-- Vector search - README's stack table: "pgvector (HNSW)"
 create index if not exists chunks_embedding_hnsw_idx
     on chunks using hnsw (embedding vector_cosine_ops);
