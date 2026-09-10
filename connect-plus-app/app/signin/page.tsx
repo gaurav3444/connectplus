@@ -1,14 +1,118 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { BackLink, BTN_PRIMARY, BTN_SECONDARY, CTRL, FIELD, Screen } from "./ui";
 
-// Placeholder so the tiles don't 404. Screen 1 is not in scope yet.
-export default async function SignIn() {
-  const lang = (await cookies()).get("lang")?.value ?? "(not set)";
+// Screen 1. One job: an email address. No password to remember and no account
+// wall — "Look around first" keeps the app usable for someone who will not, or
+// cannot, sign in today.
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function sendLink(formData: FormData) {
+  "use server";
+  const email = String(formData.get("email") ?? "").trim();
+  // Server-side check as well as type="email": the action is a plain POST
+  // endpoint, reachable without the form.
+  if (!EMAIL.test(email)) redirect("/signin?error=email");
+
+  // httpOnly: screen 1b only needs to *show* the address, which it does on the
+  // server. Nothing client-side reads it. Short life — it is a login in flight.
+  (await cookies()).set("email", email, {
+    maxAge: 60 * 15,
+    path: "/",
+    sameSite: "lax",
+    httpOnly: true,
+  });
+  redirect("/signin/code");
+}
+
+async function toggleTextSize() {
+  "use server";
+  const jar = await cookies();
+  const big = jar.get("text-size")?.value === "lg";
+  jar.set("text-size", big ? "md" : "lg", {
+    maxAge: 60 * 60 * 24 * 365,
+    path: "/",
+    sameSite: "lax",
+  });
+  redirect("/signin");
+}
+
+export default async function SignIn({ searchParams }: PageProps<"/signin">) {
+  const [{ error }, jar] = await Promise.all([searchParams, cookies()]);
+  const lang = jar.get("lang")?.value ?? "en";
+  const big = jar.get("text-size")?.value === "lg";
+
   return (
-    <div className="flex min-h-dvh justify-center bg-bg">
-      <main className="w-full max-w-3xl px-6 py-10 sm:px-10">
-        <h1 className="text-heading font-medium">Sign in — coming soon</h1>
-        <p className="mt-4 text-muted">Language chosen: {lang}</p>
+    <Screen>
+      <header className="flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10">
+        <BackLink href="/" label="Go back" />
+        {/* the globe returns to screen 0 — changing language is never buried */}
+        <Link href="/" className={`${CTRL} ml-auto text-body`}>
+          <span aria-hidden="true">🌐</span>
+          <span className="uppercase">{lang}</span>
+          <span className="sr-only">Change language</span>
+        </Link>
+        <form action={toggleTextSize}>
+          <button type="submit" aria-pressed={big} className={`${CTRL} text-body`}>
+            <span aria-hidden="true">
+              A<sup className="text-[0.6em]">+</sup>
+            </span>
+            <span className="sr-only">
+              {big ? "Use normal text size" : "Make the text bigger"}
+            </span>
+          </button>
+        </form>
+      </header>
+
+      <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
+        <h1 className="text-heading font-medium leading-tight">Sign in</h1>
+        <p className="mt-3 max-w-[30ch] text-body text-dim">
+          We will email you a link to tap. There is no password to remember.
+        </p>
+
+        <form action={sendLink} className="mt-7 flex flex-col" noValidate>
+          <label htmlFor="email" className="mb-2 text-body font-medium text-dim">
+            Your email address
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            inputMode="email"
+            placeholder="name@example.com"
+            aria-describedby={error === "email" ? "email-error" : undefined}
+            aria-invalid={error === "email" || undefined}
+            className={`${FIELD} text-body ${error === "email" ? "border-accent" : ""}`}
+          />
+          {/* plain words, no error jargon, and never colour alone */}
+          {error === "email" && (
+            <p id="email-error" role="alert" className="mt-2 text-latin text-dim">
+              ⚠ That does not look like an email address. It should look like
+              name@example.com.
+            </p>
+          )}
+          <button type="submit" className={`${BTN_PRIMARY} mt-5 text-body`}>
+            Send me a link
+          </button>
+        </form>
+
+        <hr className="my-8 h-px border-0 bg-line" />
+
+        <p className="text-body text-muted">Not ready to sign in?</p>
+        {/* Screen 2 (Home) is not built yet, so this lands on screen 0 for now. */}
+        <Link href="/" className={`${BTN_SECONDARY} mt-3 text-body`}>
+          <span aria-hidden="true">👁</span>
+          Look around first
+        </Link>
+
+        <p className="mt-auto pt-8 text-latin text-faint">
+          You only need an account to save your progress or talk to a helper.
+        </p>
       </main>
-    </div>
+    </Screen>
   );
 }

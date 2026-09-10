@@ -11,7 +11,14 @@
   --color-line: #3f424d; /* default border */
   --color-accent: #9184d9; /* selected / focus — never the only signal */
   --color-ink: #e9e9ed; /* body text */
+  --color-dim: #cfd3e5; /* body copy under a heading — brighter than muted */
   --color-muted: #b2b6ca; /* secondary text */
+  --color-faint: #9397ab; /* footnotes, placeholders — still 5:1 on the surface */
+  --color-panel: #292b31; /* inset panel, e.g. the security note */
+  --color-fill: #423a6a; /* filled (primary) button */
+  --color-fill-hover: #5d5294;
+  --color-on-fill: #f5f4ff; /* text on the filled button */
+  --color-link: #d2cefd; /* plain-text link, e.g. "send it again" */
 
   /* Base is 20px (see html below), so 1rem = 20px and everything scales with zoom.
      Fluid between phone and desktop: the mockup's phone sizes are the floor,
