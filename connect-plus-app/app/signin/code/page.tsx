@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BackLink, BTN_PRIMARY, Screen } from "../ui";
+import { BackLink, BTN_PRIMARY, Screen } from "../../ui";
+import { signIn } from "../../session";
 import CodeInput from "./code-input";
 
 // Screen 1b. Six numbers, one action, and the scam warning sits on the screen
@@ -12,10 +13,15 @@ async function verify(formData: FormData) {
   const code = String(formData.get("code") ?? "").trim();
   if (!/^\d{6}$/.test(code)) redirect("/signin/code?error=code");
 
-  // ponytail: no auth backend yet, so any six digits pass. Swap this for the
-  // real check when the identity provider lands — the screen does not change.
-  (await cookies()).delete("email");
-  redirect("/");
+  // ponytail: no auth backend yet, so any six digits pass and the session is
+  // just the address. Swap this for the real check and a real session when the
+  // identity provider lands — the screen itself does not change.
+  const jar = await cookies();
+  const email = jar.get("email")?.value;
+  if (!email) redirect("/signin");
+  await signIn(email);
+  jar.delete("email");
+  redirect("/home");
 }
 
 async function resend() {

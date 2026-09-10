@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BackLink, BTN_PRIMARY, BTN_SECONDARY, CTRL, FIELD, Screen } from "./ui";
+import {
+  BackLink,
+  BTN_PRIMARY,
+  BTN_SECONDARY,
+  FIELD,
+  HEADER,
+  HeaderControls,
+  Screen,
+} from "../ui";
 
 // Screen 1. One job: an email address. No password to remember and no account
 // wall — "Look around first" keeps the app usable for someone who will not, or
@@ -27,18 +35,6 @@ async function sendLink(formData: FormData) {
   redirect("/signin/code");
 }
 
-async function toggleTextSize() {
-  "use server";
-  const jar = await cookies();
-  const big = jar.get("text-size")?.value === "lg";
-  jar.set("text-size", big ? "md" : "lg", {
-    maxAge: 60 * 60 * 24 * 365,
-    path: "/",
-    sameSite: "lax",
-  });
-  redirect("/signin");
-}
-
 export default async function SignIn({ searchParams }: PageProps<"/signin">) {
   const [{ error }, jar] = await Promise.all([searchParams, cookies()]);
   const lang = jar.get("lang")?.value ?? "en";
@@ -46,24 +42,11 @@ export default async function SignIn({ searchParams }: PageProps<"/signin">) {
 
   return (
     <Screen>
-      <header className="flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10">
+      <header className={HEADER}>
         <BackLink href="/" label="Go back" />
-        {/* the globe returns to screen 0 — changing language is never buried */}
-        <Link href="/" className={`${CTRL} ml-auto text-body`}>
-          <span aria-hidden="true">🌐</span>
-          <span className="uppercase">{lang}</span>
-          <span className="sr-only">Change language</span>
-        </Link>
-        <form action={toggleTextSize}>
-          <button type="submit" aria-pressed={big} className={`${CTRL} text-body`}>
-            <span aria-hidden="true">
-              A<sup className="text-[0.6em]">+</sup>
-            </span>
-            <span className="sr-only">
-              {big ? "Use normal text size" : "Make the text bigger"}
-            </span>
-          </button>
-        </form>
+        <div className="ml-auto flex items-center gap-2">
+          <HeaderControls lang={lang} big={big} back="/signin" />
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
@@ -103,8 +86,7 @@ export default async function SignIn({ searchParams }: PageProps<"/signin">) {
         <hr className="my-8 h-px border-0 bg-line" />
 
         <p className="text-body text-muted">Not ready to sign in?</p>
-        {/* Screen 2 (Home) is not built yet, so this lands on screen 0 for now. */}
-        <Link href="/" className={`${BTN_SECONDARY} mt-3 text-body`}>
+        <Link href="/home" className={`${BTN_SECONDARY} mt-3 text-body`}>
           <span aria-hidden="true">👁</span>
           Look around first
         </Link>

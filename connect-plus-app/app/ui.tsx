@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { toggleTextSize } from "./actions";
+
 // Shared chrome for screens 1 and 1b. Sizes are the mockup's (48px controls,
 // 60px actions, 10px radius) expressed in rem so they grow with the A+ setting.
 
@@ -41,3 +43,40 @@ export function Screen({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+// Language and text size, in that focus order, on every screen with a header.
+// Both are settings a senior may need *before* they can read the page, so
+// neither is behind a menu.
+export function HeaderControls({
+  lang,
+  big,
+  back,
+}: {
+  lang: string;
+  big: boolean;
+  back: string;
+}) {
+  return (
+    <>
+      <Link href="/" className={`${CTRL} text-body`}>
+        <span aria-hidden="true">🌐</span>
+        <span className="uppercase">{lang}</span>
+        <span className="sr-only">Change language</span>
+      </Link>
+      <form action={toggleTextSize}>
+        <input type="hidden" name="back" value={back} />
+        <button type="submit" aria-pressed={big} className={`${CTRL} text-body`}>
+          <span aria-hidden="true">
+            A<sup className="text-[0.6em]">+</sup>
+          </span>
+          <span className="sr-only">
+            {big ? "Use normal text size" : "Make the text bigger"}
+          </span>
+        </button>
+      </form>
+    </>
+  );
+}
+
+export const HEADER =
+  "flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10";

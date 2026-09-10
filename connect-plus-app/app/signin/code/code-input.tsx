@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useSyncExternalStore } from "react";
-import { FIELD } from "../ui";
+import { FIELD } from "../../ui";
 
 // ponytail: one real input sitting over six read-only boxes, rather than six
 // inputs wired together. Paste and the email/SMS autofill both work, there is
