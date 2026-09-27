@@ -1,0 +1,127 @@
+{
+  "_about": [
+    "The eval set. Ten vague, real-world phrasings, each in English and Mandarin,",
+    "each with the page a correct retrieval should surface.",
+    "",
+    "Read by scripts/eval_queries.py, which scores hit@3 per language and prints",
+    "the table. Two DONE criteria depend on this file:",
+    "  stage 05 (retrieval): hit@3 over the eval set, in Mandarin as well as English,",
+    "                        measured before and after the reranker.",
+    "  stage 06 (query understanding): ten vague real-world phrasings each produce",
+    "                        a query that retrieves the right page.",
+    "",
+    "THIS FILE IS NOT FINISHED, AND THAT IS DELIBERATE.",
+    "Only 4 of the 10 queries have expect_url_contains filled in - the 4 whose target",
+    "page is confirmed present in f01_pages.json. The other 6 are null.",
+    "",
+    "They are null rather than guessed because a wrong guess is worse than a blank:",
+    "an expectation naming a page that isn't in the index scores as a miss and makes",
+    "retrieval look broken when it isn't. A bare hostname ('scamwatch.gov.au') is worse",
+    "still - it scores ANY page on that domain as a hit, so the number looks great and",
+    "measures nothing.",
+    "",
+    "The harness handles null: it prints those rows as UNSET with their top 3 result",
+    "URLs and leaves them out of the hit@3 denominator. Run it once, read the URLs,",
+    "paste the right slug in, re-run. The first run is what completes this file.",
+    "",
+    "expect_url_contains is a SUBSTRING, not a full URL: it survives a trailing slash,",
+    "an http/https difference and a query string, and several Scamwatch pages exist",
+    "under both schemes (see stage 02's deduplication note). Use a distinctive path",
+    "segment, never a bare hostname.",
+    "",
+    "The phrasings are deliberately how a senior would actually ask - vague, using the",
+    "wrong word, describing a symptom rather than naming the thing. A query set written",
+    "in the corpus's own vocabulary measures nothing: it would pass without stage 06",
+    "existing at all.",
+    "",
+    "The Mandarin is the same question, not a translation of the English rewrite -",
+    "translating the ANSWER into the query is how a cross-language eval accidentally",
+    "proves nothing."
+  ],
+  "queries": [
+    {
+      "id": "q01-scam-text",
+      "en": "how do I know if a text message is a scam",
+      "zh": "我怎么知道一条短信是不是诈骗",
+      "expect_url_contains": "text-or-sms-scam",
+      "note": "Confirmed present in f01_pages.json. Both domains have a page for this."
+    },
+    {
+      "id": "q02-mygov",
+      "en": "what is that government website for medicare and centrelink",
+      "zh": "那个办理医保和福利的政府网站是什么",
+      "expect_url_contains": "what-is-mygov",
+      "note": "Vague on purpose - the senior does not know the word 'myGov'. Confirmed present in f01_pages.json."
+    },
+    {
+      "id": "q03-two-factor",
+      "en": "my phone keeps asking for a code when I log in",
+      "zh": "我登录的时候手机一直要求输入验证码",
+      "expect_url_contains": null,
+      "note": "The stage map's own worked example. Symptom described, term never named. Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+    },
+    {
+      "id": "q04-ato-impersonation",
+      "en": "someone rang saying they were from the tax office and wanted money",
+      "zh": "有人打电话说他们是税务局的要我付钱",
+      "expect_url_contains": "impersonation-scams",
+      "note": "Confirmed present in f01_pages.json (ATO and myGov impersonation alert)."
+    },
+    {
+      "id": "q05-already-scammed",
+      "en": "I think I already gave them my bank details what do I do now",
+      "zh": "我想我已经把银行信息给他们了现在该怎么办",
+      "expect_url_contains": null,
+      "note": "The single highest-stakes query in the set. This is also the page whose 'what to do' procedure trafilatura silently dropped until stage 02's recovery pass - worth watching. Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+    },
+    {
+      "id": "q06-ai-scams",
+      "en": "can computers pretend to be a real person now",
+      "zh": "现在电脑可以假装成真人吗",
+      "expect_url_contains": "artificial-intelligence",
+      "note": "Confirmed present in f01_pages.json. This is the query whose ranking the reranker fixed - see stage 05's notes."
+    },
+    {
+      "id": "q07-strong-password",
+      "en": "how do I make a password nobody can guess",
+      "zh": "怎样设置一个别人猜不到的密码",
+      "expect_url_contains": null,
+      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+    },
+    {
+      "id": "q08-report-scam",
+      "en": "who do I tell about this scam",
+      "zh": "我应该向谁举报这个诈骗",
+      "expect_url_contains": null,
+      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+    },
+    {
+      "id": "q09-romance-scam",
+      "en": "I met someone online and now they are asking me for money",
+      "zh": "我在网上认识了一个人现在他们向我要钱",
+      "expect_url_contains": null,
+      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+    },
+    {
+      "id": "q10-suspicious-email-link",
+      "en": "is it safe to click the link in an email from my bank",
+      "zh": "点击银行邮件里的链接安全吗",
+      "expect_url_contains": null,
+      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+    }
+  ],
+  "refusal_queries": [
+    {
+      "id": "r01-nonsense",
+      "en": "purple elephant quantum banana recipe",
+      "zh": "紫色大象量子香蕉食谱",
+      "note": "Nothing in the corpus covers this. Correct behaviour is low confidence, and downstream a refusal plus a mentor offer - not a plausible invention. This is the query that exposed the double-sigmoid bug (all five results scoring exactly 0.500)."
+    },
+    {
+      "id": "r02-out-of-scope",
+      "en": "what is the weather in Melbourne tomorrow",
+      "zh": "明天墨尔本天气怎么样",
+      "note": "A reasonable question the knowledge base has no business answering. Low confidence expected."
+    }
+  ]
+}

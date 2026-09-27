@@ -15,6 +15,26 @@ This is a class project (CW2, Monash TAP) built stage by stage, testing each sta
 | 03 - Chunk | Heading-aware, list-safe, token-budgeted chunking | ✅ Done - 3 real bugs found and fixed against real data |
 | 04 - Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done - both domains fully embedded and indexed |
 | 05 - Retrieve | Hybrid vector + keyword search, RRF fusion, optional reranking, confidence score | ✅ Built and tested - real-query verification pending |
+| 06 - Query Understanding | Language detection + LLM rewrite of a vague question into an English search query | ✅ Built and tested - real-query verification pending |
+
+### Stage numbering
+
+Three planning documents number these stages three different ways, so here is the mapping once, in one place:
+
+| This repo | `README_rag.md` | Whole-project stage map | What |
+|---|---|---|---|
+| `s01_ingest` | 01 | 01 | Ingest |
+| `s02_extract` | 02 | 02 | Extract |
+| `s03_chunk` | 03 | 03 | Chunk |
+| `s04_embed` | 04 | 04 | Embed + index |
+| `s05_retrieve` | 05 | **06** | Hybrid retrieval |
+| `s06_query` | not in it | **05** | Query understanding |
+
+File numbers here are **build order**; the stage map's are **pipeline order**. They agree through 04 and cross over at 05, because query understanding was built after retrieval but runs before it. Nothing is wrong - they are answering different questions. `README_rag.md` predates the split of query understanding into this repo, so it has no number for it at all and calls guardrails 06.
+
+The stage map's **08 Guardrails + citation check** would land here as `s07_verify`. It is not built in this snapshot - `rag/__init__.py` deliberately exports no `verify`, because in a repo whose whole job is being the trust boundary, an importable name that silently passes everything is worse than an `ImportError`.
+
+Query understanding lives in this repo by team decision. Both planning documents originally assigned it to `connectplus-llm`; that changed, and it matters because this repo now talks to an LLM, which it previously did not.
 
 **Approved sources:** `beconnected.esafety.gov.au`, `scamwatch.gov.au`. A third domain, `esafety.gov.au`, was dropped after confirming it blocks automated crawlers - see `rag/config/domain_decisions.md`.
 
@@ -78,38 +98,61 @@ Two real bugs were found and fixed against real query results, not synthetic tes
 
 Every external dependency (vector search, keyword search, chunk fetching, reranking) is injectable, so the fusion and scoring logic is fully tested without a live database or downloaded models - see `tests/test_s05_retrieve.py`.
 
+### Stage 06 - Query Understanding
+
+Takes the question as the senior actually typed it and produces a short **English** search query, plus a few expansion terms. The stage map's own worked example: *"my phone keeps asking for a code"* becomes `two-factor authentication`.
+
+The English part is not cosmetic - it is what makes the keyword half of hybrid retrieval work at all. `rag/config/schema.sql` builds its `tsvector` with Postgres's `'english'` configuration, so a Mandarin query produces an **empty** `tsquery`, matches nothing, and hybrid retrieval silently collapses to vector-only with no error to say so. Half the system quietly doing nothing, on precisely the cross-language case the whole project exists for. `retrieve()` therefore takes a separate `keyword_query`: the vector half embeds the original (BGE-m3 is multilingual and handles it directly), the keyword half gets the English rewrite plus its expansions. Expansions are kept out of the vector query on purpose - extra terms help lexical recall but dilute a dense embedding.
+
+Switching the column to `'simple'` would not rescue this. Postgres cannot tokenise CJK text at all, so an unspaced Chinese sentence is one unmatched token under any configuration. Non-English chunks in the index (real: Vietnamese, Chinese, Hindi and Greek translated pages on both domains) are reachable through vector search only. Known and accepted, not an oversight.
+
+An explicitly passed `lang` always beats detection - the stage map's contract is `{query, lang?}`, the frontend already knows which language the senior chose, and that is far more reliable than `langdetect` run over a six-word question. `lang` is carried forward separately from `rewritten` so the generator downstream still answers in the senior's language rather than the search language.
+
+**Gemini and Ollama sit behind one interface, selected by the `LLM_PROVIDER` env var, with no new dependency.** Each provider is a single HTTP POST and `httpx` was already required by stage 01; adding an LLM SDK to make one JSON request would have been the wrong trade. Stage 07 (generation) can reuse the same `LLMFunction` type.
+
+**Every failure degrades to passthrough, never raises.** A dead provider, a timeout, a missing API key, prose instead of JSON, a fenced ```` ```json ```` block, an empty rewrite - all return the original query as its own rewrite, and retrieval still runs. This stage improves retrieval; it must never be able to break it. The CLI says loudly when this has happened, because a silent passthrough on a Mandarin query looks healthy while retrieving nothing.
+
+One real detail that decides whether this stage works at all: models told to reply with "only JSON" wrap it in a code fence anyway. Without unwrapping that, the stage would fall back to passthrough on every single call while looking perfectly fine.
+
 ## Project structure
 
 ```
 rag/
   schemas.py          # every contract between stages, frozen
-  main.py             # CLI: ingest / append / extract / chunk / index / retrieve
+  main.py             # CLI: ingest / append / extract / chunk / index / retrieve / understand / ask
   s01_ingest.py
   s02_extract.py
   s03_chunk.py
   s04_embed.py
   s05_retrieve.py
-  lang.py             # langdetect, shared by stage 02 and the online path
+  s06_query.py
+  lang.py             # langdetect, shared by stages 02 and 06
   config/
     approved_domains.json
     domain_decisions.md
     schema.sql
   fixtures/
     f01_pages.json    # 6 real pages, used to test every stage
+    f05_query.json    # stage 06 handoff examples, including the passthrough shape
+    eval_queries.json # the eval set: 10 vague questions x 2 languages + 2 refusal cases
     sample_little_book_of_scams.pdf
 scripts/
   verify_index.sql       # manual sanity checks for stage 04's output
   spot_check_index.py    # manual vector-search-only smoke test (superseded by `retrieve`, kept for reference)
+  eval_queries.py        # hit@3 over the eval set, per language, reranker on/off
 tests/
   test_s01_ingest.py
   test_s02_extract.py
   test_s03_chunk.py
   test_s04_embed.py
   test_s05_retrieve.py
+  test_s06_query.py
 .github/workflows/ci.yml
 README_rag.md
 .env.example
 ```
+
+`lang.py` is its own module rather than living inside `s02_extract` for a concrete reason: importing `s02_extract` pulls in `trafilatura`, and stage 06 runs on the **online** path. `connectplus-llm` doing `from rag import understand` should not have to install the offline crawl-and-extract stack to detect the language of a question.
 
 ## Setup
 
@@ -148,7 +191,17 @@ python -m rag.main index --domain beconnected.esafety.gov.au
 python -m rag.main retrieve "how do I know if a text message is a scam"
 python -m rag.main retrieve "what is mygov" --top-k 3
 python -m rag.main retrieve "artificial intelligence scams" --no-rerank
+
+# Stage 06 - query understanding on its own (no database needed)
+python -m rag.main understand "my phone keeps asking for a code"
+python -m rag.main understand "我的手机一直要求输入验证码"
+
+# Stage 06 + 05 - understand the question, then retrieve on the rewrite
+python -m rag.main ask "我的手机一直要求输入验证码"
+python -m rag.main ask "someone rang saying they were from the tax office" --top-k 3
 ```
+
+`ask` is the one to use for real queries. `retrieve` sends the raw string to both search halves, which is what you want for the reranker before/after comparison and not much else.
 
 `beconnected.esafety.gov.au` needs `--max-pages 1200` on ingest - its real sitemap has 1,094 URLs, above the default 500-page safety cap.
 
@@ -160,8 +213,44 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-108 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection) is injectable, so the full test suite runs with no internet access and no live services.
+132 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM) is injectable, so the full test suite runs with no internet access and no live services.
+
+## Evaluating retrieval
+
+Two stages have a DONE criterion that is a *measurement*, not a code review:
+
+- **05** - hit@3 over the eval set, in Mandarin as well as English, measured before and after the reranker. If the reranker doesn't move the number, drop it.
+- **06** - ten vague real-world phrasings each produce a query that retrieves the right page.
+
+Both are scored by one command, against the live index:
+
+```bash
+python scripts/eval_queries.py                  # reranker on, both languages
+python scripts/eval_queries.py --no-rerank      # the "before" half of before/after
+python scripts/eval_queries.py --no-understand  # isolates what stage 06 contributes
+```
+
+The question set is `rag/fixtures/eval_queries.json` - ten questions phrased the way a senior would actually ask (vague, wrong word, symptom described rather than named), each in English and Mandarin, plus two queries the knowledge base should *not* be able to answer. A query set written in the corpus's own vocabulary measures nothing: it would score well without stage 06 existing at all.
+
+**The eval set is deliberately incomplete.** Only 4 of the 10 queries have `expect_url_contains` filled in - the 4 whose target page is confirmed present in `f01_pages.json`. The other 6 are `null`, and the harness prints them as `UNSET` along with the top 3 URLs retrieval actually returned, leaving them out of the hit@3 denominator entirely.
+
+That is not laziness, it is the only honest option. A guessed expectation naming a page that isn't in the index scores as a miss and makes retrieval look broken when it isn't. A bare hostname (`scamwatch.gov.au`) is worse: it scores *any* page on that domain as a hit, so the number looks excellent and measures nothing. **The first run is what completes the file** - read the URLs it prints, pick the right page, paste a distinctive part of its path in, re-run. Until then the harness labels its own output a `PARTIAL baseline` and refuses to present it as the DONE measurement.
+
+The output includes a `kw` column showing whether the keyword half contributed anything. That column is the alarm for the failure mode described under stage 06 - all-`vector` results mean half the system did nothing and nothing said so.
 
 ## What's next
 
-Stage 08 (guardrails + citation check) - grounding, citation resolution, the confidence threshold this repo's `retrieve()` now produces, and a safety deny-list. One naming note worth keeping in mind: this repo's own file numbering (01-05) matches `README_rag.md` but not the unified whole-project stage map, which calls this repo's stage 05 "stage 06" and reserves its own "05" and "07" for the LLM team's query-understanding and generation work in `connectplus-llm`. `README_rag.md` calls the guardrails stage 06; the stage map calls it 08.
+Stage 07 - guardrails and the citation check, the stage map's **08** - is this repo's remaining work, and it is the only thing standing between a senior and a confident invented answer about myGov. After that, `connectplus-llm`'s half: the stage map's **07 Grounded Generation** and **09 Answer API + Eval**.
+
+Two measurements also need live credentials:
+
+- **The eval baseline has never been run.** `scripts/eval_queries.py` needs a `DATABASE_URL` and an LLM key. Until it is, stage 05's and stage 06's DONE criteria are unmeasured, and 6 of the 10 eval queries still have no expected page.
+- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 will have to refuse on a single threshold, and no one number can serve both scales. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
+
+### Known gaps, deliberately deferred
+
+- Chunk text is embedded without its `title`/`heading_path` prefix. Likely a real retrieval-quality loss, but fixing it means a full re-index - measure with the eval harness first, then decide.
+- No delete path for de-approved domains or removed pages. Chunks already indexed outlive a domain's approval, because stage 04's upsert-by-id never deletes - so stage 07 will have to re-enforce the approved list at verification time.
+- `fixtures/f03_chunks.json` does not exist, despite being named across the planning docs as the file that unblocks downstream work.
+- Nothing enforces source diversity in the top-k - all five results can come from one page, starving the generator of independent sources.
+- Two Chinese-language pages `trafilatura` cannot extract, and lower text quality on some non-English PDFs (see stage 02).

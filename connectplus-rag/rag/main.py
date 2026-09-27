@@ -1,4 +1,4 @@
-"""CLI entry point. Wires up stages 01, 02, 03, 04, and 05.
+"""CLI entry point. Wires up stages 01, 02, 03, 04, 05 and 06.
 
 Usage (from README_rag.md, extended for 02-05):
     python -m rag.main ingest
@@ -7,6 +7,8 @@ Usage (from README_rag.md, extended for 02-05):
     python -m rag.main chunk --domain scamwatch.gov.au
     python -m rag.main index --domain scamwatch.gov.au
     python -m rag.main retrieve "how do I know if a text message is a scam"
+    python -m rag.main understand "my phone keeps asking for a code"
+    python -m rag.main ask "我的手机一直要求输入验证码"
 
 `index` and `retrieve` read DATABASE_URL from a .env file in the project
 root (or the real environment) - Supabase's SESSION POOLER connection
@@ -44,7 +46,8 @@ from rag.s05_retrieve import (
     make_postgres_vector_search,
     retrieve,
 )
-from rag.schemas import Chunk, ExtractedDoc
+from rag.s06_query import keyword_query_for, understand
+from rag.schemas import Chunk, ExtractedDoc, UnderstoodQuery
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config" / "approved_domains.json"
 DEFAULT_CACHE_DIR = Path(".cache/html")
@@ -84,31 +87,16 @@ def _get_db_url() -> str | None:
     return db_url
 
 
-def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
-    db_url = _get_db_url()
-    if not db_url:
-        return
+NO_RERANK_WARNING = (
+    "Note: running WITHOUT the reranker. Confirmed real risk, not just a slower/"
+    "faster trade-off: on real data, RRF fusion without reranking ranked a generic "
+    "chunk above the one that specifically answered the query, because keyword "
+    "search's ts_rank can't tell a common domain word from a real relevance signal. "
+    "Use this flag for the README's own before/after comparison, not for real use.\n"
+)
 
-    if not use_reranker:
-        print(
-            "Note: running WITHOUT the reranker. Confirmed real risk, not just a slower/"
-            "faster trade-off: on real data, RRF fusion without reranking ranked a generic "
-            "chunk above the one that specifically answered the query, because keyword "
-            "search's ts_rank can't tell a common domain word from a real relevance signal. "
-            "Use this flag for the README's own before/after comparison, not for real use.\n"
-        )
 
-    vector_search_fn = make_postgres_vector_search(db_url)
-    keyword_search_fn = make_postgres_keyword_search(db_url)
-    fetch_chunks_fn = make_postgres_chunk_fetcher(db_url)
-    rerank_fn = get_default_reranker() if use_reranker else None
-
-    results, confidence = retrieve(
-        query, vector_search_fn=vector_search_fn, keyword_search_fn=keyword_search_fn,
-        fetch_chunks_fn=fetch_chunks_fn, rerank_fn=rerank_fn, top_k_final=top_k,
-    )
-
-    print(f"Query: {query!r}")
+def _print_results(results: list, confidence: float, use_reranker: bool) -> None:
     print(f"Confidence: {confidence:.3f}  (reranker {'on' if use_reranker else 'off'})")
     print(f"\nTop {len(results)} results:\n")
     for i, r in enumerate(results, 1):
@@ -117,6 +105,81 @@ def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
         print(f"    heading_path: {r.heading_path}")
         print(f"    text: {r.text[:200]}...")
         print()
+
+
+def _print_understood(uq: UnderstoodQuery) -> None:
+    """Always printed before results in `ask`. A bad retrieval is usually a
+    bad rewrite, and you can't see that unless the rewrite is on screen.
+    """
+    print(f"Original:   {uq.original!r}  (lang={uq.lang})")
+    print(f"Rewritten:  {uq.rewritten!r}")
+    print(f"Expansions: {uq.expansions}")
+    if not uq.prompt_version:
+        print(
+            "  ^ passthrough: the LLM was unavailable or returned something unparseable, "
+            "so this is the original query unchanged. Retrieval still runs, but keyword "
+            "search will find nothing if the query isn't English. Check LLM_PROVIDER and "
+            "your API key in .env."
+        )
+    print()
+
+
+def _run_understand(query: str, lang: str | None) -> None:
+    _print_understood(understand(query, lang=lang))
+
+
+def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
+    db_url = _get_db_url()
+    if not db_url:
+        return
+
+    if not use_reranker:
+        print(NO_RERANK_WARNING)
+
+    rerank_fn = get_default_reranker() if use_reranker else None
+    results, confidence = retrieve(
+        query,
+        vector_search_fn=make_postgres_vector_search(db_url),
+        keyword_search_fn=make_postgres_keyword_search(db_url),
+        fetch_chunks_fn=make_postgres_chunk_fetcher(db_url),
+        rerank_fn=rerank_fn,
+        top_k_final=top_k,
+    )
+
+    print(f"Query: {query!r}")
+    _print_results(results, confidence, use_reranker)
+
+
+def _run_ask(query: str, lang: str | None, top_k: int, use_reranker: bool) -> None:
+    """Stage 06 -> stage 05: understand the question, then retrieve on it.
+
+    This is the whole reason retrieve() takes a separate keyword_query.
+    The vector half searches the English `rewritten` form; the keyword half
+    additionally gets the expansion terms, which help lexical recall but
+    would dilute a dense embedding if they were folded into `rewritten`.
+    """
+    db_url = _get_db_url()
+    if not db_url:
+        return
+
+    if not use_reranker:
+        print(NO_RERANK_WARNING)
+
+    uq = understand(query, lang=lang)
+    _print_understood(uq)
+
+    rerank_fn = get_default_reranker() if use_reranker else None
+    results, confidence = retrieve(
+        uq.rewritten,
+        vector_search_fn=make_postgres_vector_search(db_url),
+        keyword_search_fn=make_postgres_keyword_search(db_url),
+        fetch_chunks_fn=make_postgres_chunk_fetcher(db_url),
+        rerank_fn=rerank_fn,
+        keyword_query=keyword_query_for(uq),
+        top_k_final=top_k,
+    )
+
+    _print_results(results, confidence, use_reranker)
 
 
 def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
@@ -264,6 +327,28 @@ def main() -> None:
              "doesn't move the number.",
     )
 
+    understand_parser = subparsers.add_parser(
+        "understand", help="Run stage 06 query understanding on its own (no database needed)"
+    )
+    understand_parser.add_argument("query", help="The question as the user would type it, in quotes.")
+    understand_parser.add_argument(
+        "--lang", default=None,
+        help="ISO code of the user's language (e.g. zh-cn). Authoritative when given - the "
+             "frontend knows which language the senior chose, and that beats detecting it "
+             "from a six-word question. Omit to auto-detect.",
+    )
+
+    ask_parser = subparsers.add_parser(
+        "ask", help="Stage 06 + 05: understand the question, then retrieve on the rewrite"
+    )
+    ask_parser.add_argument("query", help="The question as the user would type it, in quotes.")
+    ask_parser.add_argument("--lang", default=None, help="Same as `understand --lang`.")
+    ask_parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K_FINAL)
+    ask_parser.add_argument(
+        "--no-rerank", action="store_true",
+        help="Skip the cross-encoder rerank step - see `retrieve --no-rerank`.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
@@ -281,6 +366,10 @@ def main() -> None:
             _run_index(domain, args.chunked_dir, args.batch_size)
     elif args.command == "retrieve":
         _run_retrieve(args.query, args.top_k, use_reranker=not args.no_rerank)
+    elif args.command == "understand":
+        _run_understand(args.query, args.lang)
+    elif args.command == "ask":
+        _run_ask(args.query, args.lang, args.top_k, use_reranker=not args.no_rerank)
 
 
 if __name__ == "__main__":

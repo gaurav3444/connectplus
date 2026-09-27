@@ -1,0 +1,30 @@
+[
+  {
+    "original": "my phone keeps asking for a code",
+    "lang": "en",
+    "rewritten": "two-factor authentication",
+    "expansions": ["verification code", "2FA", "one-time code"],
+    "prompt_version": "query-understanding-v1"
+  },
+  {
+    "original": "我的手机一直要求输入验证码",
+    "lang": "zh-cn",
+    "rewritten": "two-factor authentication",
+    "expansions": ["verification code", "2FA"],
+    "prompt_version": "query-understanding-v1"
+  },
+  {
+    "original": "someone rang and said they were from the tax office and wanted money",
+    "lang": "en",
+    "rewritten": "phone call scam impersonating government agency",
+    "expansions": ["ATO scam", "threat scam", "impersonation"],
+    "prompt_version": "query-understanding-v1"
+  },
+  {
+    "original": "how do I know if a text message is a scam",
+    "lang": "en",
+    "rewritten": "how do I know if a text message is a scam",
+    "expansions": [],
+    "prompt_version": ""
+  }
+]
