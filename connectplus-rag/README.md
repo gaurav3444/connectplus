@@ -149,11 +149,26 @@ python -m rag.main verify --grounding  # + NLI (first run downloads ~500MB)
 
 `rag/fixtures/f07_drafts.json` holds 12 drafts, most of which **should be rejected** - including all three cases the outer README names as acceptance criteria. Adversarial fixtures matter more than happy-path ones here; run them on every change.
 
+## Using it from connectplus-llm
+
+Two calls, the signatures agreed with `connectplus-llm`, both plain function calls in the same process:
+
+```python
+from rag import retrieve, verify
+
+chunks, confidence = retrieve(query_en, lang, k)   # query already translated to English
+draft = generate(chunks, lang)                     # connectplus-llm
+verdict = verify(draft, chunks)                    # draft: answer_md str, or an Answer dict/object
+```
+
+`rag/api.py` binds the production dependencies (Postgres from this repo's own `.env`, the reranker, the NLI model), so the caller passes plain values only. The reranker is always on, which makes `confidence` equal the top chunk's score - so `verify` recomputes it from `chunks` instead of taking it from the caller, and a draft cannot vouch for its own confidence. Pass `chunks` back exactly as `retrieve` returned them: `[n]` means the n-th chunk the generator was shown. A failing verdict means drop the answer and offer a mentor; never patch and retry. Both calls log to the `rag` logger.
+
 ## Project structure
 
 ```
 rag/
   schemas.py          # every contract between stages, frozen
+  api.py              # retrieve(query_en, lang, k) and verify(draft, chunks) - the public surface
   main.py             # CLI: ingest / append / extract / chunk / index / retrieve / understand / ask / verify
   s01_ingest.py
   s02_extract.py
@@ -178,6 +193,7 @@ scripts/
   spot_check_index.py    # manual vector-search-only smoke test (superseded by `retrieve`, kept for reference)
   eval_queries.py        # hit@3 over the eval set, per language, reranker on/off
 tests/
+  test_api.py
   test_s01_ingest.py
   test_s02_extract.py
   test_s03_chunk.py
@@ -255,7 +271,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-186 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
+191 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 
@@ -285,7 +301,7 @@ The output includes a `kw` column showing whether the keyword half contributed a
 This repo's own stages are complete. What remains is `connectplus-llm`'s half - the stage map's **07 Grounded Generation** and **09 Answer API + Eval** - plus two measurements that need live credentials:
 
 - **The eval baseline has never been run.** `scripts/eval_queries.py` needs a `DATABASE_URL` and an LLM key. Until it is, stage 05's and stage 06's DONE criteria are unmeasured, and 6 of the 10 eval queries still have no expected page.
-- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
+- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
 
 ### Known gaps, deliberately deferred
 
