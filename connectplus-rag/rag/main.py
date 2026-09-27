@@ -48,7 +48,7 @@ from rag.s05_retrieve import (
     retrieve,
 )
 from rag.s06_query import keyword_query_for, understand
-from rag.s07_verify import verify
+from rag.s07_verify import get_default_entailment, verify
 from rag.schemas import Chunk, ExtractedDoc, UnderstoodQuery
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config" / "approved_domains.json"
@@ -187,7 +187,7 @@ def _run_ask(query: str, lang: str | None, top_k: int, use_reranker: bool) -> No
 DEFAULT_DRAFTS_PATH = Path(__file__).parent / "fixtures" / "f07_drafts.json"
 
 
-def _run_verify(drafts_path: Path) -> None:
+def _run_verify(drafts_path: Path, use_grounding: bool) -> None:
     """Grades every draft in the fixture and prints pass/fail against what
     each was expected to do. Adversarial fixtures matter more than
     happy-path ones here - most of these SHOULD be rejected, and a guardrail
@@ -195,27 +195,32 @@ def _run_verify(drafts_path: Path) -> None:
     """
     spec = json.loads(drafts_path.read_text(encoding="utf-8"))
     all_chunks = [Chunk.model_validate(c) for c in spec["chunks"]]
+    entail_fn = get_default_entailment() if use_grounding else None
 
-    print(
-        "Note: the grounding check is not implemented yet, so a draft whose only\n"
-        "fault is an invented fact PASSES here. Stated rather than hidden - the\n"
-        "three deterministic checks are what this iteration delivers.\n"
-    )
+    if not use_grounding:
+        print(
+            "Note: grounding is OFF (no --grounding), so drafts whose only fault is an\n"
+            "invented fact will PASS the other three checks. That is correct behaviour,\n"
+            "not a bug - and it is exactly why grounding is not optional in production.\n"
+        )
 
     print(f"{'draft':<42}{'expected':<16}{'got':<16}ok")
     print("-" * 82)
     agree = 0
     for d in spec["drafts"]:
         chunks = [all_chunks[i] for i in d["chunks"]]
-        verdict = verify(d["answer_md"], chunks, d["confidence"])
-        # A draft marked needs_grounding can only fail once grounding lands.
-        expected = None if d.get("needs_grounding") else d["expect"]
+        verdict = verify(d["answer_md"], chunks, d["confidence"], entail_fn=entail_fn)
+        # A draft marked needs_grounding can only fail once grounding runs.
+        expected = d["expect"]
+        if d.get("needs_grounding") and not use_grounding:
+            expected = None
         ok = verdict.reason == expected
         agree += int(ok)
         print(f"{d['id']:<42}{str(expected):<16}{str(verdict.reason):<16}{'yes' if ok else 'NO'}")
 
     print("-" * 82)
-    print(f"{agree}/{len(spec['drafts'])} drafts graded as expected")
+    print(f"{agree}/{len(spec['drafts'])} drafts graded as expected"
+          f"   (grounding {'on' if use_grounding else 'off'})")
     if agree != len(spec["drafts"]):
         print(
             "\nA disagreement here means the guardrail changed behaviour. "
@@ -397,6 +402,11 @@ def main() -> None:
         "--drafts", type=Path, default=DEFAULT_DRAFTS_PATH,
         help="Draft fixture to grade (default: rag/fixtures/f07_drafts.json).",
     )
+    verify_parser.add_argument(
+        "--grounding", action="store_true",
+        help="Also run the NLI grounding check. First use downloads the cross-encoder "
+             "(~500MB). Without this flag only the three deterministic checks run.",
+    )
 
     args = parser.parse_args()
 
@@ -420,7 +430,7 @@ def main() -> None:
     elif args.command == "ask":
         _run_ask(args.query, args.lang, args.top_k, use_reranker=not args.no_rerank)
     elif args.command == "verify":
-        _run_verify(args.drafts)
+        _run_verify(args.drafts, use_grounding=args.grounding)
 
 
 if __name__ == "__main__":

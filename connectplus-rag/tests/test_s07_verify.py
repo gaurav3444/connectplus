@@ -4,10 +4,12 @@ Runs the committed adversarial fixture (`rag/fixtures/f07_drafts.json`) on
 every change, which is the outer README's own instruction: "Keep a file of
 drafts that should be rejected and run them on every change."
 
-This iteration covers the three deterministic checks only. Grounding is
-not implemented yet, so the two drafts marked needs_grounding are asserted
-to PASS - keeping the gap visible in the test names rather than letting an
-unimplemented check look green.
+Grounding uses an injected entailment function throughout. The real
+cross-encoder is a download this sandbox cannot make, so what is tested here
+is the scoring LOGIC - weakest-claim aggregation, per-sentence best-chunk
+matching - against deterministic fakes. get_default_entailment() is the
+production path and is untested by me, the same honest caveat every other
+stage in this repo carries for its external dependency.
 """
 
 from __future__ import annotations
@@ -18,7 +20,10 @@ from pathlib import Path
 import pytest
 
 from rag.s07_verify import (
+    DEFAULT_GROUNDING_THRESHOLD,
+    EntailmentFunction,
     find_unsafe_instruction,
+    grounded_score,
     load_approved_domains,
     resolve_citations,
     verify,
@@ -39,6 +44,27 @@ def draft(draft_id: str) -> dict:
     return next(d for d in SPEC["drafts"] if d["id"] == draft_id)
 
 
+def entail_by_overlap() -> EntailmentFunction:
+    """A stand-in entailment function: word overlap between hypothesis and
+    premise, which is crude but monotonic in the right direction - a
+    sentence lifted from a chunk scores high, an invented one scores low.
+    Enough to test the aggregation logic without a 500MB model.
+    """
+
+    def entail(premises: list[str], hypotheses: list[str]) -> list[float]:
+        scores = []
+        for premise, hypothesis in zip(premises, hypotheses):
+            words = {w.strip(".,!?()").lower() for w in hypothesis.split() if len(w) > 3}
+            if not words:
+                scores.append(1.0)
+                continue
+            premise_words = {w.strip(".,!?()").lower() for w in premise.split()}
+            scores.append(len(words & premise_words) / len(words))
+        return scores
+
+    return entail
+
+
 # ---------------------------------------------------------------------------
 # the fixture - the acceptance criteria, run on every change
 # ---------------------------------------------------------------------------
@@ -46,15 +72,13 @@ def draft(draft_id: str) -> dict:
 
 @pytest.mark.parametrize("d", SPEC["drafts"], ids=[d["id"] for d in SPEC["drafts"]])
 def test_every_fixture_draft_gets_its_expected_verdict(d: dict) -> None:
-    """Drafts marked needs_grounding pass here - grounding is not
-    implemented in this iteration. Asserting that explicitly rather than
-    skipping them keeps the gap visible instead of letting it look green."""
-    expected = None if d.get("needs_grounding") else d["expect"]
+    entail = entail_by_overlap() if d.get("needs_grounding") else None
     verdict = verify(
-        d["answer_md"], chunks_for(d), d["confidence"], approved_domains=APPROVED
+        d["answer_md"], chunks_for(d), d["confidence"],
+        entail_fn=entail, approved_domains=APPROVED,
     )
-    assert verdict.reason == expected, d["note"]
-    assert verdict.passed is (expected is None)
+    assert verdict.reason == d["expect"], d["note"]
+    assert verdict.passed is (d["expect"] is None)
 
 
 def test_the_three_named_acceptance_criteria_are_all_covered() -> None:
@@ -173,6 +197,81 @@ def test_an_answer_with_no_content_and_no_citations_is_not_a_citation_failure() 
     """A bare refusal cites nothing and should not be graded as one."""
     verdict = verify("No.", ALL_CHUNKS[:2], 0.9, approved_domains=APPROVED)
     assert verdict.passed is True
+
+
+# ---------------------------------------------------------------------------
+# grounding
+# ---------------------------------------------------------------------------
+
+
+def test_grounded_score_is_the_weakest_claim_not_the_average() -> None:
+    """Two well-supported sentences must not be able to carry one invented
+    one - that is the acceptance criterion a mean cannot deliver."""
+    def entail(premises, hypotheses):
+        return [1.0 if "supported" in h else 0.05 for h in hypotheses]
+
+    score = grounded_score(
+        "This claim is supported by the source. "
+        "This claim is supported by the source too. "
+        "The national scam register blocks senders within 24 hours.",
+        ALL_CHUNKS[:1],
+        entail,
+    )
+    assert score == pytest.approx(0.05)
+
+
+def test_each_sentence_is_scored_against_its_best_chunk_not_all_of_them() -> None:
+    """A claim needs only ONE source to support it. Requiring every chunk to
+    entail every sentence would fail every real answer."""
+    def entail(premises, hypotheses):
+        return [0.95 if p is ALL_CHUNKS[1].text else 0.02 for p in premises]
+
+    score = grounded_score("Some substantive claim here.", ALL_CHUNKS[:2], entail)
+    assert score == pytest.approx(0.95)
+
+
+def test_citation_markers_and_list_numbering_are_stripped_before_grounding() -> None:
+    seen: list[str] = []
+
+    def entail(premises, hypotheses):
+        seen.extend(hypotheses)
+        return [1.0] * len(premises)
+
+    grounded_score("1. Do not tap the link in the message [1].", ALL_CHUNKS[:1], entail)
+    assert seen and "[1]" not in seen[0] and not seen[0].startswith("1.")
+
+
+def test_short_connective_lines_are_not_grounded() -> None:
+    seen: list[str] = []
+
+    def entail(premises, hypotheses):
+        seen.extend(hypotheses)
+        return [1.0] * len(premises)
+
+    grounded_score(
+        "Here's how:\n\nScam texts often create a sense of urgency about your account.",
+        ALL_CHUNKS[:1], entail,
+    )
+    assert all("Here's how" not in h for h in seen)
+
+
+def test_grounding_is_skipped_when_no_entail_fn_is_supplied() -> None:
+    """Deliberate, not a silent downgrade: the three deterministic checks
+    are useful on their own, and grounded_score stays 0.0 rather than
+    claiming a check that never ran."""
+    d = draft("d03-one-invented-step")
+    verdict = verify(d["answer_md"], chunks_for(d), d["confidence"], approved_domains=APPROVED)
+    assert verdict.passed is True
+    assert verdict.grounded_score == 0.0
+
+
+def test_an_entail_fn_returning_the_wrong_number_of_scores_raises() -> None:
+    with pytest.raises(ValueError, match="refusing to guess"):
+        grounded_score("A substantive claim goes here.", ALL_CHUNKS[:2], lambda p, h: [1.0])
+
+
+def test_grounding_threshold_is_the_documented_default() -> None:
+    assert DEFAULT_GROUNDING_THRESHOLD == 0.7
 
 
 # ---------------------------------------------------------------------------

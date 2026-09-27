@@ -14,7 +14,6 @@ Four checks. All must pass:
     cited       a citation marker resolves to nothing, or to a domain that
                 is not on the approved list
     grounded    the answer states a fact that is not in the supplied chunks
-                - NOT IMPLEMENTED YET, see the note below
 
 Fail any one and the answer is **dropped, not patched**. What the senior
 gets instead is "I don't have trusted information on that" plus a mentor
@@ -42,12 +41,6 @@ Design decisions made explicit here:
   essential - without it, the single easiest way to pass the citation check
   is to cite nothing, which is exactly the shape a wholly invented answer
   takes.
-- GROUNDING IS NOT IMPLEMENTED IN THIS ITERATION. The three deterministic
-  checks land first, on their own, because they are the ones that catch the
-  failures with actual victims and they need no model download to run. A
-  draft whose only fault is an invented fact PASSES here, and that is stated
-  rather than hidden: `grounded_score` stays 0.0 and never claims a check
-  that did not run. Grounding arrives next.
 - The safety deny-list matches INSTRUCTIONS TO DISCLOSE, never the mere
   mention of a credential. This is the whole difficulty of the check: the
   correct, desirable answer on this corpus is "never share your password
@@ -60,13 +53,19 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
+from functools import lru_cache
 from pathlib import Path
 
 from rag.schemas import Chunk, Citation, Verdict
 
 DEFAULT_CONFIDENCE_THRESHOLD = 0.45  # outer README's CONFIDENCE_THRESHOLD
+DEFAULT_GROUNDING_THRESHOLD = 0.7    # outer README's GROUNDING_THRESHOLD
 
 APPROVED_DOMAINS_PATH = Path(__file__).parent / "config" / "approved_domains.json"
+
+# (premises, hypotheses) -> entailment probability per pair, both same length.
+EntailmentFunction = Callable[[list[str], list[str]], list[float]]
 
 _CITATION_RE = re.compile(r"\[(\d{1,3})\]")
 
@@ -124,7 +123,53 @@ _NEGATION_RE = re.compile(
 )
 
 _NEGATION_WINDOW = 60  # characters before the match to search for a negation
-_MIN_CONTENT_WORDS = 4  # below this an "answer" is a bare refusal, not a claim needing a citation
+
+
+NLI_MODEL_NAME = "cross-encoder/nli-deberta-v3-base"
+_ENTAILMENT_LABEL = "entailment"
+
+
+@lru_cache(maxsize=1)
+def get_default_entailment(model_name: str = NLI_MODEL_NAME) -> EntailmentFunction:
+    """Real NLI cross-encoder, loaded once per process.
+
+    Not used by any test in this repo - this sandbox cannot download it, so
+    tests inject a stand-in (see tests/test_s07_verify.py). Untested by me;
+    you are the first to run this against the real model, the same situation
+    as stage 04's embedder and stage 05's database functions.
+
+    The label index is read from the model's OWN config rather than
+    hardcoded. This model returns three classes (contradiction, entailment,
+    neutral) and the order is not a standard anyone guarantees - hardcoding
+    index 1 would silently grade every answer against the wrong class, which
+    fails open: wrong answers pass. Deriving it from id2label means a model
+    swap either works or raises, never quietly mis-scores.
+
+    Deliberately NOT reusing stage 05's bge-reranker, even though it is
+    already downloaded: relevance is not entailment. A chunk about scam
+    texts is highly relevant to an invented claim about scam texts, and a
+    relevance model would score that invented step as well-supported -
+    precisely the failure this stage exists to catch.
+    """
+    import numpy as np
+    from sentence_transformers import CrossEncoder
+
+    model = CrossEncoder(model_name)
+    id2label = {int(k): str(v).lower() for k, v in model.config.id2label.items()}
+    try:
+        entail_idx = next(i for i, label in id2label.items() if _ENTAILMENT_LABEL in label)
+    except StopIteration:
+        raise ValueError(
+            f"{model_name!r} has no '{_ENTAILMENT_LABEL}' class in its id2label "
+            f"({id2label}). Grounding cannot be scored against an unknown label set."
+        ) from None
+
+    def entail(premises: list[str], hypotheses: list[str]) -> list[float]:
+        logits = np.asarray(model.predict(list(zip(premises, hypotheses))))
+        exp = np.exp(logits - logits.max(axis=1, keepdims=True))
+        return (exp[:, entail_idx] / exp.sum(axis=1)).tolist()
+
+    return entail
 
 
 def load_approved_domains(path: Path = APPROVED_DOMAINS_PATH) -> set[str]:
@@ -195,19 +240,76 @@ def resolve_citations(
     return citations
 
 
+def _substantive_sentences(answer_md: str, min_words: int = 4) -> list[str]:
+    """Sentences worth grounding.
+
+    Skips headers, list bullets stripped to nothing, and short connective
+    lines ("Here's how:"), which carry no factual claim and would drag a
+    min-based grounded_score down for no reason.
+    """
+    text = re.sub(r"\[\d{1,3}\]", " ", answer_md)          # citation markers
+    text = re.sub(r"^\s*(?:#{1,6}|[-*>]|\d+[.)])\s*", " ", text, flags=re.MULTILINE)
+    sentences = re.split(r"(?<=[.!?])\s+|\n{2,}", text)
+    return [s.strip() for s in sentences if len(s.split()) >= min_words]
+
+
+def grounded_score(
+    answer_md: str,
+    chunks: list[Chunk],
+    entail_fn: EntailmentFunction,
+) -> float:
+    """The answer's WEAKEST substantive claim, scored 0..1.
+
+    Minimum across sentences, not mean. An average lets one invented step
+    hide behind four well-supported ones, and "a hand-written answer
+    containing one invented step is caught" is this stage's own acceptance
+    criterion - a mean cannot deliver it.
+
+    Each sentence is scored against its best-matching chunk (max), because
+    a claim only needs ONE source to support it; needing every chunk to
+    entail every sentence would fail every real answer.
+    """
+    sentences = _substantive_sentences(answer_md)
+    if not sentences or not chunks:
+        return 0.0
+
+    premises: list[str] = []
+    hypotheses: list[str] = []
+    for sentence in sentences:
+        for chunk in chunks:
+            premises.append(chunk.text)
+            hypotheses.append(sentence)
+
+    scores = entail_fn(premises, hypotheses)
+    if len(scores) != len(premises):
+        raise ValueError(
+            f"entail_fn returned {len(scores)} scores for {len(premises)} pairs - "
+            "refusing to guess which score belongs to which claim"
+        )
+
+    per_sentence = [
+        max(scores[i * len(chunks) : (i + 1) * len(chunks)]) for i in range(len(sentences))
+    ]
+    return min(per_sentence)
+
+
 def verify(
     answer_md: str,
     chunks: list[Chunk],
     confidence: float,
+    entail_fn: EntailmentFunction | None = None,
     approved_domains: set[str] | None = None,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+    grounding_threshold: float = DEFAULT_GROUNDING_THRESHOLD,
 ) -> Verdict:
     """Grades a draft answer against the chunks it was generated from.
 
-    Grounding is not implemented in this iteration, so `grounded_score`
-    stays 0.0 and a draft whose only fault is an invented fact will pass.
-    Deliberate and documented rather than hidden - the three deterministic
-    checks are useful on their own, and they need no model to run.
+    entail_fn defaults to None, which SKIPS the grounding check and leaves
+    grounded_score at 0.0. That is deliberate rather than a silent
+    downgrade: grounding needs a cross-encoder this repo will not download
+    on your behalf, and the three deterministic checks are genuinely useful
+    without it. `passed` never claims a grounding check that did not run -
+    read grounded_score together with whether you supplied entail_fn.
 
     approved_domains defaults to the same allowlist file stage 01 enforces
     at fetch time.
@@ -235,14 +337,19 @@ def verify(
 
     # 3. Cited - every marker must resolve to a real chunk on an approved
     #    domain, and an answer with content must cite something.
-    if not citations and len(answer_md.split()) >= _MIN_CONTENT_WORDS:
+    if not citations and _substantive_sentences(answer_md):
         return fail("bad_citation")
     if any(not c.resolved for c in citations):
         return fail("bad_citation")
 
-    # 4. Grounded - next iteration.
+    # 4. Grounded - the expensive one, last.
+    score = 0.0
+    if entail_fn is not None:
+        score = grounded_score(answer_md, chunks, entail_fn)
+        if score < grounding_threshold:
+            return fail("ungrounded", score)
 
     return Verdict(
-        passed=True, reason=None, grounded_score=0.0,
+        passed=True, reason=None, grounded_score=score,
         citations=citations, confidence=confidence, chunk_ids=chunk_ids,
     )

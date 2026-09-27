@@ -340,8 +340,10 @@ class Verdict(BaseModel):
     grounded_score: float = Field(
         default=0.0,
         description=(
-            "Always 0.0 in this iteration - the grounding check is not implemented yet. "
-            "The field exists now so the Verdict contract does not change when it lands."
+            "Lowest per-sentence entailment across the answer's substantive sentences - "
+            "the weakest claim, not the average. An average lets one invented step hide "
+            "behind four well-supported ones, and 'one invented step is caught' is this "
+            "stage's own acceptance criterion. 0.0 when grounding was not run."
         ),
     )
     citations: list[Citation] = Field(default_factory=list)

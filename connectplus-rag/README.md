@@ -16,7 +16,7 @@ This is a class project (CW2, Monash TAP) built stage by stage, testing each sta
 | 04 - Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done - both domains fully embedded and indexed |
 | 05 - Retrieve | Hybrid vector + keyword search, RRF fusion, optional reranking, confidence score | ✅ Built and tested - real-query verification pending |
 | 06 - Query Understanding | Language detection + LLM rewrite of a vague question into an English search query | ✅ Built and tested - real-query verification pending |
-| 07 - Verify / Guardrails | Confidence threshold, safety deny-list, citation resolution + approved-domain enforcement | ⚠️ Three deterministic checks done - **grounding not implemented yet** |
+| 07 - Verify / Guardrails | Citation resolution, approved-domain enforcement, confidence threshold, safety deny-list, NLI grounding | ✅ Built and tested - adversarial fixture green |
 
 ### Stage numbering
 
@@ -123,9 +123,9 @@ Its own stage, not a flag inside generation. Four checks, all of which must pass
 | **Confident** | Retrieval confidence is below threshold - there was never good enough source material |
 | **Safe** | The answer tells the senior to hand over a password, an MFA code or payment details |
 | **Cited** | A citation marker resolves to nothing, or to a domain not on the approved list |
-| **Grounded** | The answer states a fact that is not in the supplied chunks - **not implemented in this iteration**, see below |
+| **Grounded** | The answer states a fact that is not in the supplied chunks |
 
-Three of the four run here. Fail any one and the answer is **dropped, not patched**. Check order is harm-first rather than cost-first: `unsafe` outranks `bad_citation` even though both are cheap regexes, because `reason` decides which message the senior sees, and "that advice was dangerous" matters more than "a footnote did not resolve".
+Fail any one and the answer is **dropped, not patched**. Check order is harm-first rather than cost-first: `unsafe` outranks `bad_citation` even though both are cheap regexes, because `reason` decides which message the senior sees, and "that advice was dangerous" matters more than "a footnote did not resolve".
 
 Everything except grounding is deterministic - no second LLM judging the first one on the hot path, since a model that can invent an answer can invent a defence of it.
 
@@ -136,15 +136,18 @@ Two real details that only showed up on the fixture:
 - **Bare `code` had to be a match.** The outer README's literal acceptance case is *"reply with the code you received"* - a senior forwarding a one-time code does not call it a "verification code". Requiring the qualifier missed the exact phrasing the check exists to catch. The false positives that buys ("enter your postcode", "share the discount code") are handled by a separate benign-code list rather than by narrowing the match, because the missing qualifier *is* the problem.
 - **An answer with no citations at all fails `cited`.** Without that rule the easiest way to pass the citation check is to cite nothing - precisely the shape a wholly invented answer takes.
 
-**Grounding is not implemented in this iteration, and says so.** The three deterministic checks land first, on their own, because they catch the failures with actual victims and need no model download to run. The consequence is stated rather than hidden: a draft whose only fault is an invented fact **passes** here, `grounded_score` stays `0.0` rather than claiming a check that did not run, and the CLI prints that caveat on every run. Two of the 12 fixture drafts (`needs_grounding`) can only fail on grounding, and the fixture asserts they pass in this iteration - an unimplemented check must not be able to look green.
+Grounding scores the answer's **weakest** substantive claim, not the average. An average lets one invented step hide behind four well-supported ones, and "a hand-written answer containing one invented step is caught" is this stage's own acceptance criterion - a mean cannot deliver it. Each sentence is scored against its best-matching chunk, since a claim needs only one source to support it.
+
+The entailment model's label index is read from the model's own `id2label`, not hardcoded. Hardcoding it would fail **open** on a model swap - every answer graded against the wrong class, wrong answers passing silently.
 
 The approved-domain list is enforced here as well as at fetch time, which is not redundant: chunks already in the index outlive a domain's approval, because stage 04's upsert-by-id never deletes anything.
 
 ```bash
-python -m rag.main verify   # the three deterministic checks
+python -m rag.main verify              # three deterministic checks
+python -m rag.main verify --grounding  # + NLI (first run downloads ~500MB)
 ```
 
-`rag/fixtures/f07_drafts.json` holds 12 drafts, most of which **should be rejected** - including all three cases the outer README names as acceptance criteria, though the invented-step one is among the two that cannot be caught until grounding lands. Adversarial fixtures matter more than happy-path ones here; run them on every change.
+`rag/fixtures/f07_drafts.json` holds 12 drafts, most of which **should be rejected** - including all three cases the outer README names as acceptance criteria. Adversarial fixtures matter more than happy-path ones here; run them on every change.
 
 ## Project structure
 
@@ -237,6 +240,7 @@ python -m rag.main ask "someone rang saying they were from the tax office" --top
 
 # Stage 07 - grade the adversarial drafts (no database needed)
 python -m rag.main verify
+python -m rag.main verify --grounding
 ```
 
 `ask` is the one to use for real queries. `retrieve` sends the raw string to both search halves, which is what you want for the reranker before/after comparison and not much else.
@@ -251,7 +255,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-179 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM) is injectable, so the full test suite runs with no internet access and no live services.
+186 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 
@@ -278,9 +282,7 @@ The output includes a `kw` column showing whether the keyword half contributed a
 
 ## What's next
 
-**The grounding check is this repo's remaining work.** Everything else in stage 07 is done; an NLI cross-encoder scoring the answer's weakest substantive claim is what closes it, and the two `needs_grounding` fixture drafts are already written and waiting to flip from pass to fail. After that, `connectplus-llm`'s half: the stage map's **07 Grounded Generation** and **09 Answer API + Eval**.
-
-Two measurements also need live credentials:
+This repo's own stages are complete. What remains is `connectplus-llm`'s half - the stage map's **07 Grounded Generation** and **09 Answer API + Eval** - plus two measurements that need live credentials:
 
 - **The eval baseline has never been run.** `scripts/eval_queries.py` needs a `DATABASE_URL` and an LLM key. Until it is, stage 05's and stage 06's DONE criteria are unmeasured, and 6 of the 10 eval queries still have no expected page.
 - **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
