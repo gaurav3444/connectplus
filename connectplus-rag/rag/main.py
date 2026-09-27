@@ -1,4 +1,4 @@
-"""CLI entry point. Wires up stages 01, 02, 03, 04, 05 and 06.
+"""CLI entry point. Wires up stages 01 through 07.
 
 Usage (from README_rag.md, extended for 02-05):
     python -m rag.main ingest
@@ -9,6 +9,7 @@ Usage (from README_rag.md, extended for 02-05):
     python -m rag.main retrieve "how do I know if a text message is a scam"
     python -m rag.main understand "my phone keeps asking for a code"
     python -m rag.main ask "我的手机一直要求输入验证码"
+    python -m rag.main verify
 
 `index` and `retrieve` read DATABASE_URL from a .env file in the project
 root (or the real environment) - Supabase's SESSION POOLER connection
@@ -47,6 +48,7 @@ from rag.s05_retrieve import (
     retrieve,
 )
 from rag.s06_query import keyword_query_for, understand
+from rag.s07_verify import verify
 from rag.schemas import Chunk, ExtractedDoc, UnderstoodQuery
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config" / "approved_domains.json"
@@ -180,6 +182,45 @@ def _run_ask(query: str, lang: str | None, top_k: int, use_reranker: bool) -> No
     )
 
     _print_results(results, confidence, use_reranker)
+
+
+DEFAULT_DRAFTS_PATH = Path(__file__).parent / "fixtures" / "f07_drafts.json"
+
+
+def _run_verify(drafts_path: Path) -> None:
+    """Grades every draft in the fixture and prints pass/fail against what
+    each was expected to do. Adversarial fixtures matter more than
+    happy-path ones here - most of these SHOULD be rejected, and a guardrail
+    that stops rejecting them has broken silently.
+    """
+    spec = json.loads(drafts_path.read_text(encoding="utf-8"))
+    all_chunks = [Chunk.model_validate(c) for c in spec["chunks"]]
+
+    print(
+        "Note: the grounding check is not implemented yet, so a draft whose only\n"
+        "fault is an invented fact PASSES here. Stated rather than hidden - the\n"
+        "three deterministic checks are what this iteration delivers.\n"
+    )
+
+    print(f"{'draft':<42}{'expected':<16}{'got':<16}ok")
+    print("-" * 82)
+    agree = 0
+    for d in spec["drafts"]:
+        chunks = [all_chunks[i] for i in d["chunks"]]
+        verdict = verify(d["answer_md"], chunks, d["confidence"])
+        # A draft marked needs_grounding can only fail once grounding lands.
+        expected = None if d.get("needs_grounding") else d["expect"]
+        ok = verdict.reason == expected
+        agree += int(ok)
+        print(f"{d['id']:<42}{str(expected):<16}{str(verdict.reason):<16}{'yes' if ok else 'NO'}")
+
+    print("-" * 82)
+    print(f"{agree}/{len(spec['drafts'])} drafts graded as expected")
+    if agree != len(spec["drafts"]):
+        print(
+            "\nA disagreement here means the guardrail changed behaviour. "
+            "Investigate before committing."
+        )
 
 
 def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
@@ -349,6 +390,14 @@ def main() -> None:
         help="Skip the cross-encoder rerank step - see `retrieve --no-rerank`.",
     )
 
+    verify_parser = subparsers.add_parser(
+        "verify", help="Run stage 07 guardrails over the adversarial draft fixture"
+    )
+    verify_parser.add_argument(
+        "--drafts", type=Path, default=DEFAULT_DRAFTS_PATH,
+        help="Draft fixture to grade (default: rag/fixtures/f07_drafts.json).",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest":
@@ -370,6 +419,8 @@ def main() -> None:
         _run_understand(args.query, args.lang)
     elif args.command == "ask":
         _run_ask(args.query, args.lang, args.top_k, use_reranker=not args.no_rerank)
+    elif args.command == "verify":
+        _run_verify(args.drafts)
 
 
 if __name__ == "__main__":

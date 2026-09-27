@@ -16,6 +16,7 @@ This is a class project (CW2, Monash TAP) built stage by stage, testing each sta
 | 04 - Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done - both domains fully embedded and indexed |
 | 05 - Retrieve | Hybrid vector + keyword search, RRF fusion, optional reranking, confidence score | ✅ Built and tested - real-query verification pending |
 | 06 - Query Understanding | Language detection + LLM rewrite of a vague question into an English search query | ✅ Built and tested - real-query verification pending |
+| 07 - Verify / Guardrails | Confidence threshold, safety deny-list, citation resolution + approved-domain enforcement | ⚠️ Three deterministic checks done - **grounding not implemented yet** |
 
 ### Stage numbering
 
@@ -29,10 +30,9 @@ Three planning documents number these stages three different ways, so here is th
 | `s04_embed` | 04 | 04 | Embed + index |
 | `s05_retrieve` | 05 | **06** | Hybrid retrieval |
 | `s06_query` | not in it | **05** | Query understanding |
+| `s07_verify` | 06 | 08 | Guardrails + citation check |
 
 File numbers here are **build order**; the stage map's are **pipeline order**. They agree through 04 and cross over at 05, because query understanding was built after retrieval but runs before it. Nothing is wrong - they are answering different questions. `README_rag.md` predates the split of query understanding into this repo, so it has no number for it at all and calls guardrails 06.
-
-The stage map's **08 Guardrails + citation check** would land here as `s07_verify`. It is not built in this snapshot - `rag/__init__.py` deliberately exports no `verify`, because in a repo whose whole job is being the trust boundary, an importable name that silently passes everything is worse than an `ImportError`.
 
 Query understanding lives in this repo by team decision. Both planning documents originally assigned it to `connectplus-llm`; that changed, and it matters because this repo now talks to an LLM, which it previously did not.
 
@@ -114,18 +114,51 @@ An explicitly passed `lang` always beats detection - the stage map's contract is
 
 One real detail that decides whether this stage works at all: models told to reply with "only JSON" wrap it in a code fence anyway. Without unwrapping that, the stage would fall back to passthrough on every single call while looking perfectly fine.
 
+### Stage 07 - Verify / Guardrails
+
+Its own stage, not a flag inside generation. Four checks, all of which must pass:
+
+| Check | Fails when |
+|---|---|
+| **Confident** | Retrieval confidence is below threshold - there was never good enough source material |
+| **Safe** | The answer tells the senior to hand over a password, an MFA code or payment details |
+| **Cited** | A citation marker resolves to nothing, or to a domain not on the approved list |
+| **Grounded** | The answer states a fact that is not in the supplied chunks - **not implemented in this iteration**, see below |
+
+Three of the four run here. Fail any one and the answer is **dropped, not patched**. Check order is harm-first rather than cost-first: `unsafe` outranks `bad_citation` even though both are cheap regexes, because `reason` decides which message the senior sees, and "that advice was dangerous" matters more than "a footnote did not resolve".
+
+Everything except grounding is deterministic - no second LLM judging the first one on the hot path, since a model that can invent an answer can invent a defence of it.
+
+**The hard part of the safety check is not the deny-list, it is the negation.** The correct, desirable answer on this corpus is *"never share your password with anyone"* - a naive deny-list on the word "password" rejects every good safety answer, while the lazy fix of dropping the word lets the dangerous one through. So the pattern matches *instructions to disclose* and then checks for a negation, looking back only to the start of the current sentence: a "never" in a **previous** sentence must not launder the instruction in this one (fixture `d11`).
+
+Two real details that only showed up on the fixture:
+
+- **Bare `code` had to be a match.** The outer README's literal acceptance case is *"reply with the code you received"* - a senior forwarding a one-time code does not call it a "verification code". Requiring the qualifier missed the exact phrasing the check exists to catch. The false positives that buys ("enter your postcode", "share the discount code") are handled by a separate benign-code list rather than by narrowing the match, because the missing qualifier *is* the problem.
+- **An answer with no citations at all fails `cited`.** Without that rule the easiest way to pass the citation check is to cite nothing - precisely the shape a wholly invented answer takes.
+
+**Grounding is not implemented in this iteration, and says so.** The three deterministic checks land first, on their own, because they catch the failures with actual victims and need no model download to run. The consequence is stated rather than hidden: a draft whose only fault is an invented fact **passes** here, `grounded_score` stays `0.0` rather than claiming a check that did not run, and the CLI prints that caveat on every run. Two of the 12 fixture drafts (`needs_grounding`) can only fail on grounding, and the fixture asserts they pass in this iteration - an unimplemented check must not be able to look green.
+
+The approved-domain list is enforced here as well as at fetch time, which is not redundant: chunks already in the index outlive a domain's approval, because stage 04's upsert-by-id never deletes anything.
+
+```bash
+python -m rag.main verify   # the three deterministic checks
+```
+
+`rag/fixtures/f07_drafts.json` holds 12 drafts, most of which **should be rejected** - including all three cases the outer README names as acceptance criteria, though the invented-step one is among the two that cannot be caught until grounding lands. Adversarial fixtures matter more than happy-path ones here; run them on every change.
+
 ## Project structure
 
 ```
 rag/
   schemas.py          # every contract between stages, frozen
-  main.py             # CLI: ingest / append / extract / chunk / index / retrieve / understand / ask
+  main.py             # CLI: ingest / append / extract / chunk / index / retrieve / understand / ask / verify
   s01_ingest.py
   s02_extract.py
   s03_chunk.py
   s04_embed.py
   s05_retrieve.py
   s06_query.py
+  s07_verify.py
   lang.py             # langdetect, shared by stages 02 and 06
   config/
     approved_domains.json
@@ -135,6 +168,7 @@ rag/
     f01_pages.json    # 6 real pages, used to test every stage
     f05_query.json    # stage 06 handoff examples, including the passthrough shape
     eval_queries.json # the eval set: 10 vague questions x 2 languages + 2 refusal cases
+    f07_drafts.json   # 12 draft answers for stage 07, most of which should be REJECTED
     sample_little_book_of_scams.pdf
 scripts/
   verify_index.sql       # manual sanity checks for stage 04's output
@@ -147,6 +181,7 @@ tests/
   test_s04_embed.py
   test_s05_retrieve.py
   test_s06_query.py
+  test_s07_verify.py
 .github/workflows/ci.yml
 README_rag.md
 .env.example
@@ -199,6 +234,9 @@ python -m rag.main understand "我的手机一直要求输入验证码"
 # Stage 06 + 05 - understand the question, then retrieve on the rewrite
 python -m rag.main ask "我的手机一直要求输入验证码"
 python -m rag.main ask "someone rang saying they were from the tax office" --top-k 3
+
+# Stage 07 - grade the adversarial drafts (no database needed)
+python -m rag.main verify
 ```
 
 `ask` is the one to use for real queries. `retrieve` sends the raw string to both search halves, which is what you want for the reranker before/after comparison and not much else.
@@ -213,7 +251,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-132 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM) is injectable, so the full test suite runs with no internet access and no live services.
+179 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the LLM) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 
@@ -240,17 +278,17 @@ The output includes a `kw` column showing whether the keyword half contributed a
 
 ## What's next
 
-Stage 07 - guardrails and the citation check, the stage map's **08** - is this repo's remaining work, and it is the only thing standing between a senior and a confident invented answer about myGov. After that, `connectplus-llm`'s half: the stage map's **07 Grounded Generation** and **09 Answer API + Eval**.
+**The grounding check is this repo's remaining work.** Everything else in stage 07 is done; an NLI cross-encoder scoring the answer's weakest substantive claim is what closes it, and the two `needs_grounding` fixture drafts are already written and waiting to flip from pass to fail. After that, `connectplus-llm`'s half: the stage map's **07 Grounded Generation** and **09 Answer API + Eval**.
 
 Two measurements also need live credentials:
 
 - **The eval baseline has never been run.** `scripts/eval_queries.py` needs a `DATABASE_URL` and an LLM key. Until it is, stage 05's and stage 06's DONE criteria are unmeasured, and 6 of the 10 eval queries still have no expected page.
-- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 will have to refuse on a single threshold, and no one number can serve both scales. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
+- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
 
 ### Known gaps, deliberately deferred
 
 - Chunk text is embedded without its `title`/`heading_path` prefix. Likely a real retrieval-quality loss, but fixing it means a full re-index - measure with the eval harness first, then decide.
-- No delete path for de-approved domains or removed pages. Chunks already indexed outlive a domain's approval, because stage 04's upsert-by-id never deletes - so stage 07 will have to re-enforce the approved list at verification time.
+- No delete path for de-approved domains or removed pages. Stage 07 now refuses to *cite* an unapproved domain, but the rows stay in the index and stay retrievable.
 - `fixtures/f03_chunks.json` does not exist, despite being named across the planning docs as the file that unblocks downstream work.
 - Nothing enforces source diversity in the top-k - all five results can come from one page, starving the generator of independent sources.
 - Two Chinese-language pages `trafilatura` cannot extract, and lower text quality on some non-English PDFs (see stage 02).

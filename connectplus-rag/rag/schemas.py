@@ -292,3 +292,61 @@ class UnderstoodQuery(BaseModel):
             "the fallback path produced this object without calling an LLM at all."
         ),
     )
+
+
+class Citation(BaseModel):
+    """One `[n]` marker found in a draft answer, resolved against the chunks
+    that were actually retrieved for it."""
+
+    n: int = Field(description="The number inside the marker, e.g. 2 for '[2]'")
+    url: str = Field(default="", description="The cited chunk's URL, or '' if the marker resolved to nothing")
+    title: str = Field(default="")
+    domain: str = Field(default="")
+    resolved: bool = Field(
+        description=(
+            "True only when the marker pointed at a real supplied chunk AND that chunk's "
+            "domain is on the approved list. A marker naming a chunk index that was never "
+            "supplied is the shape an invented citation takes."
+        )
+    )
+
+
+class Verdict(BaseModel):
+    """Stage 07 output (this repo's file numbering - the unified whole-project
+    stage map calls this "stage 08", Guardrails + Citation Check).
+
+    Matches the outer README's frozen contract: {passed, reason,
+    grounded_score, citations, confidence, chunk_ids}.
+
+    A failing verdict means the answer is DROPPED, not patched. What the
+    senior gets instead is "I don't have trusted information on that" plus a
+    mentor offer. In a scam-and-safety domain a confident wrong answer about
+    myGov is real harm, not a quality bug.
+    """
+
+    passed: bool
+    reason: str | None = Field(
+        default=None,
+        description=(
+            "None when passed. Otherwise the FIRST check that failed, in this fixed "
+            "order: 'low_confidence' (there was never good enough source material), "
+            "'unsafe' (the answer tells the senior to disclose a credential), "
+            "'bad_citation' (a marker resolves to nothing, or off the approved list), "
+            "'ungrounded' (a claim is not supported by the supplied chunks). Order is "
+            "harm-first, not cost-first: which failure the user is told about matters "
+            "more than which was cheapest to detect."
+        ),
+    )
+    grounded_score: float = Field(
+        default=0.0,
+        description=(
+            "Always 0.0 in this iteration - the grounding check is not implemented yet. "
+            "The field exists now so the Verdict contract does not change when it lands."
+        ),
+    )
+    citations: list[Citation] = Field(default_factory=list)
+    confidence: float = Field(description="Passed through from stage 05, unmodified")
+    chunk_ids: list[str] = Field(
+        default_factory=list,
+        description="Ids of the chunks this answer was checked against - the audit trail.",
+    )
