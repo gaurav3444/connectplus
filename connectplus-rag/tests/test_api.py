@@ -15,7 +15,7 @@ import pytest
 
 import rag.api
 import rag.s05_retrieve
-from rag import retrieve, verify
+from rag import REFUSAL_THRESHOLD, retrieve, verify
 from rag.schemas import Chunk
 
 FIXTURE = Path(__file__).parent.parent / "rag" / "fixtures" / "f06_drafts.json"
@@ -59,7 +59,7 @@ def test_retrieve_honours_k_and_confidence_is_the_top_reranked_score(wired: dict
 def test_retrieve_then_verify_passes_a_grounded_cited_answer(wired: dict[str, float]) -> None:
     chunks, _ = retrieve("how do I spot a scam text", "zh", 2)
 
-    verdict = verify(DRAFTS["d01-good-answer"]["answer_md"], chunks)
+    verdict = verify(DRAFTS["d01-good-answer"]["answer_md"], chunks, lang="zh")
 
     assert verdict.passed, verdict.reason
     assert verdict.chunk_ids == [IDS[0], IDS[1]]
@@ -80,6 +80,7 @@ def test_a_draft_cannot_vouch_for_its_own_confidence(wired: dict[str, float]) ->
 
     draft = {"answer_md": DRAFTS["d01-good-answer"]["answer_md"], "confidence": 0.99}
 
+    assert max(wired.values()) < REFUSAL_THRESHOLD
     assert verify(draft, chunks).reason == "low_confidence"
 
 

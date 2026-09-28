@@ -166,7 +166,6 @@ def retrieve(
     fetch_chunks_fn: ChunkFetchFunction,
     embed_fn: EmbedFunction | None = None,
     rerank_fn: RerankFunction | None = None,
-    keyword_query: str | None = None,
     top_k_per_method: int = DEFAULT_TOP_K_PER_METHOD,
     top_k_final: int = DEFAULT_TOP_K_FINAL,
     rrf_k: int = RRF_K,
@@ -181,24 +180,12 @@ def retrieve(
     get_default_reranker() - reranking is a measured, optional
     improvement per README's own DONE criterion, not a hardwired step.
 
-    keyword_query, when given, is what the KEYWORD half searches for while
-    the vector half still embeds `query`. This exists because the two
-    halves have genuinely different language requirements, not as a
-    convenience:
-
-    - Vector search is multilingual. BGE-m3 embeds a Mandarin query into
-      the same space as the English chunks it should match, so `query` in
-      the senior's own language is exactly right here.
-    - Keyword search is not. rag/config/schema.sql builds the tsvector
-      with Postgres's 'english' configuration, and plainto_tsquery below
-      parses with it too. A Mandarin query produces an EMPTY tsquery,
-      matches nothing, and hybrid retrieval silently collapses to
-      vector-only - half the system doing nothing, with no error to say so.
-
-    Query understanding (connectplus-llm) produces an English rewrite
-    precisely so it can be passed here. Callers that
-    omit keyword_query get the previous behaviour unchanged (query is used
-    for both).
+    `query` should be English. Vector search is multilingual (BGE-m3), but
+    keyword search is not: rag/config/schema.sql builds the tsvector with
+    Postgres's 'english' configuration, so a Mandarin query produces an
+    EMPTY tsquery and hybrid retrieval silently collapses to vector-only.
+    connectplus-llm's stage 07 rewrites the question into English before
+    calling, which is why the public api.retrieve() takes `query_en`.
 
     Known and accepted: the index does contain non-English chunks
     (confirmed real - Vietnamese, Chinese, Hindi and Greek translated
@@ -215,7 +202,7 @@ def retrieve(
 
     query_vector = embed_fn([query])[0]
     vector_results = vector_search_fn(query_vector, top_k_per_method)
-    keyword_results = keyword_search_fn(keyword_query or query, top_k_per_method)
+    keyword_results = keyword_search_fn(query, top_k_per_method)
 
     vector_ids = {cid for cid, _ in vector_results}
     keyword_ids = {cid for cid, _ in keyword_results}

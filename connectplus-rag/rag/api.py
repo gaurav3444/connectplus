@@ -1,10 +1,11 @@
 """The two calls connectplus-llm makes, with the signatures agreed with it:
 
-    from rag import retrieve, verify
+    from rag import retrieve, verify, REFUSAL_THRESHOLD
 
     chunks, confidence = retrieve(query_en, lang, k)
+    if confidence < REFUSAL_THRESHOLD: ...  # refuse before generating
     draft = generate(chunks, lang)          # connectplus-llm
-    verdict = verify(draft, chunks)
+    verdict = verify(draft, chunks, lang=lang)
 
 Stage 05 and stage 06 take every external dependency as a parameter, which
 is what lets them be tested without a database or a model download. These
@@ -36,13 +37,17 @@ from rag.s05_retrieve import (
     make_postgres_vector_search,
 )
 from rag.s05_retrieve import retrieve as _retrieve
-from rag.s06_verify import get_default_entailment
+from rag.s06_verify import DEFAULT_CONFIDENCE_THRESHOLD, get_default_entailment
 from rag.s06_verify import verify as _verify
 from rag.schemas import Chunk, Retrieved, Verdict
 
 log = logging.getLogger("rag")
 
 ENV_PATH = Path(__file__).parent.parent / ".env"
+
+# The same number verify() refuses on, exported so connectplus-llm can skip
+# generation early instead of generating an answer verify() will drop.
+REFUSAL_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD
 
 
 @lru_cache(maxsize=1)
@@ -112,13 +117,17 @@ def _answer_md(draft: Any) -> str:
     return str(draft.answer_md)
 
 
-def verify(draft: Any, chunks: Sequence[Retrieved | Mapping[str, Any]]) -> Verdict:
+def verify(
+    draft: Any, chunks: Sequence[Retrieved | Mapping[str, Any]], lang: str = "en"
+) -> Verdict:
     """Grades a draft answer against the chunks it was generated from.
 
     `draft` is the answer text, or an Answer envelope carrying `answer_md`.
     `chunks` are exactly what retrieve() returned, in the same order: a
     `[n]` marker means the n-th chunk the generator was shown. Dicts are
-    accepted too, for chunks that crossed a JSON boundary.
+    accepted too, for chunks that crossed a JSON boundary. `lang` does not
+    change the checks (the sources are English); it is logged, as in
+    retrieve().
 
     Confidence is recomputed from the chunks rather than trusted from the
     caller. With the reranker on, retrieve()'s confidence IS the top
@@ -139,8 +148,8 @@ def verify(draft: Any, chunks: Sequence[Retrieved | Mapping[str, Any]]) -> Verdi
         entail_fn=get_default_entailment(),
     )
     log.info(
-        "verify passed=%s reason=%s grounded=%.3f confidence=%.3f chunk_ids=%s",
-        verdict.passed, verdict.reason, verdict.grounded_score,
+        "verify lang=%s passed=%s reason=%s grounded=%.3f confidence=%.3f chunk_ids=%s",
+        lang, verdict.passed, verdict.reason, verdict.grounded_score,
         verdict.confidence, verdict.chunk_ids,
     )
     return verdict

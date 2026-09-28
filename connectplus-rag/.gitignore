@@ -14,3 +14,5 @@ __pycache__/
 # Real database credentials. .env.example is the template that gets
 # committed; .env (with your actual Supabase connection string) never does.
 .env
+
+.DS_Store

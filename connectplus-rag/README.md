@@ -1,6 +1,6 @@
 # connectplus-rag
 
-Trusted-knowledge pipeline for **CONNECT Plus** - a digital navigation and referral platform for culturally and linguistically diverse (CALD) seniors. This repo owns the RAG side of the project: crawling the client's approved trusted sources, cleaning that content, splitting it into retrievable chunks, and embedding it into a searchable index.
+Trusted-knowledge pipeline for **CONNECT Plus** - a digital navigation and referral platform for culturally and linguistically diverse (CALD) seniors. This repo owns the RAG side of the project: crawling the client's approved trusted sources, cleaning that content, splitting it into retrievable chunks, embedding it into a searchable index, retrieving from it, and verifying generated answers against it. `connectplus-llm` calls it twice per question: `retrieve()` before generating, `verify()` after.
 
 This is a class project (CW2, Monash TAP) built stage by stage, testing each stage against real crawled data before moving to the next - not just synthetic examples. That mattered: several real bugs only showed up once real data was run through the pipeline, and they're documented below rather than swept under the rug.
 
@@ -57,9 +57,13 @@ approved_domains.json
    [03] Chunk ───────► retrievable chunks, ~300-500 tokens (.cache/chunked/)
         │
    [04] Embed+Index ─► Supabase Postgres (pgvector + tsvector)
+
+ONLINE, per question (called from connectplus-llm)
+   [05] Retrieve ────► top-k chunks + one confidence number
+   [06] Verify ──────► pass | refuse(reason)
 ```
 
-Each stage reads the previous stage's JSON output and writes its own - no stage needs the others in memory, so any stage can be re-run independently once its input exists.
+Stages 01-04 are the offline ingest job; each reads the previous stage's the previous stage's JSON output and writes its own - no stage needs the others in memory, so any stage can be re-run independently once its input exists.
 
 ## Methods
 
@@ -96,7 +100,7 @@ The single confidence number stage 06 refuses on comes from bge-reranker-v2-m3's
 
 Two real bugs were found and fixed against real query results, not synthetic tests: (1) RRF fusion without reranking could rank a generic chunk above the one that specifically answered the query, because keyword search's `ts_rank` can't tell a corpus-common word ("scam", present in nearly every document) from a genuine relevance signal - reranking is now the effectively mandatory default, not just an available option. (2) A real nonsense query ("purple elephant quantum banana recipe") returned 5 completely unrelated results that all scored exactly 0.500 - traced to double-applying sigmoid to a reranker score that was already a calibrated [0,1] probability, collapsing every genuinely-different low score toward 0.5. Confirmed and fixed by checking the official sentence-transformers documentation rather than assuming the model's output shape.
 
-**Keyword search only works on English.** `rag/config/schema.sql` builds its `tsvector` with Postgres's `'english'` configuration, so a Mandarin query produces an **empty** `tsquery`, matches nothing, and hybrid retrieval silently collapses to vector-only. Switching to `'simple'` would not help: Postgres cannot tokenise CJK text at all. So `retrieve()` takes an optional `keyword_query`: the vector half embeds the original (BGE-m3 is multilingual), the keyword half gets the English rewrite that query understanding in `connectplus-llm` produces. Omitting it keeps the old behaviour (one string for both halves). Non-English chunks in the index (real: Vietnamese, Chinese, Hindi and Greek translated pages) are reachable through vector search only.
+**Keyword search only works on English.** `rag/config/schema.sql` builds its `tsvector` with Postgres's `'english'` configuration, so a Mandarin query produces an **empty** `tsquery`, matches nothing, and hybrid retrieval silently collapses to vector-only. Switching to `'simple'` would not help: Postgres cannot tokenise CJK text at all. So `retrieve()` expects an English query: `connectplus-llm`'s stage 07 rewrites the senior's question into English first, which is why the public call is `retrieve(query_en, ...)`. Non-English chunks in the index (real: Vietnamese, Chinese, Hindi and Greek translated pages) are reachable through vector search only.
 
 Every external dependency (vector search, keyword search, chunk fetching, reranking) is injectable, so the fusion and scoring logic is fully tested without a live database or downloaded models - see `tests/test_s05_retrieve.py`.
 
@@ -140,12 +144,15 @@ python -m rag.main verify --grounding  # + NLI (first run downloads ~500MB)
 Two calls, the signatures agreed with `connectplus-llm`, both plain function calls in the same process:
 
 ```python
-from rag import retrieve, verify
+from rag import retrieve, verify, REFUSAL_THRESHOLD
 
 chunks, confidence = retrieve(query_en, lang, k)   # query already translated to English
+if confidence < REFUSAL_THRESHOLD: ...             # refuse early, don't generate
 draft = generate(chunks, lang)                     # connectplus-llm
-verdict = verify(draft, chunks)                    # draft: answer_md str, or an Answer dict/object
+verdict = verify(draft, chunks, lang=lang)         # draft: answer_md str, or an Answer dict/object
 ```
+
+`REFUSAL_THRESHOLD` is the same number `verify` refuses on, so skipping generation below it loses nothing. `lang` is logged, not used by the checks.
 
 `rag/api.py` binds the production dependencies (Postgres from this repo's own `.env`, the reranker, the NLI model), so the caller passes plain values only. The reranker is always on, which makes `confidence` equal the top chunk's score - so `verify` recomputes it from `chunks` instead of taking it from the caller, and a draft cannot vouch for its own confidence. Pass `chunks` back exactly as `retrieve` returned them: `[n]` means the n-th chunk the generator was shown. A failing verdict means drop the answer and offer a mentor; never patch and retry. Both calls log to the `rag` logger.
 
@@ -154,8 +161,8 @@ verdict = verify(draft, chunks)                    # draft: answer_md str, or an
 ```
 rag/
   schemas.py          # every contract between stages, frozen
-  api.py              # retrieve(query_en, lang, k) and verify(draft, chunks) - the public surface
-  main.py             # CLI: ingest / append / extract / chunk / index / retrieve / verify
+  api.py              # retrieve(query_en, lang, k) and verify(draft, chunks, lang) - the public surface
+  main.py             # CLI: ingest / extract / chunk / index / retrieve / verify
   s01_ingest.py
   s02_extract.py
   s03_chunk.py
@@ -169,6 +176,7 @@ rag/
     schema.sql
   fixtures/
     f01_pages.json    # 6 real pages, used to test every stage
+    f03_chunks.json   # 37 real chunks from f01, the handoff for stages 05/06 and connectplus-llm
     eval_queries.json # the eval set: 10 vague questions x 2 languages + 2 refusal cases
     f06_drafts.json   # 12 draft answers for stage 06, most of which should be REJECTED
     sample_little_book_of_scams.pdf
@@ -176,6 +184,7 @@ scripts/
   verify_index.sql       # manual sanity checks for stage 04's output
   spot_check_index.py    # manual vector-search-only smoke test (superseded by `retrieve`, kept for reference)
   eval_queries.py        # hit@3 over the eval set, per language, reranker on/off
+  make_f03_chunks.py     # regenerates f03_chunks.json with the real stage 02 + 03
 tests/
   test_api.py
   test_s01_ingest.py
@@ -246,7 +255,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-169 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
+168 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 
@@ -278,6 +287,5 @@ This repo's own stages are complete. What remains is `connectplus-llm`'s half - 
 
 - Chunk text is embedded without its `title`/`heading_path` prefix. Likely a real retrieval-quality loss, but fixing it means a full re-index - measure with the eval harness first, then decide.
 - No delete path for de-approved domains or removed pages. Stage 06 now refuses to *cite* an unapproved domain, but the rows stay in the index and stay retrievable.
-- `fixtures/f03_chunks.json` does not exist, despite being named across the planning docs as the file that unblocks downstream work.
 - Nothing enforces source diversity in the top-k - all five results can come from one page, starving the generator of independent sources.
 - Two Chinese-language pages `trafilatura` cannot extract, and lower text quality on some non-English PDFs (see stage 02).
