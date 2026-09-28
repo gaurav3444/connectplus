@@ -270,18 +270,46 @@ python scripts/eval_queries.py --no-rerank      # the "before" half of before/af
 
 The question set is `rag/fixtures/eval_queries.json` - ten questions phrased the way a senior would actually ask (vague, wrong word, symptom described rather than named), each in English and Mandarin, plus two queries the knowledge base should *not* be able to answer. A query set written in the corpus's own vocabulary measures nothing: it would score well without query understanding existing at all.
 
-**The eval set is deliberately incomplete.** Only 4 of the 10 queries have `expect_url_contains` filled in - the 4 whose target page is confirmed present in `f01_pages.json`. The other 6 are `null`, and the harness prints them as `UNSET` along with the top 3 URLs retrieval actually returned, leaving them out of the hit@3 denominator entirely.
+**All 10 expected pages are set.** 4 were confirmed against `f01_pages.json` up front; the other 6 were filled after the first live run by checking which pages exist in the index, never by copying what retrieval happened to return. A bare hostname (`scamwatch.gov.au`) is never a valid expectation: it scores *any* page on that domain as a hit. q03 (two-factor) is a weak target - no page in the corpus is about two-factor authentication itself, so it points at the page with the most chunks mentioning it. That is a corpus gap, not a retrieval one.
 
-That is not laziness, it is the only honest option. A guessed expectation naming a page that isn't in the index scores as a miss and makes retrieval look broken when it isn't. A bare hostname (`scamwatch.gov.au`) is worse: it scores *any* page on that domain as a hit, so the number looks excellent and measures nothing. **The first run is what completes the file** - read the URLs it prints, pick the right page, paste a distinctive part of its path in, re-run. Until then the harness labels its own output a `PARTIAL baseline` and refuses to present it as the DONE measurement.
+### Results (2026-09-28, full index: 5,332 chunks)
+
+Reranker **off** (`--no-rerank`), raw query straight in, no query understanding:
+
+| Query | EN | ZH |
+|---|---|---|
+| q01 scam text | ✅ 2 | ❌ 4 |
+| q02 myGov | ❌ | ❌ |
+| q03 two-factor | ❌ | ✅ 1 |
+| q04 tax office call | ❌ | ❌ |
+| q05 already scammed | ✅ 2 | ✅ 1 |
+| q06 AI scams | ❌ 4 | ❌ |
+| q07 strong password | ✅ 3 | ✅ 2 |
+| q08 report a scam | ❌ | ❌ |
+| q09 romance | ✅ 1 | ✅ 3 |
+| q10 email link | ✅ 1 | ❌ |
+| **hit@3** | **5/10** | **4/10** |
+| keyword half found nothing | 1/10 | **10/10** |
+
+Numbers are the rank of the first correct page; a bare ❌ means the page was not among the 5 chunks returned at all.
+
+Refusal set (should be low): nonsense 0.437 EN / 0.367 ZH, Melbourne weather 0.483 EN / 0.495 ZH. Real questions scored 0.59-0.78.
+
+What this shows:
+
+- **Keyword search contributes nothing to Mandarin**, confirmed on the real index: 10/10 Chinese queries got an empty keyword result. Chinese retrieval is vector-only unless `connectplus-llm`'s stage 07 hands `retrieve()` an English rewrite. These ZH numbers are the floor that stage has to beat.
+- **Raw similarity cannot separate in-scope from out-of-scope.** The weather question scores 0.48-0.50, above the 0.45 threshold, so on this path it would *not* be refused. The public `retrieve()` always reranks, which is why the threshold decision waits for the reranked run.
+
+**Reranker on: not yet measured.** The run was started and stopped - on CPU, reranking 24 queries x up to 40 candidates did not finish in 30 minutes. Run it on a machine with more headroom (`python -u scripts/eval_queries.py`, `-u` so progress shows line by line), then decide keep-or-drop and set the threshold from its refusal-set scores.
 
 The output includes a `kw` column showing whether the keyword half contributed anything. That column is the alarm for the English-only keyword search described under stage 05 - all-`vector` results mean half the system did nothing and nothing said so.
 
 ## What's next
 
-This repo's own stages are complete. What remains is `connectplus-llm`'s half - stages **07-10** (query understanding, prompt, generation, answer API) - plus two measurements that need live credentials:
+This repo's own stages are complete. What remains is `connectplus-llm`'s half - stages **07-10** (query understanding, prompt, generation, answer API) - plus:
 
-- **The eval baseline has never been run.** `scripts/eval_queries.py` needs a `DATABASE_URL`. Until it is, stage 05's DONE criterion is unmeasured, and 6 of the 10 eval queries still have no expected page.
-- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 06 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
+- **The reranked eval run.** The no-rerank baseline is recorded above (EN 5/10, ZH 4/10); the reranked half of stage 05's before/after is not. Until it is, keep-or-drop for the reranker is undecided.
+- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 06 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated - the no-rerank run already shows an out-of-scope question at 0.495. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
 
 ### Known gaps, deliberately deferred
 

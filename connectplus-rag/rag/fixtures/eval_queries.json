@@ -8,19 +8,12 @@
     "  stage 05 (retrieval): hit@3 over the eval set, in Mandarin as well as English,",
     "                        measured before and after the reranker.",
     "",
-    "THIS FILE IS NOT FINISHED, AND THAT IS DELIBERATE.",
-    "Only 4 of the 10 queries have expect_url_contains filled in - the 4 whose target",
-    "page is confirmed present in f01_pages.json. The other 6 are null.",
+    "All 10 expectations are set. 4 were confirmed against f01_pages.json up front;",
+    "the other 6 were filled after the first live run (2026-09-28) by checking which",
+    "pages exist in the index, never by copying what retrieval happened to return.",
     "",
-    "They are null rather than guessed because a wrong guess is worse than a blank:",
-    "an expectation naming a page that isn't in the index scores as a miss and makes",
-    "retrieval look broken when it isn't. A bare hostname ('scamwatch.gov.au') is worse",
-    "still - it scores ANY page on that domain as a hit, so the number looks great and",
-    "measures nothing.",
-    "",
-    "The harness handles null: it prints those rows as UNSET with their top 3 result",
-    "URLs and leaves them out of the hit@3 denominator. Run it once, read the URLs,",
-    "paste the right slug in, re-run. The first run is what completes this file.",
+    "A bare hostname ('scamwatch.gov.au') is never a valid expectation - it scores ANY",
+    "page on that domain as a hit, so the number looks great and measures nothing.",
     "",
     "expect_url_contains is a SUBSTRING, not a full URL: it survives a trailing slash,",
     "an http/https difference and a query string, and several Scamwatch pages exist",
@@ -55,8 +48,8 @@
       "id": "q03-two-factor",
       "en": "my phone keeps asking for a code when I log in",
       "zh": "我登录的时候手机一直要求输入验证码",
-      "expect_url_contains": null,
-      "note": "The stage map's own worked example. Symptom described, term never named. Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+      "expect_url_contains": "using-the-cloud-safely-and-securely",
+      "note": "No page in the index is about two-factor authentication itself. This one has the most chunks mentioning it (4 of 5,332), found by searching chunk text, not by what retrieval returned."
     },
     {
       "id": "q04-ato-impersonation",
@@ -69,8 +62,8 @@
       "id": "q05-already-scammed",
       "en": "I think I already gave them my bank details what do I do now",
       "zh": "我想我已经把银行信息给他们了现在该怎么办",
-      "expect_url_contains": null,
-      "note": "The single highest-stakes query in the set. This is also the page whose 'what to do' procedure trafilatura silently dropped until stage 02's recovery pass - worth watching. Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+      "expect_url_contains": "what-to-do-if-youve-been-scammed",
+      "note": "Scamwatch's own page for exactly this situation."
     },
     {
       "id": "q06-ai-scams",
@@ -83,29 +76,29 @@
       "id": "q07-strong-password",
       "en": "how do I make a password nobody can guess",
       "zh": "怎样设置一个别人猜不到的密码",
-      "expect_url_contains": null,
-      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+      "expect_url_contains": "strong-and-secure-passwords",
+      "note": "Be Connected, advanced-online-security/managing-passwords."
     },
     {
       "id": "q08-report-scam",
       "en": "who do I tell about this scam",
       "zh": "我应该向谁举报这个诈骗",
-      "expect_url_contains": null,
-      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+      "expect_url_contains": "report-a-scam",
+      "note": "Scamwatch's canonical reporting page. Be Connected's per-scam 'report-...' pages would also be fair answers but do not count here."
     },
     {
       "id": "q09-romance-scam",
       "en": "I met someone online and now they are asking me for money",
       "zh": "我在网上认识了一个人现在他们向我要钱",
-      "expect_url_contains": null,
-      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+      "expect_url_contains": "romance",
+      "note": "Deliberately broad: any of the 7 romance-scam pages across both domains answers this."
     },
     {
       "id": "q10-suspicious-email-link",
       "en": "is it safe to click the link in an email from my bank",
       "zh": "点击银行邮件里的链接安全吗",
-      "expect_url_contains": null,
-      "note": "Expected page NOT SET. A bare hostname here would score any page on that domain as a hit, which measures nothing. Run the harness once - it prints this query's top 3 URLs - then paste the correct page's slug in."
+      "expect_url_contains": "phishing",
+      "note": "Any of the 7 phishing pages answers this; none is specifically about bank emails."
     }
   ],
   "refusal_queries": [
