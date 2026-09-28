@@ -2,7 +2,7 @@
 already sitting in Supabase, so you can eyeball whether stage 04's
 indexing actually retrieves sensible results.
 
-This is NOT stage 06 (hybrid retrieval) - that will properly combine this
+This is NOT stage 05 (hybrid retrieval) - that will properly combine this
 vector search with keyword search (RRF fusion), rerank the results, and
 produce a confidence score. This script only does the vector half, with
 no fusion or reranking, purely so you can sanity-check the embeddings

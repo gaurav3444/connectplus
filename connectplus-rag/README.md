@@ -15,23 +15,26 @@ This is a class project (CW2, Monash TAP) built stage by stage, testing each sta
 | 03 - Chunk | Heading-aware, list-safe, token-budgeted chunking | ✅ Done - 3 real bugs found and fixed against real data |
 | 04 - Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done - both domains fully embedded and indexed |
 | 05 - Retrieve | Hybrid vector + keyword search, RRF fusion, optional reranking, confidence score | ✅ Built and tested - real-query verification pending |
-| 06 - Query Understanding | Language detection + rewrite into an English search query | Not in this repo - owned by `connectplus-llm` |
-| 07 - Verify / Guardrails | Citation resolution, approved-domain enforcement, confidence threshold, safety deny-list, NLI grounding | ✅ Built and tested - adversarial fixture green |
+| 06 - Verify / Guardrails | Citation resolution, approved-domain enforcement, confidence threshold, safety deny-list, NLI grounding | ✅ Built and tested - adversarial fixture green |
 
 ### Stage numbering
 
-Three planning documents number these stages three different ways, so here is the mapping once, in one place:
+RAG owns stages **01-06**; `connectplus-llm` owns **07-10**. File numbers match stage numbers, and match `README_rag.md`.
 
-| This repo | `README_rag.md` | Whole-project stage map | What |
-|---|---|---|---|
-| `s01_ingest` | 01 | 01 | Ingest |
-| `s02_extract` | 02 | 02 | Extract |
-| `s03_chunk` | 03 | 03 | Chunk |
-| `s04_embed` | 04 | 04 | Embed + index |
-| `s05_retrieve` | 05 | **06** | Hybrid retrieval |
-| `s07_verify` | 06 | 08 | Guardrails + citation check |
+| Stage | Repo | What |
+|---|---|---|
+| 01 `s01_ingest` | connectplus-rag | Ingest |
+| 02 `s02_extract` | connectplus-rag | Extract |
+| 03 `s03_chunk` | connectplus-rag | Chunk |
+| 04 `s04_embed` | connectplus-rag | Embed + index |
+| 05 `s05_retrieve` | connectplus-rag | Hybrid retrieval |
+| 06 `s06_verify` | connectplus-rag | Guardrails + citation check |
+| 07 `s07_query` | connectplus-llm | Query understanding: language detection, rewrite into English |
+| 08 `s08_prompt` | connectplus-llm | Prompt construction |
+| 09 `s09_generate` | connectplus-llm | Grounded generation |
+| 10 | connectplus-llm | Answer API (FastAPI SSE) |
 
-File numbers here are **build order**; the stage map's are **pipeline order**. Query understanding (stage map 05) runs before retrieval but is not part of this repo: it belongs to `connectplus-llm`, which calls `retrieve()` with the question already rewritten into English.
+Online order per question: 07 query, 05 retrieve, 08 prompt, 09 generate, 06 verify, 10 respond.
 
 **Approved sources:** `beconnected.esafety.gov.au`, `scamwatch.gov.au`. A third domain, `esafety.gov.au`, was dropped after confirming it blocks automated crawlers - see `rag/config/domain_decisions.md`.
 
@@ -89,7 +92,7 @@ The worst chunk in the real test data went from 8,968 tokens (before these fixes
 ### Stage 05 - Retrieve
 Vector search (pgvector cosine similarity) and keyword search (Postgres full-text search over the `tsvector` column) run independently, then combine via Reciprocal Rank Fusion - a chunk both methods agree on outranks one only a single method found. Reranking with `BAAI/bge-reranker-v2-m3` (the standard cross-encoder pairing for BGE-m3) is optional, not hardwired, per this stage's own DONE criterion in `README_rag.md`: measure hit@3 before and after the reranker, and drop it if it doesn't move the number.
 
-The single confidence number stage 08 will refuse on comes from bge-reranker-v2-m3's own output directly (its default CrossEncoder activation already returns a calibrated [0,1] relevance probability - confirmed via the official sentence-transformers docs, not assumed) when reranking is used, or the top result's raw vector similarity as a lower-fidelity fallback otherwise. Worth knowing before tuning a threshold: real BGE-m3 similarity scores for confirmed-relevant results on this project's own data landed in the 0.53–0.78 range, not 0.85+ - cosine similarity from dense embedding models doesn't behave like a percentage-match score, and a published benchmark (Ros et al., arXiv 2605.22099) reports comparable top-1 similarity (~0.70) for BGE-M3 on correct matches.
+The single confidence number stage 06 refuses on comes from bge-reranker-v2-m3's own output directly (its default CrossEncoder activation already returns a calibrated [0,1] relevance probability - confirmed via the official sentence-transformers docs, not assumed) when reranking is used, or the top result's raw vector similarity as a lower-fidelity fallback otherwise. Worth knowing before tuning a threshold: real BGE-m3 similarity scores for confirmed-relevant results on this project's own data landed in the 0.53–0.78 range, not 0.85+ - cosine similarity from dense embedding models doesn't behave like a percentage-match score, and a published benchmark (Ros et al., arXiv 2605.22099) reports comparable top-1 similarity (~0.70) for BGE-M3 on correct matches.
 
 Two real bugs were found and fixed against real query results, not synthetic tests: (1) RRF fusion without reranking could rank a generic chunk above the one that specifically answered the query, because keyword search's `ts_rank` can't tell a corpus-common word ("scam", present in nearly every document) from a genuine relevance signal - reranking is now the effectively mandatory default, not just an available option. (2) A real nonsense query ("purple elephant quantum banana recipe") returned 5 completely unrelated results that all scored exactly 0.500 - traced to double-applying sigmoid to a reranker score that was already a calibrated [0,1] probability, collapsing every genuinely-different low score toward 0.5. Confirmed and fixed by checking the official sentence-transformers documentation rather than assuming the model's output shape.
 
@@ -97,7 +100,7 @@ Two real bugs were found and fixed against real query results, not synthetic tes
 
 Every external dependency (vector search, keyword search, chunk fetching, reranking) is injectable, so the fusion and scoring logic is fully tested without a live database or downloaded models - see `tests/test_s05_retrieve.py`.
 
-### Stage 07 - Verify / Guardrails
+### Stage 06 - Verify / Guardrails
 
 Its own stage, not a flag inside generation. Four checks, all of which must pass:
 
@@ -130,7 +133,7 @@ python -m rag.main verify              # three deterministic checks
 python -m rag.main verify --grounding  # + NLI (first run downloads ~500MB)
 ```
 
-`rag/fixtures/f07_drafts.json` holds 12 drafts, most of which **should be rejected** - including all three cases the outer README names as acceptance criteria. Adversarial fixtures matter more than happy-path ones here; run them on every change.
+`rag/fixtures/f06_drafts.json` holds 12 drafts, most of which **should be rejected** - including all three cases the outer README names as acceptance criteria. Adversarial fixtures matter more than happy-path ones here; run them on every change.
 
 ## Using it from connectplus-llm
 
@@ -158,7 +161,7 @@ rag/
   s03_chunk.py
   s04_embed.py
   s05_retrieve.py
-  s07_verify.py
+  s06_verify.py
   lang.py             # langdetect, used by stage 02
   config/
     approved_domains.json
@@ -167,7 +170,7 @@ rag/
   fixtures/
     f01_pages.json    # 6 real pages, used to test every stage
     eval_queries.json # the eval set: 10 vague questions x 2 languages + 2 refusal cases
-    f07_drafts.json   # 12 draft answers for stage 07, most of which should be REJECTED
+    f06_drafts.json   # 12 draft answers for stage 06, most of which should be REJECTED
     sample_little_book_of_scams.pdf
 scripts/
   verify_index.sql       # manual sanity checks for stage 04's output
@@ -180,7 +183,7 @@ tests/
   test_s03_chunk.py
   test_s04_embed.py
   test_s05_retrieve.py
-  test_s07_verify.py
+  test_s06_verify.py
 .github/workflows/ci.yml
 README_rag.md
 .env.example
@@ -226,7 +229,7 @@ python -m rag.main retrieve "how do I know if a text message is a scam"
 python -m rag.main retrieve "what is mygov" --top-k 3
 python -m rag.main retrieve "artificial intelligence scams" --no-rerank
 
-# Stage 07 - grade the adversarial drafts (no database needed)
+# Stage 06 - grade the adversarial drafts (no database needed)
 python -m rag.main verify
 python -m rag.main verify --grounding
 ```
@@ -266,15 +269,15 @@ The output includes a `kw` column showing whether the keyword half contributed a
 
 ## What's next
 
-This repo's own stages are complete. What remains is `connectplus-llm`'s half - the stage map's **07 Grounded Generation** and **09 Answer API + Eval** - plus two measurements that need live credentials:
+This repo's own stages are complete. What remains is `connectplus-llm`'s half - stages **07-10** (query understanding, prompt, generation, answer API) - plus two measurements that need live credentials:
 
 - **The eval baseline has never been run.** `scripts/eval_queries.py` needs a `DATABASE_URL`. Until it is, stage 05's DONE criterion is unmeasured, and 6 of the 10 eval queries still have no expected page.
-- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 07 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
+- **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 06 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
 
 ### Known gaps, deliberately deferred
 
 - Chunk text is embedded without its `title`/`heading_path` prefix. Likely a real retrieval-quality loss, but fixing it means a full re-index - measure with the eval harness first, then decide.
-- No delete path for de-approved domains or removed pages. Stage 07 now refuses to *cite* an unapproved domain, but the rows stay in the index and stay retrievable.
+- No delete path for de-approved domains or removed pages. Stage 06 now refuses to *cite* an unapproved domain, but the rows stay in the index and stay retrievable.
 - `fixtures/f03_chunks.json` does not exist, despite being named across the planning docs as the file that unblocks downstream work.
 - Nothing enforces source diversity in the top-k - all five results can come from one page, starving the generator of independent sources.
 - Two Chinese-language pages `trafilatura` cannot extract, and lower text quality on some non-English PDFs (see stage 02).

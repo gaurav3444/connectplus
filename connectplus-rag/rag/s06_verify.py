@@ -1,6 +1,5 @@
-"""Stage 07 - Guardrails + Citation Check (this repo's file numbering; the
-unified whole-project stage map calls this "stage 08" - see README's
-mapping table).
+"""Stage 06 - Guardrails + Citation Check. The last RAG stage; 07-10 are
+connectplus-llm's.
 
 Its own stage, not a flag inside generation. This is the only thing standing
 between a senior and a confident invented answer about myGov.
@@ -134,7 +133,7 @@ def get_default_entailment(model_name: str = NLI_MODEL_NAME) -> EntailmentFuncti
     """Real NLI cross-encoder, loaded once per process.
 
     Not used by any test in this repo - this sandbox cannot download it, so
-    tests inject a stand-in (see tests/test_s07_verify.py). Untested by me;
+    tests inject a stand-in (see tests/test_s06_verify.py). Untested by me;
     you are the first to run this against the real model, the same situation
     as stage 04's embedder and stage 05's database functions.
 

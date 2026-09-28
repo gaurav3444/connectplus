@@ -337,7 +337,7 @@ def test_retrieve_respects_top_k_final() -> None:
 
 def test_retrieve_preserves_full_chunk_provenance_fields() -> None:
     """Retrieved must carry every real Chunk field forward (url, domain,
-    heading_path, etc.) - stage 08 needs full provenance, not just text
+    heading_path, etc.) - stage 06 needs full provenance, not just text
     and a score."""
     chunks = _real_chunks()
     real_chunk = chunks[0]

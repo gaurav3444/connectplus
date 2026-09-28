@@ -117,7 +117,7 @@ class Chunk(BaseModel):
     `title`, `lang`, `fetched_at`, `url`, `domain` are denormalized from
     the parent ExtractedDoc onto every chunk deliberately - a chunk needs
     to be citable and provenance-traceable on its own, without a join back
-    to its parent doc, since that's what stage 06 retrieves and stage 08
+    to its parent doc, since that's what stage 05 retrieves and stage 06
     verifies against.
     """
 
@@ -211,11 +211,9 @@ class IndexRunSummary(BaseModel):
 
 
 class Retrieved(Chunk):
-    """Stage 05 output (README_rag.md's own internal numbering - the
-    unified whole-project stage map calls this "stage 06", Hybrid
-    Retrieval). Literally README's contract: "Chunk + {score, method}".
+    """Stage 05 output (Hybrid Retrieval). Literally README's contract: "Chunk + {score, method}".
     Subclasses Chunk directly rather than repeating every field, since a
-    Retrieved chunk carries full provenance forward - stage 08 (guardrails)
+    Retrieved chunk carries full provenance forward - stage 06 (guardrails)
     needs the same url/domain/heading_path a plain Chunk has, plus these
     two additional fields.
     """
@@ -262,8 +260,7 @@ class Citation(BaseModel):
 
 
 class Verdict(BaseModel):
-    """Stage 07 output (this repo's file numbering - the unified whole-project
-    stage map calls this "stage 08", Guardrails + Citation Check).
+    """Stage 06 output (Guardrails + Citation Check).
 
     Matches the outer README's frozen contract: {passed, reason,
     grounded_score, citations, confidence, chunk_ids}.

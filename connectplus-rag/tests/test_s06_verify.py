@@ -1,6 +1,6 @@
-"""Stage 07 - Guardrails + Citation Check.
+"""Stage 06 - Guardrails + Citation Check.
 
-Runs the committed adversarial fixture (`rag/fixtures/f07_drafts.json`) on
+Runs the committed adversarial fixture (`rag/fixtures/f06_drafts.json`) on
 every change, which is the outer README's own instruction: "Keep a file of
 drafts that should be rejected and run them on every change."
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from rag.s07_verify import (
+from rag.s06_verify import (
     DEFAULT_GROUNDING_THRESHOLD,
     EntailmentFunction,
     find_unsafe_instruction,
@@ -30,7 +30,7 @@ from rag.s07_verify import (
 )
 from rag.schemas import Chunk
 
-FIXTURE = Path(__file__).parent.parent / "rag" / "fixtures" / "f07_drafts.json"
+FIXTURE = Path(__file__).parent.parent / "rag" / "fixtures" / "f06_drafts.json"
 SPEC = json.loads(FIXTURE.read_text(encoding="utf-8"))
 ALL_CHUNKS = [Chunk.model_validate(c) for c in SPEC["chunks"]]
 APPROVED = {"beconnected.esafety.gov.au", "scamwatch.gov.au"}

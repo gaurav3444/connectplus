@@ -1,6 +1,6 @@
 """The agreed public surface: retrieve(query_en, lang, k) and verify(draft, chunks).
 
-The stage logic is tested in test_s05_retrieve.py and test_s07_verify.py.
+The stage logic is tested in test_s05_retrieve.py and test_s06_verify.py.
 What is tested here is the wiring those files can't see: that k and the
 reranker reach stage 05, that retrieve's output feeds verify unchanged, and
 that verify takes confidence from the chunks rather than from the draft.
@@ -18,7 +18,7 @@ import rag.s05_retrieve
 from rag import retrieve, verify
 from rag.schemas import Chunk
 
-FIXTURE = Path(__file__).parent.parent / "rag" / "fixtures" / "f07_drafts.json"
+FIXTURE = Path(__file__).parent.parent / "rag" / "fixtures" / "f06_drafts.json"
 SPEC = json.loads(FIXTURE.read_text(encoding="utf-8"))
 CHUNKS = {c["id"]: Chunk.model_validate(c) for c in SPEC["chunks"]}
 DRAFTS = {d["id"]: d for d in SPEC["drafts"]}

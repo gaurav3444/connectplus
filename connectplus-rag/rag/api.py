@@ -6,7 +6,7 @@
     draft = generate(chunks, lang)          # connectplus-llm
     verdict = verify(draft, chunks)
 
-Stage 05 and stage 07 take every external dependency as a parameter, which
+Stage 05 and stage 06 take every external dependency as a parameter, which
 is what lets them be tested without a database or a model download. These
 wrappers bind the production ones (Postgres from DATABASE_URL, the bge
 reranker, the NLI model) so the caller passes plain values and nothing else.
@@ -36,8 +36,8 @@ from rag.s05_retrieve import (
     make_postgres_vector_search,
 )
 from rag.s05_retrieve import retrieve as _retrieve
-from rag.s07_verify import get_default_entailment
-from rag.s07_verify import verify as _verify
+from rag.s06_verify import get_default_entailment
+from rag.s06_verify import verify as _verify
 from rag.schemas import Chunk, Retrieved, Verdict
 
 log = logging.getLogger("rag")

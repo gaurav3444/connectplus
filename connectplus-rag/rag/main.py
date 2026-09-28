@@ -1,4 +1,4 @@
-"""CLI entry point. Wires up stages 01 through 07.
+"""CLI entry point. Wires up stages 01 through 06.
 
 Usage (from README_rag.md, extended for 02-05):
     python -m rag.main ingest
@@ -45,7 +45,7 @@ from rag.s05_retrieve import (
     make_postgres_vector_search,
     retrieve,
 )
-from rag.s07_verify import get_default_entailment, verify
+from rag.s06_verify import get_default_entailment, verify
 from rag.schemas import Chunk, ExtractedDoc
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config" / "approved_domains.json"
@@ -128,7 +128,7 @@ def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
     _print_results(results, confidence, use_reranker)
 
 
-DEFAULT_DRAFTS_PATH = Path(__file__).parent / "fixtures" / "f07_drafts.json"
+DEFAULT_DRAFTS_PATH = Path(__file__).parent / "fixtures" / "f06_drafts.json"
 
 
 def _run_verify(drafts_path: Path, use_grounding: bool) -> None:
@@ -318,11 +318,11 @@ def main() -> None:
     )
 
     verify_parser = subparsers.add_parser(
-        "verify", help="Run stage 07 guardrails over the adversarial draft fixture"
+        "verify", help="Run stage 06 guardrails over the adversarial draft fixture"
     )
     verify_parser.add_argument(
         "--drafts", type=Path, default=DEFAULT_DRAFTS_PATH,
-        help="Draft fixture to grade (default: rag/fixtures/f07_drafts.json).",
+        help="Draft fixture to grade (default: rag/fixtures/f06_drafts.json).",
     )
     verify_parser.add_argument(
         "--grounding", action="store_true",

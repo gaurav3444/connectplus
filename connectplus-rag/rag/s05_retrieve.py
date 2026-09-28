@@ -1,9 +1,8 @@
-"""Stage 05 - Hybrid Retrieval (README_rag.md's own internal numbering;
-the unified whole-project stage map calls this "stage 06").
+"""Stage 05 - Hybrid Retrieval.
 
 Vector search and keyword search, fused with Reciprocal Rank Fusion (RRF),
 optionally reranked with a cross-encoder. Emits top-k chunks with scores
-and one confidence number - stage 08 (guardrails) refuses on it.
+and one confidence number - stage 06 (guardrails) refuses on it.
 
 Design decisions made explicit here:
 

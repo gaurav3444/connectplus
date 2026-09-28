@@ -3,7 +3,7 @@
 BGE-m3 embeddings (1024-dim, multilingual - confirmed via search, not
 assumed) via sentence-transformers, batched, written to Supabase Postgres
 with pgvector (HNSW) for vector search and a generated tsvector column for
-keyword search. Stage 06 needs both from the same database, same
+keyword search. Stage 05 needs both from the same database, same
 connection - that's the whole reason README_rag.md picked this stack.
 
 Design decisions made explicit here:
