@@ -12,23 +12,16 @@ not from here - nothing outside this repo should be crawling or embedding.
     if not verdict.passed:
         ...  # drop the answer, offer a mentor. Never patch it.
 
-`understand` and `keyword_query_for` (stage 06) are here too for callers
-that want this repo to do the translate-and-rewrite step instead.
-
 That is the whole public surface. Everything else is internal.
 """
 
 from rag.api import retrieve, verify
-from rag.s06_query import keyword_query_for, understand
-from rag.schemas import Chunk, Retrieved, UnderstoodQuery, Verdict
+from rag.schemas import Chunk, Retrieved, Verdict
 
 __all__ = [
     "Chunk",
     "Retrieved",
-    "UnderstoodQuery",
     "Verdict",
-    "keyword_query_for",
     "retrieve",
-    "understand",
     "verify",
 ]

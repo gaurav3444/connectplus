@@ -30,10 +30,10 @@ create table if not exists chunks (
 --
 -- 'simple' would not rescue them: Postgres cannot tokenise CJK text at all,
 -- so an unspaced Chinese sentence becomes one single unmatched token under
--- any configuration. The fix lives upstream instead - stage 06
--- (rag/s06_query.py) rewrites the user's question into ENGLISH, and
--- retrieve() passes that English form to keyword search via its
--- keyword_query parameter while the vector half still uses the original.
+-- any configuration. The fix lives upstream instead - the caller
+-- (query understanding, in connectplus-llm) rewrites the question into
+-- ENGLISH, and retrieve() passes that English form to keyword search via
+-- its keyword_query parameter while the vector half keeps the original.
 alter table chunks
     add column if not exists tsv tsvector
     generated always as (to_tsvector('english', coalesce(text, ''))) stored;

@@ -367,8 +367,8 @@ def test_keyword_query_goes_to_keyword_search_while_query_goes_to_the_embedder()
     Vector search is multilingual (BGE-m3 embeds the senior's own language
     into the same space as the English chunks). Keyword search is not -
     schema.sql builds an 'english' tsvector, so a Mandarin string produces
-    an empty tsquery and matches nothing. Stage 06 supplies an English
-    rewrite for the keyword half while the vector half keeps the original.
+    an empty tsquery and matches nothing. Query understanding supplies an
+    English rewrite for the keyword half while the vector half keeps the original.
     """
     embedded: list[str] = []
     keyword_searched: list[str] = []

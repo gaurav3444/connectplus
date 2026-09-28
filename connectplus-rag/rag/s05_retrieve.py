@@ -196,8 +196,8 @@ def retrieve(
       matches nothing, and hybrid retrieval silently collapses to
       vector-only - half the system doing nothing, with no error to say so.
 
-    Stage 06 (query understanding, rag/s06_query.py) produces an English
-    `rewritten` query precisely so it can be passed here. Callers that
+    Query understanding (connectplus-llm) produces an English rewrite
+    precisely so it can be passed here. Callers that
     omit keyword_query get the previous behaviour unchanged (query is used
     for both).
 

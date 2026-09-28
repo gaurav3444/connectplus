@@ -1,23 +1,16 @@
-"""Eval harness - the measurement two DONE criteria depend on.
+"""Eval harness - the measurement stage 05's DONE criterion depends on.
 
     stage 05 (retrieval): "hit@3 baseline recorded over the eval set, in
         Mandarin as well as English. Measure before and after the reranker
         - if it doesn't move the number, drop it."
-    stage 06 (query understanding): "Ten vague real-world phrasings each
-        produce a query that retrieves the right page."
 
-One command, one table. Needs a live DATABASE_URL and a working
-LLM_PROVIDER (see .env.example).
+One command, one table. Needs a live DATABASE_URL (see .env.example).
+Queries go to retrieval exactly as written; query understanding (rewriting
+into English) belongs to connectplus-llm, not this repo.
 
     python scripts/eval_queries.py                 # reranker on, both languages
     python scripts/eval_queries.py --no-rerank     # the before half of before/after
     python scripts/eval_queries.py --lang en       # one language only
-    python scripts/eval_queries.py --no-understand # skip stage 06, raw query straight in
-
---no-understand is the other comparison worth having: it isolates what
-query understanding is contributing, the same way --no-rerank isolates the
-reranker. Expect the Mandarin column to collapse without it - that is the
-point of the stage, and seeing the number move is how you prove it.
 
 A "hit" means the expected page appears in the top 3 results. Chunk-level
 retrieval means several chunks can come from the same page, so rank is
@@ -43,7 +36,6 @@ from rag.s05_retrieve import (  # noqa: E402
     make_postgres_vector_search,
     retrieve,
 )
-from rag.s06_query import keyword_query_for, understand  # noqa: E402
 
 EVAL_PATH = REPO_ROOT / "rag" / "fixtures" / "eval_queries.json"
 HIT_AT = 3
@@ -100,28 +92,18 @@ def run_one(
     expect: str | None,
     backends: dict,
     use_rerank: bool,
-    use_understand: bool,
 ):
-    if use_understand:
-        uq = understand(query, lang=lang)
-        search_query = uq.rewritten
-        keyword_query = keyword_query_for(uq)
-        passthrough = not uq.prompt_version
-    else:
-        search_query, keyword_query, passthrough = query, None, False
-
     results, confidence = retrieve(
-        search_query,
+        query,
         vector_search_fn=backends["vector"],
         keyword_search_fn=backends["keyword"],
         fetch_chunks_fn=backends["fetch"],
         rerank_fn=backends["rerank"] if use_rerank else None,
-        keyword_query=keyword_query,
     )
     rank = first_hit_rank(results, expect)
     methods = {r.method for r in results}
     return {
-        "rewritten": search_query,
+        "query": query,
         "rank": rank,
         "hit": rank is not None and rank <= HIT_AT,
         # An unscored row. Its expected page is not filled in yet, so it
@@ -137,14 +119,12 @@ def run_one(
         # eating a Mandarin query: all-"vector" means half the system did
         # nothing and nobody was told.
         "keyword_contributed": bool(methods & {"keyword", "fused"}),
-        "passthrough": passthrough,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--no-rerank", action="store_true")
-    parser.add_argument("--no-understand", action="store_true")
     parser.add_argument("--lang", choices=["en", "zh", "both"], default="both")
     args = parser.parse_args()
 
@@ -156,7 +136,6 @@ def main() -> None:
     spec = json.loads(EVAL_PATH.read_text(encoding="utf-8"))
     langs = ["en", "zh"] if args.lang == "both" else [args.lang]
     use_rerank = not args.no_rerank
-    use_understand = not args.no_understand
 
     backends = {
         "vector": make_postgres_vector_search(db_url),
@@ -165,20 +144,18 @@ def main() -> None:
         "rerank": get_default_reranker() if use_rerank else None,
     }
 
-    print(f"reranker: {'ON' if use_rerank else 'OFF'}   query understanding: "
-          f"{'ON' if use_understand else 'OFF'}\n")
+    print(f"reranker: {'ON' if use_rerank else 'OFF'}\n")
 
     tallies = {lang: [0, 0] for lang in langs}  # [hits, scored]
     keyword_dead = {lang: 0 for lang in langs}
-    passthroughs = 0
     unset_report: list[tuple[str, str, list[str]]] = []
 
     for lang in langs:
         print(f"=== {lang.upper()} " + "=" * 62)
-        print(f"{'id':<26}{'hit@3':<8}{'rank':<7}{'conf':<8}{'kw':<5}rewritten")
+        print(f"{'id':<26}{'hit@3':<8}{'rank':<7}{'conf':<8}{'kw':<5}query")
         print("-" * 78)
         for q in spec["queries"]:
-            out = run_one(q[lang], lang, q["expect_url_contains"], backends, use_rerank, use_understand)
+            out = run_one(q[lang], lang, q["expect_url_contains"], backends, use_rerank)
             if out["unset"]:
                 verdict = "UNSET"
                 unset_report.append((q["id"], lang, out["top_urls"]))
@@ -188,20 +165,19 @@ def main() -> None:
                 tallies[lang][0] += int(out["hit"])
             if not out["keyword_contributed"]:
                 keyword_dead[lang] += 1
-            passthroughs += int(out["passthrough"])
             rank = str(out["rank"]) if out["rank"] else "-"
             print(
                 f"{q['id']:<26}{verdict:<8}{rank:<7}"
                 f"{out['confidence']:<8.3f}{'y' if out['keyword_contributed'] else 'n':<5}"
-                f"{out['rewritten'][:36]}"
+                f"{out['query'][:36]}"
             )
         print()
 
     print("=== REFUSAL SET (low confidence is the correct answer here) " + "=" * 10)
     for q in spec["refusal_queries"]:
         for lang in langs:
-            out = run_one(q[lang], lang, "\x00never-matches", backends, use_rerank, use_understand)
-            print(f"{q['id']:<22}{lang:<5}confidence={out['confidence']:.3f}   {out['rewritten'][:40]}")
+            out = run_one(q[lang], lang, "\x00never-matches", backends, use_rerank)
+            print(f"{q['id']:<22}{lang:<5}confidence={out['confidence']:.3f}   {out['query'][:40]}")
     print()
 
     if unset_report:
@@ -233,13 +209,7 @@ def main() -> None:
     if any(total_queries - tallies[lang][1] for lang in langs):
         print(
             "\nThis is a PARTIAL baseline. Fill in the unset expected pages above before "
-            "quoting these numbers as the stage 05 / stage 06 DONE measurement."
-        )
-    if passthroughs:
-        print(
-            f"\nWARNING: query understanding fell back to passthrough on {passthroughs} "
-            "queries - the LLM was unavailable or returned something unparseable, so these "
-            "numbers measure raw retrieval, not the stage. Check LLM_PROVIDER and your API key."
+            "quoting these numbers as the stage 05 DONE measurement."
         )
     print(
         "\nRecord both numbers in the README, with and without --no-rerank. If the reranker "

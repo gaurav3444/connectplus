@@ -1,14 +1,8 @@
-"""Language detection, shared by stage 02 (documents) and stage 06 (queries).
+"""Language detection for stage 02 (documents).
 
-Its own module rather than living in s02_extract, where it started, for a
-concrete reason: importing s02_extract pulls in trafilatura, and stage 06
-runs on the ONLINE path. connectplus-llm doing `from rag import understand`
-should not have to install the offline crawl-and-extract stack to detect
-the language of a question.
-
-One implementation, deliberately - a query and the documents it retrieves
-must never be labelled by two detectors that can disagree about what
-"zh-cn" means.
+Its own module rather than living in s02_extract, where it started, so
+anything on the online path can label text without importing trafilatura
+and the rest of the offline crawl-and-extract stack.
 """
 
 from __future__ import annotations
@@ -19,10 +13,8 @@ LANG_DETECT_SAMPLE_CHARS = 2000  # enough for a reliable call, fast even on a 40
 
 # langdetect is non-deterministic by default: it samples internally, so the
 # same input can return different answers across runs. Seeding makes it
-# reproducible, which matters more than it sounds - stage 06 runs this on
-# short user queries (where the sampling variance is largest), and
-# scripts/eval_queries.py has to produce the same hit@3 number twice in a
-# row to be worth anything.
+# reproducible, which matters more than it sounds - the same page has
+# to get the same label on every re-run of extract, or the index churns.
 DetectorFactory.seed = 0
 
 
@@ -30,9 +22,8 @@ def detect_lang(text: str) -> str:
     """ISO 639-1 code (langdetect's own, so 'zh-cn' not 'zh'), or "unknown".
 
     Short input is the weak case: detection on a six-word question is much
-    less reliable than on 2000 characters of page text. That is why
-    understand() treats an explicitly supplied lang as authoritative and
-    only falls back to this.
+    less reliable than on 2000 characters of page text, so a caller that
+    already knows the language should trust that over this.
     """
     sample = text[:LANG_DETECT_SAMPLE_CHARS].strip()
     if not sample:

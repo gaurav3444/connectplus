@@ -244,56 +244,6 @@ class Retrieved(Chunk):
     )
 
 
-class UnderstoodQuery(BaseModel):
-    """Stage 06 output (this repo's file numbering - the unified whole-
-    project stage map calls this "stage 05", Query Understanding, and
-    calls this repo's s05_retrieve "stage 06"; see README's mapping table).
-
-    The stage map's card: IN {query, lang?} -> OUT {original, lang,
-    rewritten, expansions[]}.
-    """
-
-    original: str = Field(description="The senior's question exactly as typed, unmodified")
-    lang: str = Field(
-        description=(
-            "ISO 639-1 code (langdetect's, so 'zh-cn' not 'zh'), or 'unknown'. Carried "
-            "forward separately from `rewritten` on purpose: retrieval wants English, but "
-            "the generator downstream has to ANSWER in the language the senior asked in. "
-            "Losing this field is how a Mandarin speaker gets an English answer."
-        )
-    )
-    rewritten: str = Field(
-        description=(
-            "The retrievable form of the question, ALWAYS in English. Two reasons it is "
-            "English rather than the original language, both real: (1) keyword search runs "
-            "against an 'english' tsvector (rag/config/schema.sql), and a Mandarin string "
-            "produces an empty tsquery that matches nothing - this is the value passed to "
-            "retrieve(keyword_query=...); (2) the approved corpus is itself almost entirely "
-            "English. Also de-vagued, not just translated: the stage map's own example is "
-            "'my phone keeps asking for a code' -> 'two-factor authentication'. Falls back "
-            "to `original` verbatim when the LLM is unavailable or returns something "
-            "unparseable - degraded retrieval beats no retrieval."
-        )
-    )
-    expansions: list[str] = Field(
-        default_factory=list,
-        description=(
-            "A few extra English search terms (near-synonyms, the official name for a "
-            "colloquial one). Appended to the KEYWORD query only, never used for the vector "
-            "query - extra terms help lexical recall but dilute a dense embedding, which is "
-            "why these are a separate field instead of being pasted into `rewritten`."
-        ),
-    )
-    prompt_version: str = Field(
-        default="",
-        description=(
-            "Which prompt produced this rewrite. The stage map's stage 09 card requires "
-            "prompt version in the trace log: 'a bad answer has to be traceable'. Empty when "
-            "the fallback path produced this object without calling an LLM at all."
-        ),
-    )
-
-
 class Citation(BaseModel):
     """One `[n]` marker found in a draft answer, resolved against the chunks
     that were actually retrieved for it."""
