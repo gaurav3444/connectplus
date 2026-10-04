@@ -1,4 +1,4 @@
-"""Stage 01 — Source Ingestion.
+"""Stage 01 - Source Ingestion.
 
 Allowlist -> robots.txt/sitemap -> polite crawl -> raw HTML disk cache.
 
@@ -9,7 +9,7 @@ reasoning, since none of this is dictated word-for-word by README_rag.md):
   following from the homepage), not a hand-maintained URL list. This
   matches the "Approved domain list" input the stage map documents.
 - "Crawl the whole domain" is bounded by MAX_PAGES_PER_DOMAIN as a safety
-  cap, not a hard scope restriction — filtering happens later. Hitting the
+  cap, not a hard scope restriction - filtering happens later. Hitting the
   cap is logged and recorded in the run summary, never silent.
 - Idempotency (README stage 01 DONE: "a second run makes zero network
   calls") is implemented via a per-domain manifest.json cache. If it
@@ -55,7 +55,7 @@ CONSECUTIVE_FAILURE_LIMIT = 5  # abort the rest of a domain's crawl past this ma
 class DomainNotApprovedError(Exception):
     """Raised when ingest is asked to crawl a domain not in the allowlist.
 
-    This must be raised before any network call is made — that's the
+    This must be raised before any network call is made - that's the
     enforcement point README_rag.md means by "enforced in code, at fetch
     time."
     """
@@ -112,7 +112,7 @@ class _LinkExtractor(HTMLParser):
 
 
 def load_approved_domains(path: Path) -> list[ApprovedDomain]:
-    raw = json.loads(path.read_text())
+    raw = json.loads(path.read_text(encoding="utf-8"))
     return [ApprovedDomain.model_validate(row) for row in raw]
 
 
@@ -150,7 +150,7 @@ def _get_robot_parser(
     except httpx.RequestError:
         log.warning("robots_fetch_failed", extra={"domain": domain, "url": robots_url})
         content = ""
-    paths["robots"].write_text(content)
+    paths["robots"].write_text(content, encoding="utf-8")
     parser.parse(content.splitlines())
     parser.set_url(robots_url)
     return parser
@@ -180,7 +180,7 @@ def _discover_via_sitemap(
             resp = client.get(sm_url, timeout=DEFAULT_TIMEOUT, headers=REQUEST_HEADERS)
             if resp.status_code != 200:
                 continue
-            paths["sitemap"].write_text(resp.text)
+            paths["sitemap"].write_text(resp.text, encoding="utf-8")
             root = ElementTree.fromstring(resp.content)
         except (httpx.RequestError, ElementTree.ParseError):
             log.warning("sitemap_unusable", extra={"domain": domain, "url": sm_url})
@@ -202,18 +202,18 @@ def _extract_links(html: str, base_url: str, domain: str, log: logging.LoggerAda
     Two defensive layers, because stdlib HTMLParser assumes well-formed
     HTML and will raise on garbage input:
     1. The caller should already have checked Content-Type looks like
-       HTML before calling this — see _discover_via_links.
+       HTML before calling this - see _discover_via_links.
     2. Even a text/html-labelled response can contain a byte sequence
        HTMLParser chokes on (seen in practice: a WAF/bot-check response
        served with an HTML content-type but non-HTML, sometimes
        binary-looking, body). That must never take down the whole
-       ingest run over one page's links — we just get zero links from
+       ingest run over one page's links - we just get zero links from
        that page and move on.
     """
     extractor = _LinkExtractor()
     try:
         extractor.feed(html)
-    except Exception:  # noqa: BLE001 — HTMLParser's failure modes aren't a fixed, documented set
+    except Exception:  # noqa: BLE001 - HTMLParser's failure modes aren't a fixed, documented set
         log.warning("link_extraction_failed", extra={"domain": domain, "url": base_url})
         return []
 
@@ -237,12 +237,12 @@ def _discover_via_links(
 ) -> list[str]:
     """Breadth-first same-domain link crawl, used only when no sitemap
     yields anything. Deliberately simple: stdlib HTMLParser, no JS
-    rendering, no external crawler framework — matches the stack table's
+    rendering, no external crawler framework - matches the stack table's
     "no crawler framework needed for a handful of domains."
 
     Fetches go through _fetch_page, the same disk-cache path the main
     ingest loop uses. That means a page found and fetched here is
-    already cached by the time the main loop asks for it again —
+    already cached by the time the main loop asks for it again -
     without this, every discovered page was being fetched twice
     (once here, once in the main loop), doubling the request count
     against a site we're specifically trying to be polite to.
@@ -278,7 +278,7 @@ def _discover_via_links(
 
 def _is_text_content(content_type: str) -> bool:
     """Whether a Content-Type is safe to decode as text. Deliberately
-    conservative allowlist rather than a "not obviously binary" denylist —
+    conservative allowlist rather than a "not obviously binary" denylist -
     a new binary type we haven't seen yet should fail safe (cached as raw
     bytes) rather than get corrupted through .text, which is exactly the
     bug this function exists to prevent.
@@ -302,8 +302,8 @@ def _fetch_page(
     `.text` decodes bytes using a detected/declared encoding, which is
     correct for HTML but silently corrupts anything binary (a PDF's bytes
     round-tripped through `.text` come back different from what the server
-    sent — confirmed empirically, not assumed). Binary content — Scamwatch
-    alone links 44 PDFs, 7 RSS feeds, 3 zips — is written to <hash>.bin as
+    sent - confirmed empirically, not assumed). Binary content - Scamwatch
+    alone links 44 PDFs, 7 RSS feeds, 3 zips - is written to <hash>.bin as
     raw, untouched bytes. `PageRecord.html` stays "" for these; a future
     stage that wants the PDF text needs to read the .bin file itself with
     a real PDF library, not expect it pre-decoded into a text field.
@@ -314,9 +314,9 @@ def _fetch_page(
     meta_path = pages_dir / f"{key}.meta.json"
 
     if meta_path.exists():
-        meta = json.loads(meta_path.read_text())
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
         is_text = _is_text_content(meta.get("content_type", ""))
-        html = html_path.read_text() if is_text and html_path.exists() else ""
+        html = html_path.read_text(encoding="utf-8") if is_text and html_path.exists() else ""
         record = PageRecord(
             url=HttpUrl(url), domain=domain, html=html,
             fetched_at=meta["fetched_at"], status=meta["status"],
@@ -350,12 +350,12 @@ def _fetch_page(
 
     pages_dir.mkdir(parents=True, exist_ok=True)
     if is_text:
-        html_path.write_text(html)
+        html_path.write_text(html, encoding="utf-8")
     else:
         bin_path.write_bytes(raw_bytes)
     meta_path.write_text(json.dumps({
         "fetched_at": fetched_at.isoformat(), "status": status, "content_type": content_type,
-    }))
+    }), encoding="utf-8")
     log.info(
         "page_fetched",
         extra={"domain": domain, "url": url, "status": status, "cache_hit": False},
@@ -367,9 +367,9 @@ def _rehydrate_page_record(
     entry: dict, pages_dir: Path, log: logging.LoggerAdapter
 ) -> PageRecord:
     """Reconstructs a full PageRecord from a manifest entry that doesn't
-    carry the HTML itself — see the comment where manifest.json is written.
+    carry the HTML itself - see the comment where manifest.json is written.
     Reads the body back from pages/<hash>.html for text content; binary
-    content (PDFs etc.) stays as "" here too, same as on first fetch — the
+    content (PDFs etc.) stays as "" here too, same as on first fetch - the
     raw bytes live in pages/<hash>.bin for whoever needs them later.
     """
     key = _url_hash(entry["url"])
@@ -378,10 +378,10 @@ def _rehydrate_page_record(
     if _is_text_content(content_type):
         html_path = pages_dir / f"{key}.html"
         if html_path.exists():
-            html = html_path.read_text()
+            html = html_path.read_text(encoding="utf-8")
         else:
-            # Shouldn't happen in normal operation — the manifest is only
-            # written after every page in it was fetched — but disk state can
+            # Shouldn't happen in normal operation - the manifest is only
+            # written after every page in it was fetched - but disk state can
             # be edited or partially deleted by hand, so fail soft, not loud.
             log.warning("cached_html_missing", extra={"domain": entry["domain"], "url": entry["url"]})
     return PageRecord(
@@ -396,16 +396,16 @@ def load_pages_from_manifest(domain: str, cache_dir: Path) -> list[PageRecord]:
     CLI's `extract` command) to load a domain's already-ingested pages
     without needing to know manifest.json's on-disk layout or that HTML
     gets rehydrated from a separate cache file. ingest_domain() itself
-    doesn't use this — it has its own cache-hit path with the approved-domain
+    doesn't use this - it has its own cache-hit path with the approved-domain
     check still in front of it; this is for read-only access after the fact.
     """
     paths = _cache_paths(cache_dir, domain)
     if not paths["manifest"].exists():
         raise FileNotFoundError(
-            f"No manifest.json for {domain!r} at {paths['manifest']} — run ingest for it first"
+            f"No manifest.json for {domain!r} at {paths['manifest']} - run ingest for it first"
         )
     log = _JsonLogAdapter(logger, {"run_id": str(uuid.uuid4())})
-    manifest = json.loads(paths["manifest"].read_text())
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
     return [_rehydrate_page_record(p, paths["pages"], log) for p in manifest["pages"]]
 
 
@@ -421,7 +421,7 @@ def ingest_domain(
     already ingested. Raises DomainNotApprovedError before any network
     call if the domain isn't allowlisted.
     """
-    _check_allowed(domain, approved)  # enforcement point — before any I/O
+    _check_allowed(domain, approved)  # enforcement point - before any I/O
 
     run_id = run_id or str(uuid.uuid4())
     log = _JsonLogAdapter(logger, {"run_id": run_id})
@@ -430,7 +430,7 @@ def ingest_domain(
 
     if paths["manifest"].exists():
         log.info("manifest_cache_hit", extra={"domain": domain})
-        cached = json.loads(paths["manifest"].read_text())
+        cached = json.loads(paths["manifest"].read_text(encoding="utf-8"))
         return [_rehydrate_page_record(p, paths["pages"], log) for p in cached["pages"]]
 
     owns_client = client is None
@@ -493,12 +493,12 @@ def ingest_domain(
             # Deliberately excludes "html": each page's HTML already lives in
             # pages/<hash>.html, written by _fetch_page. Storing it a second
             # time here made manifest.json balloon to the size of every
-            # fetched page combined — hundreds of MB for a real domain,
+            # fetched page combined - hundreds of MB for a real domain,
             # large enough that some editors refuse to open it at all. This
             # file's job is to be a small, human-readable index, not a
             # second copy of the corpus.
             "pages": [r.model_dump(mode="json", exclude={"html"}) for r in records],
-        }))
+        }), encoding="utf-8")
         log.info("domain_ingest_complete", extra={"domain": domain})
         return records
     finally:
@@ -515,9 +515,9 @@ def ingest(
 ) -> dict[str, list[PageRecord]]:
     """Entry point for `python -m rag.main ingest [--domain X] [--max-pages N]`.
 
-    A domain that isn't approved is logged and skipped — it does not abort
+    A domain that isn't approved is logged and skipped - it does not abort
     ingestion for the other domains in the same run. `client` is injectable
-    for tests, same pattern as ingest_domain — production code never passes it.
+    for tests, same pattern as ingest_domain - production code never passes it.
     """
     configure_json_logging()
     run_id = str(uuid.uuid4())

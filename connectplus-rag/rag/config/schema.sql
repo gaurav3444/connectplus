@@ -19,7 +19,19 @@ create table if not exists chunks (
     indexed_at      timestamptz not null default now()
 );
 
--- Keyword search — README's stack table: "Postgres tsvector | Already in the same database"
+-- Keyword search - README's stack table: "Postgres tsvector | Already in the same database"
+--
+-- 'english' is deliberate, and it is also a known limit worth stating.
+-- Both approved domains are English-language Australian government sites,
+-- so English stemming is correct for the overwhelming majority of the
+-- corpus. But the index does hold confirmed non-English chunks (Vietnamese,
+-- Chinese, Hindi, Greek translated pages), and those are NOT usefully
+-- keyword-searchable here - they are reachable through vector search only.
+--
+-- 'simple' would not rescue them: Postgres cannot tokenise CJK text at all,
+-- so an unspaced Chinese sentence becomes one single unmatched token under
+-- any configuration. The fix lives upstream instead - connectplus-llm's
+-- stage 07 rewrites the question into ENGLISH before calling retrieve().
 alter table chunks
     add column if not exists tsv tsvector
     generated always as (to_tsvector('english', coalesce(text, ''))) stored;
@@ -27,6 +39,6 @@ alter table chunks
 create index if not exists chunks_tsv_idx
     on chunks using gin (tsv);
 
--- Vector search — README's stack table: "pgvector (HNSW)"
+-- Vector search - README's stack table: "pgvector (HNSW)"
 create index if not exists chunks_embedding_hnsw_idx
     on chunks using hnsw (embedding vector_cosine_ops);

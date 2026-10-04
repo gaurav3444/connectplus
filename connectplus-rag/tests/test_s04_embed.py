@@ -1,6 +1,6 @@
 """Tests for stage 04.
 
-Uses fake embed and upsert functions throughout — never the real BGE-m3
+Uses fake embed and upsert functions throughout - never the real BGE-m3
 model or a real Postgres connection. This sandbox can't download a 2GB
 model or reach a live database, so what's tested here is the batching,
 validation, and row-shaping LOGIC, not the real model or the real
@@ -29,7 +29,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "rag" / "fixtures"
 
 def fake_embedder(dim: int = DEFAULT_EMBEDDING_DIM):
     """Deterministic fake: same text always produces the same vector
-    (hash-based), different texts produce different vectors — enough to
+    (hash-based), different texts produce different vectors - enough to
     test batching and row-shaping without a real model."""
     def embed(texts: list[str]) -> list[list[float]]:
         return [[float((hash(t) + i) % 1000) / 1000 for i in range(dim)] for t in texts]
@@ -85,7 +85,7 @@ def test_on_batch_done_callback_fires_once_per_batch_with_correct_totals() -> No
 
 
 def test_on_batch_done_is_optional() -> None:
-    """Must not require a callback — the core function stays silent and
+    """Must not require a callback - the core function stays silent and
     easy to test by default."""
     chunks = [_chunk(f"c{i}") for i in range(3)]
     embedded, _ = embed_chunks(chunks, embed_fn=fake_embedder())  # no on_batch_done at all
@@ -167,7 +167,7 @@ def test_index_chunks_requires_an_upsert_function() -> None:
 def test_reindexing_the_same_chunks_is_idempotent_via_upsert_by_id() -> None:
     """Simulates README's stage 04 DONE criterion ("re-ingest is
     idempotent") with an in-memory fake standing in for Postgres's real
-    ON CONFLICT (id) DO UPDATE — the real guarantee lives in schema.sql,
+    ON CONFLICT (id) DO UPDATE - the real guarantee lives in schema.sql,
     not in this Python code, but this proves upsert_fn always receives
     the same `id` for the same chunk, which is what ON CONFLICT relies on.
     """
@@ -175,13 +175,13 @@ def test_reindexing_the_same_chunks_is_idempotent_via_upsert_by_id() -> None:
 
     def fake_upsert(rows):
         for row in rows:
-            fake_table[row["id"]] = row  # overwrite, not append — mirrors ON CONFLICT DO UPDATE
+            fake_table[row["id"]] = row  # overwrite, not append - mirrors ON CONFLICT DO UPDATE
 
     chunks = [_chunk(f"c{i}") for i in range(3)]
     index_chunks(chunks, embed_fn=fake_embedder(), upsert_fn=fake_upsert)
     index_chunks(chunks, embed_fn=fake_embedder(), upsert_fn=fake_upsert)  # re-run
 
-    assert len(fake_table) == 3  # not 6 — no duplicates from running twice
+    assert len(fake_table) == 3  # not 6 - no duplicates from running twice
 
 
 def test_upsert_happens_per_batch_not_once_at_the_end() -> None:
@@ -189,7 +189,7 @@ def test_upsert_happens_per_batch_not_once_at_the_end() -> None:
     on real hardware (PyTorch's Metal/MPS backend running out of GPU
     memory on Apple Silicon) happened mid-run, at batch 99 of 260. The old
     design collected every embedded chunk in memory and only upserted
-    once at the very end — meaning that crash would have lost all 98
+    once at the very end - meaning that crash would have lost all 98
     already-successfully-embedded batches, since nothing had been written
     to the database yet. upsert_fn must be called once per batch, not once
     overall, so a crash only costs the batch in progress.
@@ -207,7 +207,7 @@ def test_upsert_happens_per_batch_not_once_at_the_end() -> None:
 
 def test_crash_partway_through_preserves_earlier_batches() -> None:
     """The actual resilience property that matters: if embedding raises
-    partway through, whatever was already upserted must remain — not be
+    partway through, whatever was already upserted must remain - not be
     silently lost because it was only held in memory."""
     fake_table: dict[str, dict] = {}
 
