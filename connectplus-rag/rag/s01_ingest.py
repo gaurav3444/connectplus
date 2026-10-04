@@ -39,7 +39,7 @@ logger = logging.getLogger("rag.ingest")
 
 USER_AGENT = (
     "ConnectPlusBot/0.1 (+CW2 digital literacy platform prototype; "
-    "contact: TODO-team-email@example.edu)"
+    "contact: 105515444@student.swin.edu.au)"
 )
 REQUEST_HEADERS = {
     "User-Agent": USER_AGENT,
