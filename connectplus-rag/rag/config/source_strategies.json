@@ -1,0 +1,77 @@
+[
+  {
+    "domain": "my.gov.au",
+    "strategy": "live_scoped",
+    "host": "my.gov.au",
+    "url_normaliser": "aem_mygov",
+    "start_urls": [
+      "https://my.gov.au/en/about/help",
+      "https://my.gov.au/en/about",
+      "https://my.gov.au/en/services/ageing",
+      "https://my.gov.au/en/languages"
+    ],
+    "include_paths": [
+      "/en/about",
+      "/en/services/ageing",
+      "/en/languages"
+    ],
+    "exclude_paths": [
+      "/en/search",
+      "/LoginServices",
+      "/mygov",
+      "/content/dam",
+      "/audit"
+    ],
+    "max_pages": 500,
+    "delay_seconds": 1.0,
+    "notes": "Server-rendered AEM site. Scoped to myGov help/about, the Ageing section and translated pages; the rest of the host is general government-services browsing plus the sign-in app. Content CC BY 3.0 AU, attribute to Services Australia."
+  },
+  {
+    "domain": "esafety.gov.au",
+    "strategy": "wayback",
+    "host": "www.esafety.gov.au",
+    "archive_from": "20250101",
+    "exclude_paths": [
+      "/key-topics/esafety-guide",
+      "/akam",
+      "/views",
+      "/media/oembed",
+      "/search",
+      "/user",
+      "/sites/default/files"
+    ],
+    "max_pages": 1500,
+    "delay_seconds": 2.0,
+    "max_consecutive_failures": 15,
+    "notes": "Live site blocks automated clients; read Internet Archive copies instead. Scoped to sections useful for seniors and carers (2026-10-02, after the first run spent its cap on research/teen/corporate pages and 176 Akamai /akam tracking-pixel URLs). The eSafety Guide is excluded because it is outside eSafety's CC BY 4.0 licence. fetched_at = archive snapshot date. Breaker set higher than the default 5 because an occasional missing capture is normal for an archive. Run `ingest --plan --domain esafety.gov.au` to check max_pages.",
+    "include_paths": [
+      "/seniors",
+      "/key-topics",
+      "/report",
+      "/parents",
+      "/communities",
+      "/first-nations",
+      "/women",
+      "/lgbtiq",
+      "/media",
+      "/about-us/contact-us",
+      "/about-us/counselling-support-services"
+    ]
+  },
+  {
+    "domain": "scamwatch.gov.au",
+    "strategy": "live",
+    "exclude_url_patterns": [
+      "[?&]f(%5B|\\[)\\d+(%5D|\\])="
+    ],
+    "notes": "Crawled by the original s01_ingest crawler (strategy live). exclude_url_patterns drops the faceted 'browse news and alerts' listing pages (?f[0]=...) at extract time: 179 docs that were only search-result snippets of other alerts."
+  },
+  {
+    "domain": "beconnected.esafety.gov.au",
+    "strategy": "live",
+    "exclude_url_patterns": [
+      "/mod/scorm/view\\.php"
+    ],
+    "notes": "Crawled by the original s01_ingest crawler (strategy live). SCORM pages are interactive practice games ('Tap and hold your finger on the green circle'), 6 docs / 65 chunks of game instructions; remove this pattern if the client wants them kept."
+  }
+]

@@ -3,6 +3,9 @@
 Usage (from README_rag.md, extended for 02-05):
     python -m rag.main ingest
     python -m rag.main ingest --domain scamwatch.gov.au
+    python -m rag.main ingest --domain my.gov.au        (scoped live crawl)
+    python -m rag.main ingest --domain esafety.gov.au   (Internet Archive copies)
+    python -m rag.main ingest --plan --domain esafety.gov.au   (count pages, fetch nothing)
     python -m rag.main extract --domain scamwatch.gov.au
     python -m rag.main chunk --domain scamwatch.gov.au
     python -m rag.main index --domain scamwatch.gov.au
@@ -25,7 +28,13 @@ import os
 from pathlib import Path
 
 from rag.s01_ingest import MAX_PAGES_PER_DOMAIN as DEFAULT_MAX_PAGES
-from rag.s01_ingest import ingest, load_pages_from_manifest
+from rag.s01_ingest import load_pages_from_manifest
+from rag.s01_sources import (  # per-domain fetch strategies; see s01_sources.py
+    filter_pages_for_extraction,
+    format_plan,
+    ingest,
+    plan,
+)
 from rag.s02_extract import (
     configure_json_logging as configure_extract_logging,
 )
@@ -110,6 +119,7 @@ def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
         print(str(exc))
         return
 
+    pages, excluded_by_url = filter_pages_for_extraction(domain, pages)
     inputs = load_extraction_inputs_from_cache(pages, cache_dir)
     configure_extract_logging()
     docs, summary = extract_pages(inputs)
@@ -119,6 +129,7 @@ def _run_extract(domain: str, cache_dir: Path, extracted_dir: Path) -> None:
     out_path.write_text(json.dumps([d.model_dump(mode="json") for d in docs], ensure_ascii=False, indent=2))
 
     print(f"{domain}: {summary.extracted}/{summary.total_input_pages} pages extracted -> {out_path}")
+    print(f"  excluded by URL rule (source_strategies.json): {excluded_by_url}")
     print(f"  skipped non-200: {summary.skipped_non_200_status}")
     print(f"  skipped unsupported content-type: {summary.skipped_unsupported_content_type}")
     print(f"  skipped empty after extraction: {summary.skipped_empty_after_extraction}")
@@ -205,6 +216,11 @@ def main() -> None:
     ingest_parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     ingest_parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE_DIR)
     ingest_parser.add_argument(
+        "--plan", action="store_true",
+        help="Don't fetch anything: report how many pages each strategy domain WOULD fetch, by "
+             "section, and whether max_pages would truncate it. Writes nothing to the cache.",
+    )
+    ingest_parser.add_argument(
         "--max-pages", type=int, default=DEFAULT_MAX_PAGES,
         help=f"Safety cap per domain (default {DEFAULT_MAX_PAGES}). Raise this if a "
              "domain's manifest shows truncated: true and the missing pages matter.",
@@ -243,7 +259,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.command == "ingest":
+    if args.command == "ingest" and args.plan:
+        for report in plan(args.domain, args.config):
+            print(format_plan(report))
+            print()
+    elif args.command == "ingest":
         results = ingest(args.domain, args.config, args.cache_dir, max_pages=args.max_pages)
         for domain, pages in results.items():
             print(f"{domain}: {len(pages)} pages")

@@ -10,5 +10,17 @@
     "added_by": "team",
     "approved_at": "2026-09-01",
     "notes": "ACCC-run scam awareness and reporting site."
+  },
+  {
+    "domain": "my.gov.au",
+    "added_by": "team",
+    "approved_at": "2026-09-30",
+    "notes": "Services Australia's myGov help and information pages. Fetched via scoped live crawl (see source_strategies.json)."
+  },
+  {
+    "domain": "esafety.gov.au",
+    "added_by": "team",
+    "approved_at": "2026-09-30",
+    "notes": "eSafety Commissioner. Re-added 2026-09-30; fetched from Internet Archive copies because the live site blocks automated clients (see domain_decisions.md)."
   }
 ]
