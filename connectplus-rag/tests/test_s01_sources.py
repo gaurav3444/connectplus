@@ -110,7 +110,7 @@ def test_mygov_scoped_crawl_fetches_each_page_once_and_stays_in_scope(tmp_path: 
     assert "/en/about/blocked" not in fetched_paths             # robots.txt
     assert "/LoginServices/login" not in fetched_paths          # excluded
 
-    manifest = json.loads((tmp_path / "my.gov.au" / "manifest.json").read_text())
+    manifest = json.loads((tmp_path / "my.gov.au" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["summary"]["pages_fetched"] == 2
     assert manifest["summary"]["pages_disallowed_by_robots"] == 1
     assert (tmp_path / "my.gov.au" / "pages" / f"{url_key('https://my.gov.au/en/about/help')}.html").exists()
@@ -183,11 +183,11 @@ def test_wayback_keeps_original_urls_and_snapshot_dates(tmp_path: Path) -> None:
     assert all(r.fetched_at.isoformat().startswith("2026-08-15T09:30") for r in records)
 
     meta = json.loads((tmp_path / "esafety.gov.au" / "pages" /
-                       f"{url_key('https://www.esafety.gov.au/seniors')}.meta.json").read_text())
+                       f"{url_key('https://www.esafety.gov.au/seniors')}.meta.json").read_text(encoding="utf-8"))
     assert meta["source"] == "wayback" and meta["snapshot_timestamp"] == "20260815093000"
     assert "web.archive.org" in meta["archive_url"]
 
-    manifest = json.loads((tmp_path / "esafety.gov.au" / "manifest.json").read_text())
+    manifest = json.loads((tmp_path / "esafety.gov.au" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["summary"]["pages_disallowed_by_robots"] == 1
     assert manifest["source"]["urls_listed_by_archive"] == 5
     # No page content is ever requested from the live eSafety site
@@ -225,7 +225,7 @@ def test_circuit_breaker_stops_a_dead_source(tmp_path: Path) -> None:
     st = ESAFETY.model_copy(update={"max_consecutive_failures": 5})
     records = ingest_wayback(st, tmp_path, _client(handler), 500, sleep=NO_SLEEP)
     assert len(records) == 5
-    manifest = json.loads((tmp_path / "esafety.gov.au" / "manifest.json").read_text())
+    manifest = json.loads((tmp_path / "esafety.gov.au" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["summary"]["circuit_breaker_tripped"] is True
 
 
@@ -236,9 +236,9 @@ def _write_configs(tmp_path: Path) -> tuple[Path, Path]:
     approved.write_text(json.dumps([
         {"domain": d, "added_by": "t", "approved_at": "2026-01-01"}
         for d in ["scamwatch.gov.au", "my.gov.au"]
-    ]))
+    ]), encoding="utf-8")
     strategies = tmp_path / "strategies.json"
-    strategies.write_text(json.dumps([MYGOV.model_dump()]))
+    strategies.write_text(json.dumps([MYGOV.model_dump()]), encoding="utf-8")
     return approved, strategies
 
 
@@ -286,7 +286,7 @@ def test_stage02_loader_gets_real_html_back_for_both_new_sources(tmp_path: Path)
         pages = load_pages_from_manifest(domain, tmp_path)
         assert pages and all(p.status == 200 for p in pages)
         assert all("<main>" in p.html for p in pages), domain
-        manifest = json.loads((tmp_path / domain / "manifest.json").read_text())
+        manifest = json.loads((tmp_path / domain / "manifest.json").read_text(encoding="utf-8"))
         assert all("html" not in p for p in manifest["pages"])  # same small-index rule as s01_ingest
 
 
@@ -370,9 +370,11 @@ def test_live_strategy_domains_keep_the_cli_max_pages(tmp_path: Path, monkeypatc
     seen: list[int] = []
     monkeypatch.setattr(original, "ingest_domain", lambda d, *a, **k: seen.append(k["max_pages"]) or [])
     approved = tmp_path / "approved.json"
-    approved.write_text(json.dumps([{"domain": "scamwatch.gov.au", "added_by": "t", "approved_at": "x"}]))
+    approved_rows = [{"domain": "scamwatch.gov.au", "added_by": "t", "approved_at": "x"}]
+    approved.write_text(json.dumps(approved_rows), encoding="utf-8")
     strategies = tmp_path / "s.json"
-    strategies.write_text(json.dumps([{"domain": "scamwatch.gov.au", "strategy": "live", "max_pages": 7}]))
+    strategy_rows = [{"domain": "scamwatch.gov.au", "strategy": "live", "max_pages": 7}]
+    strategies.write_text(json.dumps(strategy_rows), encoding="utf-8")
     dead = _client(lambda r: httpx.Response(404))
     run = {"client": dead, "strategies_path": strategies}
     ingest(["scamwatch.gov.au"], approved, tmp_path / "c", **run)

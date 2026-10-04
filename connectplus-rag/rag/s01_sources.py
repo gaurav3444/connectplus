@@ -109,7 +109,8 @@ class SourceStrategy(BaseModel):
 def load_strategies(path: Path = DEFAULT_STRATEGIES_PATH) -> dict[str, SourceStrategy]:
     if not path.exists():
         return {}
-    return {s.domain: s for s in (SourceStrategy.model_validate(r) for r in json.loads(path.read_text()))}
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    return {s.domain: s for s in (SourceStrategy.model_validate(r) for r in rows)}
 
 
 def filter_pages_for_extraction(
@@ -197,7 +198,7 @@ def _cached_record(url: str, domain: str, pages_dir: Path, log: logging.LoggerAd
     meta_path = pages_dir / f"{_url_hash(url)}.meta.json"
     if not meta_path.exists():
         return None
-    meta = json.loads(meta_path.read_text())
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
     return _rehydrate_page_record({"url": url, "domain": domain, **meta}, pages_dir, log)
 
 
@@ -207,12 +208,12 @@ def _store(
     pages_dir.mkdir(parents=True, exist_ok=True)
     key = _url_hash(str(record.url))
     if _is_text_content(record.content_type):
-        (pages_dir / f"{key}.html").write_text(record.html)
+        (pages_dir / f"{key}.html").write_text(record.html, encoding="utf-8")
     else:
         (pages_dir / f"{key}.bin").write_bytes(raw_bytes)
     meta = {"fetched_at": record.fetched_at.isoformat(), "status": record.status,
             "content_type": record.content_type, **(extra_meta or {})}
-    (pages_dir / f"{key}.meta.json").write_text(json.dumps(meta))
+    (pages_dir / f"{key}.meta.json").write_text(json.dumps(meta), encoding="utf-8")
 
 
 def _write_manifest(
@@ -232,13 +233,13 @@ def _write_manifest(
         "source": source,
         # Same as s01_ingest: HTML lives in pages/<hash>.html, not here.
         "pages": [r.model_dump(mode="json", exclude={"html"}) for r in records],
-    }))
+    }), encoding="utf-8")
 
 
 def _load_cached_manifest(paths: dict[str, Path], log: logging.LoggerAdapter) -> list[PageRecord] | None:
     if not paths["manifest"].exists():
         return None
-    cached = json.loads(paths["manifest"].read_text())
+    cached = json.loads(paths["manifest"].read_text(encoding="utf-8"))
     return [_rehydrate_page_record(p, paths["pages"], log) for p in cached["pages"]]
 
 
@@ -272,7 +273,7 @@ def _sitemap_urls(client: httpx.Client, starts: list[str], paths: dict[str, Path
             log.warning("sitemap_unusable", extra={"domain": domain, "url": sm})
             continue
         if paths is not None and not paths["sitemap"].exists():
-            paths["sitemap"].write_text(resp.text)
+            paths["sitemap"].write_text(resp.text, encoding="utf-8")
         locs = [el.text.strip() for el in root.findall(".//sm:loc", SITEMAP_NS) if el.text]
         (queue if root.tag.lower().endswith("sitemapindex") else found).extend(locs)
     return found
@@ -299,7 +300,7 @@ def ingest_live_scoped(
     robots_url = f"https://{host}/robots.txt"
     resp = _live_get(client, robots_url)
     robots_txt = resp.text if resp is not None and resp.status_code == 200 else ""
-    paths["robots"].write_text(robots_txt)
+    paths["robots"].write_text(robots_txt, encoding="utf-8")
     robots = _parse_robots(robots_txt, robots_url)
     delay = float(robots.crawl_delay(USER_AGENT) or strategy.delay_seconds)
 
@@ -451,7 +452,7 @@ def _archive_robots(
     if not content:
         log.warning("robots_unavailable_allowing_all", extra={"domain": strategy.domain, "url": robots_url})
     if paths is not None:
-        paths["robots"].write_text(content)
+        paths["robots"].write_text(content, encoding="utf-8")
     return _parse_robots(content, robots_url)
 
 

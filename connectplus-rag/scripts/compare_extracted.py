@@ -12,8 +12,8 @@ from __future__ import annotations
 import json
 import sys
 
-old = {d["url"]: d for d in json.load(open(sys.argv[1]))}
-new = {d["url"]: d for d in json.load(open(sys.argv[2]))}
+old = {d["url"]: d for d in json.load(open(sys.argv[1], encoding="utf-8"))}
+new = {d["url"]: d for d in json.load(open(sys.argv[2], encoding="utf-8"))}
 
 title_changed = [u for u in old.keys() & new.keys() if old[u]["title"] != new[u]["title"]]
 text_changed = [u for u in old.keys() & new.keys()
