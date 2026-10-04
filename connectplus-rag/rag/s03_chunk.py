@@ -18,11 +18,19 @@ description):
   content, where headings and paragraphs are distinct, unambiguous
   elements. XML in, real elements out — no string-parsing heuristics
   guessing where a heading ends and a paragraph begins.
-- heading_path is best-effort, not guaranteed: one real Scamwatch page has
-  its headings entirely excluded by trafilatura (a different symptom of
-  the same root cause as the list-recovery fix in stage 02). A doc with no
-  usable content_xml still chunks correctly — just with an empty
-  heading_path — rather than being treated as an error case.
+- heading_path falls back to the page title. Structure-derived headings
+  are best-effort: one real Scamwatch page has its headings entirely
+  excluded by trafilatura, a doc with no usable content_xml (a PDF) has
+  none at all, and content before a page's first heading has none either.
+  Measured on the real corpus: 670 of 3,901 Be Connected chunks (mostly
+  video transcripts at the top of course pages) and 591 of 1,010 Scamwatch
+  chunks (intro text and PDFs) had heading_path == [], so their citations
+  and retrieval results said nothing about where the text came from. Those
+  chunks now get [page title] instead, with a trailing " | Site name"
+  removed ("Seniors | eSafety Commissioner" -> "Seniors"). Applied only
+  when a chunk is created, so chunk boundaries, ids and token counts are
+  exactly what they'd be without it, and chunks that do have real headings
+  are untouched.
 - "Never split a numbered procedure" is implemented as "never split any
   <list> element", not just numbered ones. trafilatura's XML uses the same
   <list rend="ul"|"ol"> element shape for both; there's no reliable signal
@@ -429,6 +437,16 @@ def _split_oversized_section(
     return pieces if pieces else [(section.heading_path, section.text())]
 
 
+def _page_heading(title: str) -> list[str]:
+    """Fallback heading_path for a chunk with no structural headings: the
+    page title, minus a trailing " | Site name" segment (eSafety's titles
+    all end in " | eSafety Commissioner"). " - " is deliberately NOT
+    treated as a separator: real titles use it for meaningful parts, e.g.
+    "NASC Targeting Scams Report - March 2026". Empty title -> []."""
+    name = title.rsplit(" | ", 1)[0].strip() if " | " in title else title.strip()
+    return [name] if name else []
+
+
 def _doc_chunk_id(doc_id: str, order_idx: int) -> str:
     return f"{doc_id}-chunk-{order_idx:03d}"
 
@@ -471,7 +489,8 @@ def chunk_doc(doc: ExtractedDoc, count_tokens: TokenCounter | None = None) -> li
             chunks.append(Chunk(
                 id=_doc_chunk_id(doc.doc_id, order_idx), doc_id=doc.doc_id, url=doc.url,
                 domain=doc.domain, title=doc.title, lang=doc.lang, fetched_at=doc.fetched_at,
-                heading_path=list(heading_path), text=text, token_count=count_tokens(text),
+                heading_path=list(heading_path) or _page_heading(doc.title),
+                text=text, token_count=count_tokens(text),
                 order_idx=order_idx,
             ))
     return chunks

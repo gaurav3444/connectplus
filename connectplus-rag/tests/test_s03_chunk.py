@@ -85,7 +85,7 @@ def test_real_headingless_page_still_chunks_with_empty_heading_path() -> None:
     doc = next(d for d in docs if str(d.url) == "https://scamwatch.gov.au/types-of-scams/text-or-sms-scams")
     chunks = chunk_doc(doc, count_tokens=word_count)
     assert len(chunks) >= 1
-    assert all(c.heading_path == [] for c in chunks)
+    assert all(c.heading_path == [doc.title] for c in chunks)  # page-title fallback
 
 
 def test_real_pdf_chunks_with_empty_heading_path() -> None:
@@ -93,7 +93,7 @@ def test_real_pdf_chunks_with_empty_heading_path() -> None:
     pdf_doc = next(d for d in docs if d.source_content_type == "application/pdf")
     chunks = chunk_doc(pdf_doc, count_tokens=word_count)
     assert len(chunks) >= 1
-    assert all(c.heading_path == [] for c in chunks)
+    assert all(c.heading_path == [pdf_doc.title] for c in chunks)  # page-title fallback
     assert all(c.url == pdf_doc.url for c in chunks)
 
 
@@ -362,14 +362,14 @@ def test_malformed_xml_falls_back_to_plain_text_not_crash() -> None:
     doc = _doc(content_xml="<doc><main><p>unterminated", text=fallback_text)
     chunks = chunk_doc(doc, count_tokens=word_count)  # must not raise
     assert len(chunks) >= 1
-    assert chunks[0].heading_path == []
+    assert chunks[0].heading_path == ["Test Doc"]  # page-title fallback
 
 
 def test_empty_content_xml_falls_back_to_plain_text() -> None:
     doc = _doc(content_xml="", text="Some plain text with no structure at all, long enough to count as real.")
     chunks = chunk_doc(doc, count_tokens=word_count)
     assert len(chunks) == 1
-    assert chunks[0].heading_path == []
+    assert chunks[0].heading_path == ["Test Doc"]  # page-title fallback
     assert "plain text" in chunks[0].text.lower()
 
 
