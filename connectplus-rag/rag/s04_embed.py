@@ -46,9 +46,12 @@ Design decisions made explicit here:
 
 from __future__ import annotations
 
+import atexit
 import logging
+import time
 from collections.abc import Callable
 from functools import lru_cache
+from typing import Any
 
 from rag.schemas import Chunk, EmbeddedChunk, IndexRunSummary
 
@@ -57,6 +60,15 @@ logger = logging.getLogger("rag.embed")
 DEFAULT_MODEL_NAME = "BAAI/bge-m3"
 DEFAULT_EMBEDDING_DIM = 1024
 DEFAULT_BATCH_SIZE = 16
+# Reconnect-and-retry schedule for a dropped database connection (seconds
+# to wait before each retry). ~67s total before giving up.
+DB_RETRY_DELAYS = (2.0, 5.0, 10.0, 20.0, 30.0)
+DB_CONNECT_KWARGS = {
+    "connect_timeout": 15,
+    # TCP keepalives: notice a silently dead connection quickly instead of
+    # hanging on it, since one connection now lives for a whole domain.
+    "keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 5,
+}
 
 EmbedFunction = Callable[[list[str]], list[list[float]]]
 UpsertFunction = Callable[[list[dict]], None]
@@ -177,32 +189,89 @@ def _to_row(chunk: EmbeddedChunk) -> dict:
     }
 
 
-def make_postgres_upserter(connection_string: str) -> UpsertFunction:
-    """Real Supabase/Postgres upsert via psycopg2. Not used by any test in
-    this repo — this sandbox has no live database to verify it against.
-    Untested by me; you are the first to run this against a real database.
+def make_postgres_upserter(
+    connection_string: str,
+    _connect: Callable[..., Any] | None = None,
+    _execute_values: Callable[..., Any] | None = None,
+    _sleep: Callable[[float], None] = time.sleep,
+) -> UpsertFunction:
+    """Real Supabase/Postgres upsert via psycopg2.
+
+    One connection is opened lazily and REUSED for every batch, and a
+    dropped connection is reconnected and the batch retried (DB_RETRY_DELAYS).
+    Confirmed real need: the earlier version opened a brand-new connection
+    inside every upsert call — 244 separate TLS handshakes through
+    Supabase's session pooler for Be Connected alone — and a single failed
+    handshake ("SSL SYSCALL error: EOF detected" from
+    aws-0-ap-southeast-1.pooler.supabase.com) killed the whole run, three
+    times, while the smaller domains happened to get through.
+
+    Retrying a batch is safe for the same reason re-running the whole
+    command is: `ON CONFLICT (id) DO UPDATE` overwrites, never duplicates.
+    Only connection-level errors (psycopg2.OperationalError /
+    InterfaceError) are retried; anything else (a bad row, a schema
+    mismatch) raises immediately, since retrying can't fix it.
+
+    The leading-underscore parameters exist only so tests can inject a
+    fake connection/sleep; production code passes just connection_string.
     """
     import psycopg2
     from psycopg2.extras import execute_values
+
+    connect = _connect or psycopg2.connect
+    execute = _execute_values or execute_values
+    retryable = (psycopg2.OperationalError, psycopg2.InterfaceError)
 
     columns = [
         "id", "doc_id", "url", "domain", "title", "lang", "fetched_at", "heading_path",
         "text", "token_count", "order_idx", "embedding", "embedding_model", "embedding_dim",
     ]
     update_clause = ", ".join(f"{col} = excluded.{col}" for col in columns if col != "id")
+    query = f"""
+        insert into chunks ({", ".join(columns)})
+        values %s
+        on conflict (id) do update set {update_clause}, indexed_at = now()
+    """
+    state: dict[str, Any] = {"conn": None}
+
+    def _drop_connection() -> None:
+        conn, state["conn"] = state["conn"], None
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001 — it's already broken; closing is best-effort
+                pass
+
+    atexit.register(_drop_connection)
 
     def upsert(rows: list[dict]) -> None:
         if not rows:
             return
         values = [tuple(row[col] for col in columns) for row in rows]
-        query = f"""
-            insert into chunks ({", ".join(columns)})
-            values %s
-            on conflict (id) do update set {update_clause}, indexed_at = now()
-        """
-        with psycopg2.connect(connection_string) as conn, conn.cursor() as cur:
-            execute_values(cur, query, values)
-            conn.commit()
+        for attempt in range(len(DB_RETRY_DELAYS) + 1):
+            try:
+                if state["conn"] is None:
+                    state["conn"] = connect(connection_string, **DB_CONNECT_KWARGS)
+                conn = state["conn"]
+                with conn.cursor() as cur:
+                    execute(cur, query, values)
+                conn.commit()
+                return
+            except retryable as exc:
+                _drop_connection()
+                if attempt == len(DB_RETRY_DELAYS):
+                    raise RuntimeError(
+                        f"Database connection kept failing after {attempt + 1} attempts "
+                        f"({exc.__class__.__name__}: {str(exc).strip()[:200]}). Every batch "
+                        "before this one is saved; re-running the same command is safe "
+                        "(upsert by id) and re-embeds only to overwrite identical rows."
+                    ) from exc
+                delay = DB_RETRY_DELAYS[attempt]
+                logger.warning(
+                    "db_connection_dropped_retrying attempt=%d wait=%.0fs error=%s",
+                    attempt + 1, delay, str(exc).strip()[:200],
+                )
+                _sleep(delay)
 
     return upsert
 
