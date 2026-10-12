@@ -1,0 +1,722 @@
+{
+  "_comment": [
+    "The Traditional Chinese terminology and register lock.",
+    "",
+    "This is the file to edit, NOT the prompt templates. It is injected into",
+    "every prompt AND used to audit every answer, so a change here moves both",
+    "what the model is told and what it is checked against.",
+    "",
+    "Parallel in purpose to llm/zh/data/termbase_zh.json (Simplified) and",
+    "llm/vi/data/termbase.json (Vietnamese). Written for older Traditional",
+    "Chinese-speaking adults in Australia, largely Taiwan and Hong Kong",
+    "background: Traditional characters, Taiwan-register vocabulary, and",
+    "the respectful second person.",
+    "",
+    "Generated from termbase_zh.json via OpenCC (s2twp: Simplified to",
+    "Traditional, Taiwan phrasing), then hand-reviewed. A character-only",
+    "conversion is not enough on its own -- some terms differ in the word",
+    "chosen, not just the script (e.g. mainland 手机/网络/短信 vs Taiwan",
+    "手機/網路/簡訊), which is exactly what s2twp corrects for."
+  ],
+  "register": {
+    "_why": [
+      "Chinese has no neutral second person. Addressing an older adult as 你",
+      "is not informal, it is disrespectful -- and 你 is what every model",
+      "reaches for, because it is what web copy uses and web copy is written",
+      "for thirty-year-olds. Same class of problem as bạn vs ông/bà in the",
+      "Vietnamese lane: a correctness bug, not a style preference.",
+      "",
+      "Enforced twice: stated in the prompt, and audited after generation.",
+      "Telling a model not to do something is not the same as it not doing it."
+    ],
+    "required_address": "您",
+    "self_reference": "我們",
+    "forbidden": [
+      {
+        "form": "你",
+        "severity": "error",
+        "note": "Familiar second person. Use 您 for an older reader."
+      },
+      {
+        "form": "你們",
+        "severity": "error",
+        "note": "Familiar plural. Use 您 or 兩位."
+      },
+      {
+        "form": "親",
+        "severity": "error",
+        "note": "E-commerce familiarity. Never to a senior."
+      },
+      {
+        "form": "喂",
+        "severity": "error",
+        "note": "Abrupt call-out. Reads as rude in writing."
+      },
+      {
+        "form": "哥們",
+        "severity": "error",
+        "note": "Slang address."
+      },
+      {
+        "form": "老人家",
+        "severity": "warn",
+        "note": "Can read as patronising in instructions. Prefer 您."
+      }
+    ]
+  },
+  "glossary": [
+    {
+      "term": "雙重認證",
+      "en": "two-factor authentication",
+      "avoid": [
+        "二次驗證",
+        "兩步認證",
+        "雙因素驗證"
+      ]
+    },
+    {
+      "term": "驗證碼",
+      "en": "verification code",
+      "avoid": [
+        "校驗碼",
+        "認證碼"
+      ]
+    },
+    {
+      "term": "釣魚網站",
+      "en": "phishing website",
+      "avoid": [
+        "欺詐網頁"
+      ]
+    },
+    {
+      "term": "詐騙簡訊",
+      "en": "scam text message",
+      "avoid": [
+        "欺詐短訊"
+      ]
+    },
+    {
+      "term": "詐騙電話",
+      "en": "scam phone call",
+      "avoid": [
+        "欺詐來電"
+      ]
+    },
+    {
+      "term": "騙子",
+      "en": "scammer",
+      "avoid": [
+        "詐騙分子"
+      ]
+    },
+    {
+      "term": "密碼",
+      "en": "password",
+      "avoid": [
+        "口令"
+      ]
+    },
+    {
+      "term": "帳戶",
+      "en": "account",
+      "avoid": [
+        "帳號",
+        "賬戶"
+      ]
+    },
+    {
+      "term": "登入",
+      "en": "log in",
+      "avoid": [
+        "登陸"
+      ]
+    },
+    {
+      "term": "退出登入",
+      "en": "log out",
+      "avoid": [
+        "登出"
+      ]
+    },
+    {
+      "term": "個人資訊",
+      "en": "personal information",
+      "avoid": [
+        "個人資料"
+      ]
+    },
+    {
+      "term": "銀行卡",
+      "en": "bank card",
+      "avoid": [
+        "銀聯卡"
+      ]
+    },
+    {
+      "term": "網上銀行",
+      "en": "online banking",
+      "avoid": [
+        "網銀"
+      ]
+    },
+    {
+      "term": "轉帳",
+      "en": "transfer money",
+      "avoid": [
+        "匯款"
+      ]
+    },
+    {
+      "term": "連結",
+      "en": "link",
+      "avoid": [
+        "網址鏈結",
+        "連結"
+      ]
+    },
+    {
+      "term": "應用",
+      "en": "app",
+      "avoid": [
+        "應用程式",
+        "程式"
+      ]
+    },
+    {
+      "term": "設定",
+      "en": "settings",
+      "avoid": [
+        "設定"
+      ]
+    },
+    {
+      "term": "更新",
+      "en": "update",
+      "avoid": [
+        "升級"
+      ]
+    },
+    {
+      "term": "備份",
+      "en": "backup",
+      "avoid": [
+        "備存"
+      ]
+    },
+    {
+      "term": "舉報",
+      "en": "report to the authorities",
+      "avoid": [
+        "報告"
+      ]
+    },
+    {
+      "term": "遮蔽",
+      "en": "block",
+      "avoid": [
+        "攔截"
+      ]
+    },
+    {
+      "term": "客服",
+      "en": "customer service",
+      "avoid": [
+        "客戶服務代表"
+      ]
+    },
+    {
+      "term": "二維碼",
+      "en": "QR code",
+      "avoid": [
+        "掃碼圖"
+      ]
+    },
+    {
+      "term": "病毒",
+      "en": "virus",
+      "avoid": [
+        "惡意程式"
+      ]
+    },
+    {
+      "term": "許可權",
+      "en": "permission",
+      "avoid": [
+        "授權"
+      ]
+    },
+    {
+      "term": "通訊錄",
+      "en": "contacts",
+      "avoid": [
+        "聯絡人列表"
+      ]
+    },
+    {
+      "term": "視訊通話",
+      "en": "video call",
+      "avoid": [
+        "視訊通話"
+      ]
+    },
+    {
+      "term": "翻譯員",
+      "en": "interpreter",
+      "avoid": [
+        "傳譯員"
+      ]
+    },
+    {
+      "term": "字型大小",
+      "en": "text size",
+      "avoid": [
+        "字型大小"
+      ]
+    },
+    {
+      "term": "無線網路",
+      "en": "wifi",
+      "avoid": [
+        "無線網路"
+      ]
+    }
+  ],
+  "protected_nouns": [
+    "myGov",
+    "Centrelink",
+    "Medicare",
+    "Services Australia",
+    "Scamwatch",
+    "eSafety",
+    "Be Connected",
+    "ACMA",
+    "ATO",
+    "TIS National",
+    "Telstra",
+    "Optus",
+    "Vodafone",
+    "NBN",
+    "WeChat",
+    "WhatsApp",
+    "Zoom",
+    "Facebook",
+    "Messenger",
+    "PayPal",
+    "Gmail",
+    "Outlook",
+    "Google",
+    "Apple",
+    "Microsoft",
+    "iPhone",
+    "iPad",
+    "Android",
+    "Windows",
+    "Wi-Fi",
+    "SMS",
+    "PIN",
+    "OTP",
+    "Uber",
+    "Woolworths",
+    "Coles",
+    "Australia Post",
+    "eBay"
+  ],
+  "plain_language": {
+    "_why": [
+      "Australian government pages are translated into a formal written",
+      "Chinese that is accurate and hard to read. These pairs push the",
+      "answer back toward how a person actually speaks."
+    ],
+    "進行": "做",
+    "使用": "用",
+    "獲取": "拿到",
+    "查詢": "查",
+    "前往": "去",
+    "點選": "點",
+    "輸入": "填",
+    "立即": "馬上",
+    "請勿": "不要",
+    "若": "如果",
+    "該": "這個",
+    "之後": "然後",
+    "予以": "給",
+    "事宜": "事情",
+    "如下": "像這樣",
+    "須": "要",
+    "並": "也",
+    "此": "這個",
+    "系統提示": "手機上出現的提示",
+    "操作": "做法"
+  },
+  "query_expansion": {
+    "_why": [
+      "Chinese intent to English retrieval terms, with no model involved.",
+      "This is the deterministic floor: when the LLM rewrite is unavailable",
+      "or returns something unusable, retrieval still gets real search",
+      "terms instead of a generic string. Every answer records which path",
+      "won, so the two can be told apart in the eval."
+    ],
+    "詐騙": [
+      "scam",
+      "fraud"
+    ],
+    "騙子": [
+      "scam",
+      "scammer",
+      "fraud"
+    ],
+    "被騙": [
+      "scam victim",
+      "report a scam",
+      "contact bank",
+      "what to do"
+    ],
+    "錢轉出去": [
+      "scam victim",
+      "contact bank",
+      "report a scam"
+    ],
+    "簡訊": [
+      "text message",
+      "sms"
+    ],
+    "資訊": [
+      "message",
+      "verify sender",
+      "check message",
+      "phishing"
+    ],
+    "真的": [
+      "verify",
+      "genuine",
+      "check message"
+    ],
+    "公司": [
+      "organisation",
+      "verify sender",
+      "phishing"
+    ],
+    "奇怪的簡訊": [
+      "suspicious text message",
+      "scam sms",
+      "phishing"
+    ],
+    "陌生號碼": [
+      "unknown number",
+      "scam call",
+      "block number",
+      "unwanted calls"
+    ],
+    "擋掉": [
+      "block number",
+      "unwanted calls"
+    ],
+    "警察": [
+      "impersonation",
+      "government",
+      "scam call",
+      "police"
+    ],
+    "政府": [
+      "government",
+      "impersonation",
+      "agency"
+    ],
+    "洗錢": [
+      "impersonation scam",
+      "government",
+      "money laundering threat"
+    ],
+    "攝像頭": [
+      "camera",
+      "permission",
+      "video call"
+    ],
+    "課程": [
+      "digital literacy training",
+      "Be Connected",
+      "classes for seniors"
+    ],
+    "免費課程": [
+      "free classes",
+      "digital literacy training",
+      "Be Connected"
+    ],
+    "老人": [
+      "seniors",
+      "older adults"
+    ],
+    "中文": [
+      "multilingual",
+      "language help",
+      "interpreter"
+    ],
+    "打不通": [
+      "phone",
+      "call waiting",
+      "phone us"
+    ],
+    "收費": [
+      "charges",
+      "cost",
+      "data allowance"
+    ],
+    "多收錢": [
+      "extra charges",
+      "cost",
+      "mobile data"
+    ],
+    "免費": [
+      "free"
+    ],
+    "中獎": [
+      "prize scam",
+      "lottery scam",
+      "fake win"
+    ],
+    "抽獎": [
+      "prize scam",
+      "lottery scam"
+    ],
+    "包裹": [
+      "parcel delivery scam",
+      "fake tracking"
+    ],
+    "退款": [
+      "refund scam",
+      "fake refund"
+    ],
+    "驗證碼": [
+      "two-factor authentication",
+      "verification code",
+      "never share"
+    ],
+    "雙重認證": [
+      "two-factor authentication",
+      "set up"
+    ],
+    "兩步驗證": [
+      "two-factor authentication",
+      "verification code"
+    ],
+    "密碼": [
+      "password",
+      "reset"
+    ],
+    "忘記密碼": [
+      "forgot password",
+      "reset password",
+      "recover account"
+    ],
+    "改密碼": [
+      "change password",
+      "password security"
+    ],
+    "登入": [
+      "log in",
+      "sign in",
+      "access account"
+    ],
+    "銀行": [
+      "bank",
+      "account security"
+    ],
+    "網上銀行": [
+      "online banking",
+      "security"
+    ],
+    "銀行卡": [
+      "bank card",
+      "stolen card",
+      "report"
+    ],
+    "連結": [
+      "link",
+      "phishing",
+      "do not click"
+    ],
+    "釣魚": [
+      "phishing",
+      "fake website"
+    ],
+    "二維碼": [
+      "qr code",
+      "scam",
+      "safety"
+    ],
+    "病毒": [
+      "virus",
+      "malware",
+      "device security"
+    ],
+    "彈窗": [
+      "pop-up scam",
+      "fake virus warning"
+    ],
+    "遠端": [
+      "remote access scam",
+      "screen sharing scam"
+    ],
+    "螢幕共享": [
+      "screen sharing scam",
+      "remote access"
+    ],
+    "舉報": [
+      "report a scam",
+      "Scamwatch"
+    ],
+    "遮蔽": [
+      "block number",
+      "block calls and messages"
+    ],
+    "視訊通話": [
+      "video call",
+      "how to"
+    ],
+    "微信": [
+      "WeChat",
+      "messaging app"
+    ],
+    "字太小": [
+      "increase text size",
+      "accessibility",
+      "display settings"
+    ],
+    "字型": [
+      "text size",
+      "font size",
+      "accessibility"
+    ],
+    "聲音": [
+      "volume",
+      "sound settings"
+    ],
+    "手機慢": [
+      "phone running slow",
+      "storage",
+      "restart"
+    ],
+    "電池": [
+      "battery life",
+      "phone battery"
+    ],
+    "無線網路": [
+      "wifi",
+      "connect",
+      "troubleshooting"
+    ],
+    "連不上網": [
+      "wifi not connecting",
+      "internet troubleshooting"
+    ],
+    "流量": [
+      "mobile data",
+      "wifi vs data",
+      "charges"
+    ],
+    "應用": [
+      "app",
+      "install",
+      "uninstall"
+    ],
+    "下載": [
+      "download app",
+      "app store",
+      "safety"
+    ],
+    "更新": [
+      "software update",
+      "why update"
+    ],
+    "許可權": [
+      "app permissions",
+      "privacy settings"
+    ],
+    "位置": [
+      "location services",
+      "turn off location"
+    ],
+    "照片": [
+      "photos",
+      "transfer",
+      "share"
+    ],
+    "截圖": [
+      "screenshot",
+      "how to"
+    ],
+    "郵件": [
+      "email",
+      "inbox",
+      "delete"
+    ],
+    "垃圾郵件": [
+      "spam email",
+      "junk mail",
+      "delete"
+    ],
+    "廣告": [
+      "ads",
+      "pop-ups",
+      "block"
+    ],
+    "翻譯": [
+      "interpreter",
+      "translation service",
+      "TIS National",
+      "free"
+    ],
+    "翻譯員": [
+      "free interpreter",
+      "TIS National",
+      "language help"
+    ],
+    "上課": [
+      "digital literacy training",
+      "Be Connected",
+      "classes for seniors"
+    ],
+    "學電腦": [
+      "computer classes for seniors",
+      "digital literacy training"
+    ],
+    "預約醫生": [
+      "book a doctor appointment online",
+      "health services"
+    ],
+    "投資": [
+      "investment scam",
+      "fake investment app"
+    ],
+    "捐款": [
+      "charity scam",
+      "fake donation request"
+    ],
+    "念給他聽": [
+      "never share",
+      "verification code",
+      "scam"
+    ],
+    "英文不好": [
+      "interpreter",
+      "language help",
+      "free",
+      "TIS National"
+    ],
+    "帳戶": [
+      "account",
+      "security"
+    ],
+    "帳戶被盜": [
+      "account compromised",
+      "hacked account",
+      "what to do"
+    ],
+    "轉帳": [
+      "money transfer",
+      "scam",
+      "verify"
+    ]
+  }
+}

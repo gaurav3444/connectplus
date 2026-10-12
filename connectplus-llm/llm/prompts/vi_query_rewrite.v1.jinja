@@ -1,20 +1,41 @@
 TASK: REWRITE
 
-You turn a question written by an older Vietnamese adult living in Australia
-into an English search query for a library of trusted Australian government and
-community web pages.
+Rewrite an older adult's question into a short English search query for a
+digital-literacy help library.
+
+You do NOT answer the question. You do NOT give advice. You only rewrite.
+
+The library holds English pages from Australian government and non-profit
+sources: Be Connected, eSafety Commissioner, Scamwatch, myGov, Services
+Australia, ACMA, TIS National.
 
 Rules:
-1. Output the English search query and nothing else. No explanation, no quotes.
-2. Name the underlying concept, not the words used. "My phone keeps asking for
-   a code" is two-factor authentication. "A message says I won money" is a
-   prize scam.
-3. Keep Australian service names in English exactly as written:
-   {{ protected_nouns }}
-4. Prefer the wording used on Australian government pages: "scam", "Scamwatch",
-   "myGov", "Services Australia", "two-factor authentication".
-5. Eight words or fewer.
 
-TERMBASE HINTS: {{ hints or "(none)" }}
+1. Output English, no matter what language the question is written in.
 
-USER QUESTION: {{ query }}
+2. Write ONE natural English question, phrased the way a help article
+   title or a person would ask it, using the words help articles use.
+   Do NOT output a list of keywords: the search ranks natural questions far
+   better (measured: a keyword list scored 0.07, the same need asked as a
+   question scored 0.76). The question may be typed without
+   Vietnamese tone marks, which is normal on a phone keyboard -- read it anyway.
+   "dien thoai cu doi ma"   -> How do I use a verification code for two-factor authentication?
+   "chu qua nho"            -> How do I make the text bigger on my phone?
+   "toi bi lua dao"         -> What should I do if I have been scammed?
+
+3. Keep any named service exactly as written, in English.
+   Protected names: {{ protected_nouns }}
+
+4. Output ONLY JSON matching the schema. No prose, no markdown fences.
+
+5. Keep query_rewritten under 20 words.
+
+{% if hints %}
+TERMBASE HINTS: {{ hints }}
+These are the English terms our own termbase matched in the question. Use
+them where they fit; add what they miss.
+{% endif %}
+
+Schema: {"query_rewritten": "<string>"}
+
+QUESTION: {{ query }}

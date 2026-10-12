@@ -1,0 +1,714 @@
+{
+  "_comment": [
+    "The Chinese terminology and register lock.",
+    "",
+    "This is the file to edit, NOT the prompt templates. It is injected into",
+    "every prompt AND used to audit every answer, so a change here moves both",
+    "what the model is told and what it is checked against.",
+    "",
+    "Parallel in purpose to llm/vi/data/termbase.json, which locks Vietnamese.",
+    "Written for older Chinese-speaking adults in Australia: Simplified",
+    "characters, mainland vocabulary, and the respectful second person."
+  ],
+  "register": {
+    "_why": [
+      "Chinese has no neutral second person. Addressing an older adult as 你",
+      "is not informal, it is disrespectful -- and 你 is what every model",
+      "reaches for, because it is what web copy uses and web copy is written",
+      "for thirty-year-olds. Same class of problem as bạn vs ông/bà in the",
+      "Vietnamese lane: a correctness bug, not a style preference.",
+      "",
+      "Enforced twice: stated in the prompt, and audited after generation.",
+      "Telling a model not to do something is not the same as it not doing it."
+    ],
+    "required_address": "您",
+    "self_reference": "我们",
+    "forbidden": [
+      {
+        "form": "你",
+        "severity": "error",
+        "note": "Familiar second person. Use 您 for an older reader."
+      },
+      {
+        "form": "你们",
+        "severity": "error",
+        "note": "Familiar plural. Use 您 or 两位."
+      },
+      {
+        "form": "亲",
+        "severity": "error",
+        "note": "E-commerce familiarity. Never to a senior."
+      },
+      {
+        "form": "喂",
+        "severity": "error",
+        "note": "Abrupt call-out. Reads as rude in writing."
+      },
+      {
+        "form": "哥们",
+        "severity": "error",
+        "note": "Slang address."
+      },
+      {
+        "form": "老人家",
+        "severity": "warn",
+        "note": "Can read as patronising in instructions. Prefer 您."
+      }
+    ]
+  },
+  "glossary": [
+    {
+      "term": "双重认证",
+      "en": "two-factor authentication",
+      "avoid": [
+        "二次验证",
+        "两步认证",
+        "双因素验证"
+      ]
+    },
+    {
+      "term": "验证码",
+      "en": "verification code",
+      "avoid": [
+        "校验码",
+        "认证码"
+      ]
+    },
+    {
+      "term": "钓鱼网站",
+      "en": "phishing website",
+      "avoid": [
+        "欺诈网页"
+      ]
+    },
+    {
+      "term": "诈骗短信",
+      "en": "scam text message",
+      "avoid": [
+        "欺诈短讯"
+      ]
+    },
+    {
+      "term": "诈骗电话",
+      "en": "scam phone call",
+      "avoid": [
+        "欺诈来电"
+      ]
+    },
+    {
+      "term": "骗子",
+      "en": "scammer",
+      "avoid": [
+        "诈骗分子"
+      ]
+    },
+    {
+      "term": "密码",
+      "en": "password",
+      "avoid": [
+        "口令"
+      ]
+    },
+    {
+      "term": "账户",
+      "en": "account",
+      "avoid": [
+        "帐号",
+        "帐户"
+      ]
+    },
+    {
+      "term": "登录",
+      "en": "log in",
+      "avoid": [
+        "登陆"
+      ]
+    },
+    {
+      "term": "退出登录",
+      "en": "log out",
+      "avoid": [
+        "注销"
+      ]
+    },
+    {
+      "term": "个人信息",
+      "en": "personal information",
+      "avoid": [
+        "个人资料"
+      ]
+    },
+    {
+      "term": "银行卡",
+      "en": "bank card",
+      "avoid": [
+        "银联卡"
+      ]
+    },
+    {
+      "term": "网上银行",
+      "en": "online banking",
+      "avoid": [
+        "网银"
+      ]
+    },
+    {
+      "term": "转账",
+      "en": "transfer money",
+      "avoid": [
+        "汇款"
+      ]
+    },
+    {
+      "term": "链接",
+      "en": "link",
+      "avoid": [
+        "网址链结",
+        "连结"
+      ]
+    },
+    {
+      "term": "应用",
+      "en": "app",
+      "avoid": [
+        "应用程序",
+        "程式"
+      ]
+    },
+    {
+      "term": "设置",
+      "en": "settings",
+      "avoid": [
+        "设定"
+      ]
+    },
+    {
+      "term": "更新",
+      "en": "update",
+      "avoid": [
+        "升级"
+      ]
+    },
+    {
+      "term": "备份",
+      "en": "backup",
+      "avoid": [
+        "备存"
+      ]
+    },
+    {
+      "term": "举报",
+      "en": "report to the authorities",
+      "avoid": [
+        "报告"
+      ]
+    },
+    {
+      "term": "屏蔽",
+      "en": "block",
+      "avoid": [
+        "拦截"
+      ]
+    },
+    {
+      "term": "客服",
+      "en": "customer service",
+      "avoid": [
+        "客户服务代表"
+      ]
+    },
+    {
+      "term": "二维码",
+      "en": "QR code",
+      "avoid": [
+        "扫码图"
+      ]
+    },
+    {
+      "term": "病毒",
+      "en": "virus",
+      "avoid": [
+        "恶意程式"
+      ]
+    },
+    {
+      "term": "权限",
+      "en": "permission",
+      "avoid": [
+        "授权"
+      ]
+    },
+    {
+      "term": "通讯录",
+      "en": "contacts",
+      "avoid": [
+        "联系人列表"
+      ]
+    },
+    {
+      "term": "视频通话",
+      "en": "video call",
+      "avoid": [
+        "视讯通话"
+      ]
+    },
+    {
+      "term": "翻译员",
+      "en": "interpreter",
+      "avoid": [
+        "传译员"
+      ]
+    },
+    {
+      "term": "字体大小",
+      "en": "text size",
+      "avoid": [
+        "字型大小"
+      ]
+    },
+    {
+      "term": "无线网络",
+      "en": "wifi",
+      "avoid": [
+        "无线网路"
+      ]
+    }
+  ],
+  "protected_nouns": [
+    "myGov",
+    "Centrelink",
+    "Medicare",
+    "Services Australia",
+    "Scamwatch",
+    "eSafety",
+    "Be Connected",
+    "ACMA",
+    "ATO",
+    "TIS National",
+    "Telstra",
+    "Optus",
+    "Vodafone",
+    "NBN",
+    "WeChat",
+    "WhatsApp",
+    "Zoom",
+    "Facebook",
+    "Messenger",
+    "PayPal",
+    "Gmail",
+    "Outlook",
+    "Google",
+    "Apple",
+    "Microsoft",
+    "iPhone",
+    "iPad",
+    "Android",
+    "Windows",
+    "Wi-Fi",
+    "SMS",
+    "PIN",
+    "OTP",
+    "Uber",
+    "Woolworths",
+    "Coles",
+    "Australia Post",
+    "eBay"
+  ],
+  "plain_language": {
+    "_why": [
+      "Australian government pages are translated into a formal written",
+      "Chinese that is accurate and hard to read. These pairs push the",
+      "answer back toward how a person actually speaks."
+    ],
+    "进行": "做",
+    "使用": "用",
+    "获取": "拿到",
+    "查询": "查",
+    "前往": "去",
+    "点击": "点",
+    "输入": "填",
+    "立即": "马上",
+    "请勿": "不要",
+    "若": "如果",
+    "该": "这个",
+    "之后": "然后",
+    "予以": "给",
+    "事宜": "事情",
+    "如下": "像这样",
+    "须": "要",
+    "并": "也",
+    "此": "这个",
+    "系统提示": "手机上出现的提示",
+    "操作": "做法"
+  },
+  "query_expansion": {
+    "_why": [
+      "Chinese intent to English retrieval terms, with no model involved.",
+      "This is the deterministic floor: when the LLM rewrite is unavailable",
+      "or returns something unusable, retrieval still gets real search",
+      "terms instead of a generic string. Every answer records which path",
+      "won, so the two can be told apart in the eval."
+    ],
+    "诈骗": [
+      "scam",
+      "fraud"
+    ],
+    "骗子": [
+      "scam",
+      "scammer",
+      "fraud"
+    ],
+    "被骗": [
+      "scam victim",
+      "report a scam",
+      "contact bank",
+      "what to do"
+    ],
+    "转账": [
+      "money transfer",
+      "scam",
+      "verify"
+    ],
+    "钱转出去": [
+      "scam victim",
+      "contact bank",
+      "report a scam"
+    ],
+    "短信": [
+      "text message",
+      "sms"
+    ],
+    "信息": [
+      "message",
+      "verify sender",
+      "check message",
+      "phishing"
+    ],
+    "真的": [
+      "verify",
+      "genuine",
+      "check message"
+    ],
+    "公司": [
+      "organisation",
+      "verify sender",
+      "phishing"
+    ],
+    "奇怪的短信": [
+      "suspicious text message",
+      "scam sms",
+      "phishing"
+    ],
+    "陌生号码": [
+      "unknown number",
+      "scam call",
+      "block number",
+      "unwanted calls"
+    ],
+    "挡掉": [
+      "block number",
+      "unwanted calls"
+    ],
+    "警察": [
+      "impersonation",
+      "government",
+      "scam call",
+      "police"
+    ],
+    "政府": [
+      "government",
+      "impersonation",
+      "agency"
+    ],
+    "洗钱": [
+      "impersonation scam",
+      "government",
+      "money laundering threat"
+    ],
+    "摄像头": [
+      "camera",
+      "permission",
+      "video call"
+    ],
+    "课程": [
+      "digital literacy training",
+      "Be Connected",
+      "classes for seniors"
+    ],
+    "免费课程": [
+      "free classes",
+      "digital literacy training",
+      "Be Connected"
+    ],
+    "老人": [
+      "seniors",
+      "older adults"
+    ],
+    "中文": [
+      "multilingual",
+      "language help",
+      "interpreter"
+    ],
+    "打不通": [
+      "phone",
+      "call waiting",
+      "phone us"
+    ],
+    "收费": [
+      "charges",
+      "cost",
+      "data allowance"
+    ],
+    "多收钱": [
+      "extra charges",
+      "cost",
+      "mobile data"
+    ],
+    "免费": [
+      "free"
+    ],
+    "中奖": [
+      "prize scam",
+      "lottery scam",
+      "fake win"
+    ],
+    "抽奖": [
+      "prize scam",
+      "lottery scam"
+    ],
+    "包裹": [
+      "parcel delivery scam",
+      "fake tracking"
+    ],
+    "退款": [
+      "refund scam",
+      "fake refund"
+    ],
+    "验证码": [
+      "two-factor authentication",
+      "verification code",
+      "never share"
+    ],
+    "双重认证": [
+      "two-factor authentication",
+      "set up"
+    ],
+    "两步验证": [
+      "two-factor authentication",
+      "verification code"
+    ],
+    "密码": [
+      "password",
+      "reset"
+    ],
+    "忘记密码": [
+      "forgot password",
+      "reset password",
+      "recover account"
+    ],
+    "改密码": [
+      "change password",
+      "password security"
+    ],
+    "账户": [
+      "account",
+      "security"
+    ],
+    "账户被盗": [
+      "account compromised",
+      "hacked account",
+      "what to do"
+    ],
+    "登录": [
+      "log in",
+      "sign in",
+      "access account"
+    ],
+    "银行": [
+      "bank",
+      "account security"
+    ],
+    "网上银行": [
+      "online banking",
+      "security"
+    ],
+    "银行卡": [
+      "bank card",
+      "stolen card",
+      "report"
+    ],
+    "链接": [
+      "link",
+      "phishing",
+      "do not click"
+    ],
+    "钓鱼": [
+      "phishing",
+      "fake website"
+    ],
+    "二维码": [
+      "qr code",
+      "scam",
+      "safety"
+    ],
+    "病毒": [
+      "virus",
+      "malware",
+      "device security"
+    ],
+    "弹窗": [
+      "pop-up scam",
+      "fake virus warning"
+    ],
+    "远程": [
+      "remote access scam",
+      "screen sharing scam"
+    ],
+    "屏幕共享": [
+      "screen sharing scam",
+      "remote access"
+    ],
+    "举报": [
+      "report a scam",
+      "Scamwatch"
+    ],
+    "屏蔽": [
+      "block number",
+      "block calls and messages"
+    ],
+    "视频通话": [
+      "video call",
+      "how to"
+    ],
+    "微信": [
+      "WeChat",
+      "messaging app"
+    ],
+    "字太小": [
+      "increase text size",
+      "accessibility",
+      "display settings"
+    ],
+    "字体": [
+      "text size",
+      "font size",
+      "accessibility"
+    ],
+    "声音": [
+      "volume",
+      "sound settings"
+    ],
+    "手机慢": [
+      "phone running slow",
+      "storage",
+      "restart"
+    ],
+    "电池": [
+      "battery life",
+      "phone battery"
+    ],
+    "无线网络": [
+      "wifi",
+      "connect",
+      "troubleshooting"
+    ],
+    "连不上网": [
+      "wifi not connecting",
+      "internet troubleshooting"
+    ],
+    "流量": [
+      "mobile data",
+      "wifi vs data",
+      "charges"
+    ],
+    "应用": [
+      "app",
+      "install",
+      "uninstall"
+    ],
+    "下载": [
+      "download app",
+      "app store",
+      "safety"
+    ],
+    "更新": [
+      "software update",
+      "why update"
+    ],
+    "权限": [
+      "app permissions",
+      "privacy settings"
+    ],
+    "位置": [
+      "location services",
+      "turn off location"
+    ],
+    "照片": [
+      "photos",
+      "transfer",
+      "share"
+    ],
+    "截图": [
+      "screenshot",
+      "how to"
+    ],
+    "邮件": [
+      "email",
+      "inbox",
+      "delete"
+    ],
+    "垃圾邮件": [
+      "spam email",
+      "junk mail",
+      "delete"
+    ],
+    "广告": [
+      "ads",
+      "pop-ups",
+      "block"
+    ],
+    "翻译": [
+      "interpreter",
+      "translation service",
+      "TIS National",
+      "free"
+    ],
+    "翻译员": [
+      "free interpreter",
+      "TIS National",
+      "language help"
+    ],
+    "上课": [
+      "digital literacy training",
+      "Be Connected",
+      "classes for seniors"
+    ],
+    "学电脑": [
+      "computer classes for seniors",
+      "digital literacy training"
+    ],
+    "预约医生": [
+      "book a doctor appointment online",
+      "health services"
+    ],
+    "投资": [
+      "investment scam",
+      "fake investment app"
+    ],
+    "捐款": [
+      "charity scam",
+      "fake donation request"
+    ],
+    "念给他听": [
+      "never share",
+      "verification code",
+      "scam"
+    ],
+    "英文不好": [
+      "interpreter",
+      "language help",
+      "free",
+      "TIS National"
+    ]
+  }
+}

@@ -1,15 +1,21 @@
-TASK: REFUSAL
+TASK: REFUSE
 
-The verification step rejected the draft answer. Write the refusal the reader
-will see. It must be a normal, calm message - not an error.
+You are the answering voice of CONNECT Plus, serving older Vietnamese adults
+in Australia.
 
-Rules:
-- Vietnamese only. Address the reader as ông/bà.
-- Two or three short sentences.
-- Say plainly that we do not have trusted information about this.
-- Do not apologise repeatedly, do not explain the system, do not mention
-  verification, models, or sources.
-- Do not guess at the answer, not even partly.
-- Finish by offering to connect them with a Vietnamese-speaking mentor.
+Our trusted sources contain nothing that answers this question. Write a short
+message in Vietnamese telling the reader we cannot help this time.
 
-THE QUESTION THEY ASKED: {{ query_original }}
+Requirements:
+- Write in Vietnamese.
+- Address the reader as ông/bà, never bạn. Refer to us as chúng tôi.
+- Three sentences at most.
+- Do not guess an answer. Do not give any advice or suggest any step.
+- Do not mention systems, databases or models. The reader does not need to
+  know how we work inside.
+- End by offering to connect them with a Vietnamese-speaking mentor.
+- Apologise at most once.
+
+THE READER'S QUESTION: {{ query_original }}
+
+Write the message now.

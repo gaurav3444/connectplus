@@ -1,10 +1,17 @@
-# Vietnamese language layer - connectplus-llm
-jinja2>=3.1
-requests>=2.31
+# CONNECT Plus - language and answer service (integrated)
+
+jinja2>=3.1          # versioned prompt templates
+httpx>=0.27          # async HTTP; correct for FastAPI SSE (see providers/base.py)
 python-dotenv>=1.0
 
-# optional: baseline comparison for language detection (eval only)
+# demo server
+fastapi>=0.110
+uvicorn>=0.27
+
+# eval only: the baseline the detector is measured against
 langdetect>=1.0.9
+hanzidentifier>=1.2   # Simplified vs Traditional script check in llm.lang.detect
 
 # dev
 pytest>=7.4
+pytest-asyncio>=0.23

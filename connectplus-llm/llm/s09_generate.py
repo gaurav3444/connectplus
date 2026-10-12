@@ -4,41 +4,31 @@ Wraps the provider, turns citation markers into real citations, and owns the
 refusal path.
 
 The one rule that shapes this module: **the refusal must never fail.** A
-refusal happens precisely when something has already gone wrong - retrieval
-came back thin, or verification rejected the draft. Routing it through the same
-provider that may itself be the thing that broke would turn a safe outcome into
-a blank screen. So :func:`refusal` asks the model for nicer wording, and falls
-back to a fixed, hand-written Vietnamese sentence the moment anything is off.
+refusal happens precisely when something has already gone wrong -- retrieval
+came back thin, generation died, or verification rejected the draft. Routing
+it through the same provider that may itself be the broken thing would turn
+a safe outcome into a blank screen. So :func:`refusal` asks the model for
+better wording and falls back to the lane's hand-written sentence the moment
+anything is off, including when the answer comes back in the wrong language.
 """
 
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
-from typing import Iterator
+from typing import AsyncIterator
 
+from .lang.detect import has_cjk, has_vietnamese_diacritics
+from .lanes import get_lane
 from .providers import Provider, ProviderError, get_provider
 from .s08_prompt import build_answer_prompt, build_refusal_prompt
-from .schemas import Chunk, Citation, QueryUnderstanding
+from .schemas import Chunk, Citation, LLMTrace, QueryUnderstanding
+from .tracing import write_trace
 
-__all__ = ["Generation", "generate", "stream", "extract_citations",
-           "refusal", "FALLBACK_REFUSAL_VI"]
+__all__ = ["Generation", "generate", "stream", "extract_citations", "refusal"]
 
 _MARKER_RE = re.compile(r"\[(\d{1,2})\]")
-
-# Hand-written, checked by a human, never generated. Plain register, correct
-# address, ends with the mentor offer as the style guide requires.
-FALLBACK_REFUSAL_VI = (
-    "Thưa ông/bà, chúng tôi không có thông tin đáng tin cậy về việc này, "
-    "nên chúng tôi không thể trả lời. "
-    "Chúng tôi có thể nối ông/bà với một người hướng dẫn nói tiếng Việt "
-    "để giúp ông/bà. Ông/bà có muốn không ạ?"
-)
-
-FALLBACK_REFUSAL_EN = (
-    "We do not have trusted information about this, so we cannot answer. "
-    "We can connect you with a mentor who can help. Would you like that?"
-)
 
 
 @dataclass
@@ -46,32 +36,42 @@ class Generation:
     """Raw output of a generation call, before verification.
 
     Attributes:
-        text: The draft answer, in the user's language.
+        text: The draft answer, in the senior's language.
         provider: Which provider actually served it, after any fallback.
         prompt_version: Template version used.
         poisoned_chunk_ids: Chunks whose text had to be sanitised. Worth
-            surfacing: it is evidence about the knowledge base, not this layer.
-        error: Set when generation failed outright and ``text`` is empty.
+            surfacing: it is evidence about the knowledge base, not about
+            this layer.
+        error: Set when generation failed and ``text`` is empty.
     """
 
     text: str
     provider: str
+    model: str
     prompt_version: str
     poisoned_chunk_ids: list[str] = field(default_factory=list)
     error: str = ""
+    latency_ms: int = 0
 
 
-def generate(chunks: list[Chunk], understanding: QueryUnderstanding, *,
-             provider: Provider | None = None,
-             temperature: float = 0.2) -> Generation:
-    """Produce a draft answer in the user's language.
+def _looks_like(lang: str, text: str) -> bool:
+    """Cheap check that a generated answer is in the language we asked for.
 
-    Args:
-        chunks: Retrieved source passages.
-        understanding: Output of stage 07.
-        provider: Injected for testing.
-        temperature: Kept low. Safety-critical instructions should read the
-            same way twice, and the eval needs reproducibility.
+    Not a detector -- just the failure we actually see, which is a model
+    answering in English because its training data for that instruction was
+    English.
+    """
+    if lang in ("zh", "zh_hant"):
+        return has_cjk(text)
+    if lang == "vi":
+        return has_vietnamese_diacritics(text)
+    return True
+
+
+async def generate(chunks: list[Chunk], understanding: QueryUnderstanding, *,
+                   provider: Provider | None = None,
+                   temperature: float = 0.2) -> Generation:
+    """Produce a draft answer in the senior's language.
 
     Returns:
         A :class:`Generation`. On provider failure ``text`` is empty and
@@ -79,45 +79,77 @@ def generate(chunks: list[Chunk], understanding: QueryUnderstanding, *,
     """
     provider = provider or get_provider()
     prompt = build_answer_prompt(
-        chunks,
+        chunks, lang=understanding.lang,
         query_original=understanding.original,
         query_rewritten=understanding.rewritten_en,
     )
+    started = time.perf_counter()
     try:
-        text = provider.complete(prompt.text, temperature=temperature,
-                                 max_tokens=1024)
+        text = await provider.complete(prompt.text, temperature=temperature,
+                                       max_tokens=1024)
     except ProviderError as exc:
-        return Generation("", provider.name, prompt.version,
-                          prompt.sanitised_chunk_ids, str(exc))
-    return Generation(text.strip(), provider.name, prompt.version,
-                      prompt.sanitised_chunk_ids)
+        elapsed = int((time.perf_counter() - started) * 1000)
+        write_trace(LLMTrace(stage="09", provider=provider.name,
+                             model=provider.model, prompt_version=prompt.version,
+                             latency_ms=elapsed, ok=False,
+                             fell_back=getattr(provider, "fell_back", False),
+                             error=str(exc)[:200]))
+        return Generation("", provider.name, provider.model, prompt.version,
+                          prompt.sanitised_chunk_ids, str(exc), elapsed)
+
+    elapsed = int((time.perf_counter() - started) * 1000)
+    text = (text or "").strip()
+
+    # A model that answered in the wrong language is not a usable answer.
+    # Discard it and let the caller refuse, rather than showing a senior an
+    # English wall of text they came here to avoid.
+    if text and not _looks_like(understanding.lang, text):
+        write_trace(LLMTrace(stage="09", provider=provider.name,
+                             model=provider.model, prompt_version=prompt.version,
+                             latency_ms=elapsed, ok=False,
+                             fell_back=getattr(provider, "fell_back", False),
+                             error="wrong output language"))
+        return Generation("", provider.name, provider.model, prompt.version,
+                          prompt.sanitised_chunk_ids,
+                          f"model did not answer in {understanding.lang}", elapsed)
+
+    write_trace(LLMTrace(stage="09", provider=provider.name, model=provider.model,
+                         prompt_version=prompt.version, latency_ms=elapsed,
+                         ok=bool(text),
+                         fell_back=getattr(provider, "fell_back", False),
+                         error=None if text else "empty generation"))
+    return Generation(text, provider.name, provider.model, prompt.version,
+                      prompt.sanitised_chunk_ids, "", elapsed)
 
 
-def stream(chunks: list[Chunk], understanding: QueryUnderstanding, *,
-           provider: Provider | None = None,
-           temperature: float = 0.2) -> Iterator[str]:
-    """Yield the draft answer in pieces, for the SSE endpoint in stage 10.
+async def stream(chunks: list[Chunk], understanding: QueryUnderstanding, *,
+                 provider: Provider | None = None,
+                 temperature: float = 0.2) -> AsyncIterator[str]:
+    """Yield the draft answer in pieces, for the SSE endpoint.
 
-    Note the ordering problem this creates and that stage 10 must solve:
+    Note the ordering problem this creates, which stage 10 must solve:
     verification runs on the *finished* draft, so tokens streamed early are
     already on the reader's screen when a refusal verdict arrives. Stage 10
-    should buffer until the verdict, or stream into a pending state the client
-    can replace. This function does not decide that; it just produces pieces.
+    should buffer until the verdict, or stream into a pending state the
+    client can replace. This function does not decide that; it produces
+    pieces.
     """
     provider = provider or get_provider()
     prompt = build_answer_prompt(
-        chunks,
+        chunks, lang=understanding.lang,
         query_original=understanding.original,
         query_rewritten=understanding.rewritten_en,
     )
     try:
-        yield from provider.stream(prompt.text, temperature=temperature,
-                                   max_tokens=1024)
+        async for piece in provider.stream(prompt.text, temperature=temperature,
+                                           max_tokens=1024):
+            yield piece
     except ProviderError:
-        yield FALLBACK_REFUSAL_VI if understanding.lang == "vi" else FALLBACK_REFUSAL_EN
+        yield get_lane(understanding.lang).fallback_refusal
 
 
-def extract_citations(text: str, chunks: list[Chunk]) -> tuple[list[Citation], list[int]]:
+def extract_citations(text: str,
+                      chunks: list[Chunk]) -> tuple[list[Citation], list[int]]:
     """Turn ``[n]`` markers in the answer into citations.
 
     Args:
@@ -126,14 +158,14 @@ def extract_citations(text: str, chunks: list[Chunk]) -> tuple[list[Citation], l
             ``[1]`` refers to ``chunks[0]``.
 
     Returns:
-        ``(citations, invalid_markers)``. ``invalid_markers`` holds numbers the
-        model cited that do not exist - a hallucinated citation. The eval scores
-        this separately from groundedness, because a right fact with a wrong
+        ``(citations, invalid_markers)``. ``invalid_markers`` holds numbers
+        the model cited that do not exist -- a hallucinated citation. Scored
+        separately from groundedness, because a right fact with a wrong
         source is still a source the reader cannot check.
     """
     seen: dict[int, Citation] = {}
     invalid: list[int] = []
-    for raw in _MARKER_RE.findall(text):
+    for raw in _MARKER_RE.findall(text or ""):
         n = int(raw)
         if 1 <= n <= len(chunks):
             if n not in seen:
@@ -144,37 +176,30 @@ def extract_citations(text: str, chunks: list[Chunk]) -> tuple[list[Citation], l
     return [seen[k] for k in sorted(seen)], invalid
 
 
-def refusal(query_original: str, lang: str = "vi", *,
-            provider: Provider | None = None) -> str:
+async def refusal(query_original: str, lang: str = "en", *,
+                  provider: Provider | None = None) -> str:
     """Produce the message shown when there is no trustworthy answer.
 
     Tries the model for natural wording, then falls back hard. Any of these
-    sends it to the fallback: a provider error, an empty response, a response
-    that is suspiciously long, or - for Vietnamese - a response that came back
-    without a single Vietnamese diacritic, which means the model answered in
+    sends it to the lane's hand-written text: a provider error, an empty
+    response, a suspiciously long response, or a response that came back in
     the wrong language.
-
-    Args:
-        query_original: The question, only so the wording can acknowledge it.
-        lang: Target language.
-        provider: Injected for testing.
 
     Returns:
         A refusal message. Always non-empty.
     """
-    fallback = FALLBACK_REFUSAL_VI if lang == "vi" else FALLBACK_REFUSAL_EN
+    lane = get_lane(lang)
+    fallback = lane.fallback_refusal
     try:
         provider = provider or get_provider()
-        prompt = build_refusal_prompt(query_original)
-        text = (provider.complete(prompt.text, temperature=0.3,
-                                  max_tokens=200) or "").strip()
+        prompt = build_refusal_prompt(query_original, lang=lang)
+        text = (await provider.complete(prompt.text, temperature=0.3,
+                                        max_tokens=200) or "").strip()
     except ProviderError:
         return fallback
 
-    if not text or len(text.split()) > 80:
+    if not text or len(text) > 400:
         return fallback
-    if lang == "vi":
-        from .vi.normalize import has_vietnamese_diacritics
-        if not has_vietnamese_diacritics(text):
-            return fallback
+    if not _looks_like(lang, text):
+        return fallback
     return text

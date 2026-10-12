@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CONNECT Plus — pipeline demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  /* Palette continuous with llm/demo.html, so the whole project reads as one thing. */
+  :root {
+    --paper:#f3f6f4; --surface:#ffffff; --surface-2:#eaf0ed; --surface-3:#dfe8e4;
+    --ink:#1a2420; --ink-soft:#5b6b64; --ink-faint:#83978f;
+    --line:#d8e0dc; --line-soft:#e6ecea;
+    --accent:#1e6e6a; --accent-deep:#123f3d; --accent-soft:#dcebe9;
+    --amber:#a9691f; --amber-soft:#f3e3cd; --amber-line:#e0c49a;
+    --red:#a8453a; --red-soft:#f3ddd9;
+    --shadow:0 1px 2px rgba(18,63,61,.05), 0 6px 18px rgba(18,63,61,.055);
+    --shadow-lg:0 2px 4px rgba(18,63,61,.06), 0 14px 40px rgba(18,63,61,.09);
+
+    --serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+    --sans:"Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    /* The answer is read, not scanned, so it gets the serif -- with a real
+       CJK fallback, because Source Serif has no Han coverage. */
+    --reading:"Source Serif 4", "Songti SC", "PingFang SC", "Microsoft YaHei",
+              "Noto Sans SC", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#101614; --surface:#16201d; --surface-2:#1b2724; --surface-3:#22302c;
+      --ink:#e8efec; --ink-soft:#a9bab3; --ink-faint:#7d8f88;
+      --line:#2b3733; --line-soft:#222d2a;
+      --accent:#5fc0b7; --accent-deep:#9cddd4; --accent-soft:#1d3835;
+      --amber:#dda05a; --amber-soft:#3a2c19; --amber-line:#5c4526;
+      --red:#dd897d; --red-soft:#3a2320;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.28);
+      --shadow-lg:0 2px 4px rgba(0,0,0,.35), 0 14px 40px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#101614; --surface:#16201d; --surface-2:#1b2724; --surface-3:#22302c;
+    --ink:#e8efec; --ink-soft:#a9bab3; --ink-faint:#7d8f88;
+    --line:#2b3733; --line-soft:#222d2a;
+    --accent:#5fc0b7; --accent-deep:#9cddd4; --accent-soft:#1d3835;
+    --amber:#dda05a; --amber-soft:#3a2c19; --amber-line:#5c4526;
+    --red:#dd897d; --red-soft:#3a2320;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.28);
+    --shadow-lg:0 2px 4px rgba(0,0,0,.35), 0 14px 40px rgba(0,0,0,.4);
+  }
+
+  *,*::before,*::after { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1140px; margin:0 auto; padding:34px 24px 90px; }
+
+  /* ---------- masthead ---------- */
+  header.top {
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:20px; flex-wrap:wrap;
+    border-bottom:2px solid var(--accent); padding-bottom:18px; margin-bottom:26px;
+  }
+  .eyebrow {
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 8px;
+  }
+  h1 {
+    font-family:var(--serif); font-weight:700; font-size:clamp(1.65rem,3.6vw,2.3rem);
+    line-height:1.08; letter-spacing:-.02em; margin:0;
+  }
+  .env { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip {
+    font-family:var(--mono); font-size:.7rem; font-weight:500;
+    background:var(--surface); border:1px solid var(--line); color:var(--ink-soft);
+    padding:4px 10px; border-radius:999px; white-space:nowrap;
+  }
+  .chip b { color:var(--ink); font-weight:600; }
+
+  /* ---------- layout ---------- */
+  .grid { display:grid; grid-template-columns:minmax(300px,380px) 1fr; gap:24px; align-items:start; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+
+  .panel {
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .panel + .panel { margin-top:18px; }
+  .panel-head {
+    padding:12px 16px; background:var(--surface-2); border-bottom:1px solid var(--line);
+    font-family:var(--mono); font-size:.71rem; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--ink-soft); font-weight:600;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .panel-body { padding:16px; }
+
+  /* ---------- composer ---------- */
+  fieldset { border:0; margin:0 0 14px; padding:0; }
+  legend, .flabel {
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-soft); margin:0 0 8px; padding:0;
+    display:block;
+  }
+  .langs { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .langs label {
+    display:flex; align-items:center; gap:7px; cursor:pointer;
+    border:1px solid var(--line); border-radius:9px; padding:8px 10px;
+    background:var(--surface); font-size:.88rem; transition:border-color .12s, background .12s;
+  }
+  .langs label:hover { border-color:var(--accent); }
+  .langs input { accent-color:var(--accent); margin:0; flex:none; }
+  .langs label:has(input:checked) { border-color:var(--accent); background:var(--accent-soft); }
+  .langs label.span2 { grid-column:1/-1; }
+  .langs label.span2 small { color:var(--ink-soft); font-size:.78rem; }
+  .langs input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  textarea {
+    width:100%; min-height:88px; padding:11px 13px; font-size:1rem;
+    font-family:var(--reading); line-height:1.5;
+    border:1px solid var(--line); border-radius:10px;
+    background:var(--surface); color:var(--ink); resize:vertical;
+  }
+  textarea:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+
+  .actions { display:flex; align-items:center; gap:10px; margin-top:11px; flex-wrap:wrap; }
+  button.go {
+    background:var(--accent); color:#fff; border:0; border-radius:9px;
+    padding:10px 20px; font-family:var(--sans); font-size:.95rem; font-weight:600;
+    cursor:pointer; transition:filter .12s;
+  }
+  button.go:hover:not(:disabled) { filter:brightness(1.08); }
+  button.go:disabled { opacity:.55; cursor:default; }
+  button.go:focus-visible { outline:2px solid var(--accent-deep); outline-offset:2px; }
+  .hint { font-family:var(--mono); font-size:.7rem; color:var(--ink-faint); }
+
+  /* ---------- sample runs ---------- */
+  .samples { display:flex; flex-direction:column; gap:16px; }
+  .sgroup h3 {
+    font-family:var(--sans); font-size:.86rem; font-weight:700; margin:0 0 3px;
+    display:flex; align-items:center; gap:7px;
+  }
+  .sgroup .tone { width:7px; height:7px; border-radius:50%; flex:none; }
+  .tone.ok { background:var(--accent); }
+  .tone.warn { background:var(--amber); }
+  .tone.info { background:var(--ink-faint); }
+  .sgroup p { margin:0 0 9px; font-size:.81rem; color:var(--ink-soft); line-height:1.45; }
+  .sbtns { display:flex; flex-wrap:wrap; gap:6px; }
+  .sbtn {
+    font-family:var(--sans); font-size:.79rem; text-align:left;
+    background:var(--surface-2); border:1px solid var(--line); color:var(--ink);
+    padding:6px 11px; border-radius:999px; cursor:pointer; transition:border-color .12s;
+  }
+  .sbtn:hover { border-color:var(--accent); }
+  .sbtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ---------- pipeline rail ---------- */
+  .rail { display:grid; grid-template-columns:repeat(6,1fr); gap:0; }
+  @media (max-width:760px) { .rail { grid-template-columns:repeat(3,1fr); } }
+  .stage {
+    padding:13px 10px 14px; border-right:1px solid var(--line-soft);
+    border-top:3px solid var(--line); text-align:center; position:relative;
+  }
+  .stage:last-child { border-right:0; }
+  .stage .sn {
+    font-family:var(--mono); font-size:.66rem; color:var(--ink-faint);
+    letter-spacing:.06em; display:block;
+  }
+  .stage .sname { font-size:.83rem; font-weight:600; display:block; margin-top:3px; }
+  .stage .sval {
+    font-family:var(--mono); font-size:.72rem; color:var(--ink-soft);
+    display:block; margin-top:4px; word-break:break-word;
+  }
+  .stage[data-state="pass"] { border-top-color:var(--accent); }
+  .stage[data-state="pass"] .sname { color:var(--accent-deep); }
+  .stage[data-state="stop"] { border-top-color:var(--amber); background:var(--amber-soft); }
+  .stage[data-state="stop"] .sname { color:var(--amber); }
+  .stage[data-state="skip"] { opacity:.42; }
+
+  /* ---------- the answer ---------- */
+  .answer {
+    font-family:var(--reading); font-size:1.12rem; line-height:1.72;
+    white-space:pre-wrap; word-break:break-word; margin:0;
+  }
+  .answer.refused { color:var(--ink); }
+  .refusal-note {
+    margin:14px 0 0; padding:11px 14px; background:var(--amber-soft);
+    border-left:3px solid var(--amber); border-radius:0 8px 8px 0;
+    font-size:.85rem; color:var(--ink);
+  }
+  .refusal-note b { color:var(--amber); }
+
+  /* ---------- sources ---------- */
+  ol.cites { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:11px; }
+  ol.cites li { display:grid; grid-template-columns:1.9em 1fr; gap:0 6px; font-size:.87rem; }
+  ol.cites .n { font-family:var(--mono); font-weight:600; color:var(--accent); }
+  ol.cites a { color:var(--ink); text-decoration:none; border-bottom:1px solid var(--line); word-break:break-word; }
+  ol.cites a:hover { border-bottom-color:var(--accent); color:var(--accent-deep); }
+  ol.cites .dom { font-family:var(--mono); font-size:.72rem; color:var(--ink-soft); display:block; margin-top:2px; }
+
+  /* ---------- key/value ---------- */
+  dl.kv { margin:0; display:grid; grid-template-columns:auto 1fr; gap:8px 14px; font-size:.86rem; }
+  dl.kv dt { font-family:var(--mono); font-size:.72rem; letter-spacing:.04em; color:var(--ink-soft); text-transform:uppercase; }
+  dl.kv dd { margin:0; font-family:var(--mono); font-size:.79rem; word-break:break-word; font-variant-numeric:tabular-nums; }
+
+  .meter { height:5px; background:var(--surface-3); border-radius:999px; overflow:hidden; margin-top:6px; }
+  .meter i { display:block; height:100%; background:var(--accent); border-radius:999px; }
+  .meter.warn i { background:var(--amber); }
+  .meter.bad i { background:var(--red); }
+
+  /* ---------- violations ---------- */
+  ul.viol { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  ul.viol li { font-size:.83rem; display:grid; grid-template-columns:auto 1fr; gap:0 9px; }
+  .badge {
+    font-family:var(--mono); font-size:.65rem; font-weight:600; padding:2px 7px;
+    border-radius:4px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+    align-self:start; margin-top:1px;
+  }
+  .badge.error { background:var(--red-soft); color:var(--red); }
+  .badge.warn { background:var(--amber-soft); color:var(--amber); }
+  .badge.ok { background:var(--accent-soft); color:var(--accent-deep); }
+  ul.viol .note { color:var(--ink-soft); display:block; font-size:.79rem; }
+  code {
+    font-family:var(--mono); font-size:.85em; background:var(--surface-2);
+    border:1px solid var(--line-soft); border-radius:4px; padding:.08em .32em;
+  }
+
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:700px) { .cols { grid-template-columns:1fr; } }
+
+  .empty { color:var(--ink-soft); font-size:.87rem; margin:0; }
+  .err {
+    background:var(--red-soft); border:1px solid var(--red); color:var(--red);
+    border-radius:10px; padding:12px 15px; font-size:.88rem; margin:0 0 18px;
+  }
+  .busy { display:none; font-family:var(--mono); font-size:.72rem; color:var(--accent); }
+  body.loading .busy { display:inline; }
+
+  details.raw { margin-top:18px; }
+  details.raw summary {
+    cursor:pointer; font-family:var(--mono); font-size:.72rem; letter-spacing:.07em;
+    text-transform:uppercase; color:var(--ink-soft);
+  }
+  details.raw summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  details.raw pre {
+    margin:11px 0 0; padding:14px; background:var(--surface-2);
+    border:1px solid var(--line); border-radius:9px; overflow-x:auto;
+    font-family:var(--mono); font-size:.75rem; line-height:1.55;
+  }
+
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <p class="eyebrow">CONNECT Plus · connectplus-llm</p>
+      <h1>Pipeline demo</h1>
+    </div>
+    <div class="env" id="env"></div>
+  </header>
+
+  <div id="error-slot"></div>
+
+  <div class="grid">
+
+    <!-- ============ left: composer ============ -->
+    <div>
+      <section class="panel">
+        <div class="panel-head">Ask a question</div>
+        <div class="panel-body">
+          <form id="ask-form">
+            <fieldset>
+              <legend>Language setting</legend>
+              <div class="langs" id="langs">
+                <label><input type="radio" name="lang" value="zh"> 中文</label>
+                <label><input type="radio" name="lang" value="vi"> Tiếng Việt</label>
+                <label><input type="radio" name="lang" value="en"> English</label>
+                <label class="span2">
+                  <input type="radio" name="lang" value="" checked>
+                  <span>Not selected <small>— run detection</small></span>
+                </label>
+              </div>
+            </fieldset>
+
+            <label class="flabel" for="q">The question, as typed</label>
+            <textarea id="q" name="q" spellcheck="false"
+              placeholder="我收到一条奇怪的短信…"></textarea>
+
+            <div class="actions">
+              <button class="go" type="submit" id="go">Ask</button>
+              <span class="hint">Ctrl + Enter</span>
+              <span class="busy">running…</span>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">Scripted runs</div>
+        <div class="panel-body">
+          <div class="samples" id="samples"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ right: results ============ -->
+    <div>
+      <section class="panel">
+        <div class="panel-head">
+          <span>Pipeline</span>
+          <span id="rail-note" class="chip" hidden></span>
+        </div>
+        <div class="rail" id="rail"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <span>Answer</span>
+          <span id="answer-badge"></span>
+        </div>
+        <div class="panel-body">
+          <p class="answer" id="answer">Pick a scripted run, or type a question.</p>
+          <div id="refusal-note"></div>
+        </div>
+      </section>
+
+      <div class="cols" style="margin-top:18px">
+        <section class="panel" style="margin:0">
+          <div class="panel-head">Sources cited</div>
+          <div class="panel-body"><div id="cites"><p class="empty">—</p></div></div>
+        </section>
+
+        <div>
+          <section class="panel" style="margin:0">
+            <div class="panel-head">Verdict &amp; audit</div>
+            <div class="panel-body"><div id="verdict"><p class="empty">—</p></div></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">Provenance</div>
+            <div class="panel-body"><div id="prov"><p class="empty">—</p></div></div>
+          </section>
+        </div>
+      </div>
+
+      <details class="raw">
+        <summary>Raw response</summary>
+        <pre id="raw">{}</pre>
+      </details>
+    </div>
+
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const STAGES = [
+  { key:"language",     name:"Language" },
+  { key:"rewrite",      name:"Rewrite" },
+  { key:"retrieval",    name:"Retrieve" },
+  { key:"generation",   name:"Generate" },
+  { key:"verification", name:"Verify" },
+  { key:"deliver",      name:"Deliver" },
+];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+/* ---------- boot ---------- */
+let META = null;
+
+async function boot() {
+  drawRail(null);
+  try {
+    const r = await fetch("/api/meta");
+    if (!r.ok) throw new Error(String(r.status));
+    META = await r.json();
+  } catch {
+    // Almost always the same mistake: this page was opened as a file, or
+    // from a plain static server, instead of from the FastAPI app that
+    // provides /api. Name the fix rather than the symptom.
+    const where = location.protocol === "file:"
+      ? "You opened this file directly from the folder."
+      : `You opened it from ${location.host}, which only serves files.`;
+    showError(
+      `${where} This page needs its backend. ` +
+      `Open http://127.0.0.1:8000 instead — that is the FastAPI app, ` +
+      `and it serves this page together with the /api it calls. ` +
+      `Start it with:  uvicorn demo.server:app --port 8000  ` +
+      `(run from the project folder, not from demo/). ` +
+      `The other demo, website.html, is the senior-facing app and needs no backend.`
+    );
+    return;
+  }
+  $("env").innerHTML = [
+    `<span class="chip">provider <b>${esc(META.provider)}</b></span>`,
+    `<span class="chip">model <b>${esc(META.model || "n/a")}</b></span>`,
+    `<span class="chip">corpus <b>${META.corpus_size}</b> passages</span>`,
+    `<span class="chip">refuse below <b>${META.refusal_threshold}</b></span>`,
+  ].join("");
+  drawSamples(META.samples || []);
+}
+
+function showError(msg) {
+  $("error-slot").innerHTML = `<p class="err">${esc(msg)}</p>`;
+}
+function clearError() { $("error-slot").innerHTML = ""; }
+
+/* ---------- scripted runs ---------- */
+function drawSamples(groups) {
+  $("samples").innerHTML = groups.map((g) => `
+    <div class="sgroup">
+      <h3><span class="tone ${esc(g.tone)}"></span>${esc(g.group)}</h3>
+      <p>${esc(g.blurb)}</p>
+      <div class="sbtns">
+        ${g.items.map((it) => `<button type="button" class="sbtn"
+            data-q="${esc(it.query)}" data-lang="${esc(it.lang ?? "")}"
+          >${esc(it.label)}</button>`).join("")}
+      </div>
+    </div>`).join("");
+
+  $("samples").querySelectorAll(".sbtn").forEach((b) => {
+    b.addEventListener("click", () => {
+      $("q").value = b.dataset.q;
+      const want = b.dataset.lang || "";
+      const radio = document.querySelector(`input[name="lang"][value="${want}"]`);
+      if (radio) radio.checked = true;
+      ask();
+    });
+  });
+}
+
+/* ---------- the pipeline rail ---------- */
+/* The rail is the point of the page: it shows WHERE a run stopped.
+   A refusal is amber, never red -- refusing is correct behaviour, not
+   an error, and colouring it like a failure teaches the wrong lesson. */
+function drawRail(data) {
+  const stoppedAt = data?.trace?.refused_at || "";
+  const stopIdx = stoppedAt ? STAGES.findIndex((s) => s.key === stoppedAt) : -1;
+
+  $("rail").innerHTML = STAGES.map((s, i) => {
+    let state = "idle", val = "—";
+    if (data) {
+      if (stopIdx === i) state = "stop";
+      else if (stopIdx !== -1 && i > stopIdx) state = "skip";
+      else state = "pass";
+      val = stageValue(s.key, data, state);
+    }
+    return `<div class="stage" data-state="${state}">
+      <span class="sn">0${i + 1}</span>
+      <span class="sname">${esc(s.name)}</span>
+      <span class="sval">${esc(val)}</span>
+    </div>`;
+  }).join("");
+
+  const note = $("rail-note");
+  if (stoppedAt) {
+    note.hidden = false;
+    note.textContent = `stopped at ${stoppedAt}`;
+  } else {
+    note.hidden = !data;
+    if (data) note.textContent = "completed";
+  }
+}
+
+function stageValue(key, d, state) {
+  const t = d.trace, a = d.answer;
+  if (state === "skip") return "skipped";
+  switch (key) {
+    case "language":
+      return `${a.lang || "und"} · ${t.lang_method}`;
+    case "rewrite":
+      return t.rewrite_source || "—";
+    case "retrieval":
+      return `${t.retrieved_ids.length} hits · ${t.retrieval_confidence}`;
+    case "generation":
+      return t.generation_error ? "failed" : `${t.latency_ms} ms`;
+    case "verification":
+      return a.refused && t.refused_at === "verification" ? "rejected" : "grounded";
+    case "deliver":
+      return a.refused ? "refusal" : `${a.citations.length} citations`;
+  }
+  return "—";
+}
+
+/* ---------- render one result ---------- */
+function render(d) {
+  const a = d.answer, t = d.trace;
+  drawRail(d);
+
+  $("answer").textContent = a.answer_md || "(empty)";
+  $("answer").classList.toggle("refused", !!a.refused);
+
+  $("answer-badge").innerHTML = a.refused
+    ? `<span class="badge warn">refused · ${esc(a.refusal_reason)}</span>`
+    : `<span class="badge ok">answered</span>`;
+
+  $("refusal-note").innerHTML = a.refused
+    ? `<p class="refusal-note"><b>This is the correct outcome.</b>
+       The pipeline stopped at <code>${esc(t.refused_at)}</code> because
+       ${esc(t.verdict_reason || "the sources do not cover this question")}.
+       The reader gets a plain sentence and an offer of a human mentor —
+       not a stack trace, not a blank screen, and not a plausible
+       invention.</p>`
+    : "";
+
+  /* sources */
+  $("cites").innerHTML = a.citations.length
+    ? `<ol class="cites">${a.citations.map((c) => `
+        <li><span class="n">[${c.n}]</span>
+          <span><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title)}</a>
+          <span class="dom">${esc(c.domain)}</span></span></li>`).join("")}</ol>`
+    : `<p class="empty">No sources cited${a.refused ? " — nothing was retrieved." : "."}</p>`;
+
+  /* verdict & audit */
+  const read = a.readability;
+  const errs = d.violations.errors, warns = d.violations.warnings;
+  let v = `<dl class="kv">
+    <dt>confidence</dt><dd>${a.confidence}
+      <span class="meter ${a.confidence < d.refusal_threshold ? "bad" : ""}">
+        <i style="width:${Math.round((a.confidence || 0) * 100)}%"></i></span></dd>
+    <dt>chunks</dt><dd>${a.chunk_ids.length ? esc(a.chunk_ids.join(", ")) : "—"}</dd>`;
+  if (read) {
+    const cls = read.grade === "easy" ? "" : read.grade === "ok" ? "warn" : "bad";
+    v += `<dt>readability</dt><dd>${read.score} (${esc(read.grade)})
+      <span class="meter ${cls}"><i style="width:${Math.round(read.score)}%"></i></span></dd>`;
+    if (read.capped) {
+      v += `<dt>capped</dt><dd>too much English to score</dd>`;
+    }
+  }
+  v += `</dl>`;
+
+  if (t.poisoned_chunk_ids.length) {
+    v += `<ul class="viol" style="margin-top:14px">
+      <li><span class="badge error">injection</span>
+        <span>Sanitised <code>${esc(t.poisoned_chunk_ids.join(", "))}</code>
+        <span class="note">A finding about the knowledge base — report it to the RAG team.</span></span></li></ul>`;
+  }
+
+  const all = [...errs.map((x) => [x, "error"]), ...warns.slice(0, 6).map((x) => [x, "warn"])];
+  if (all.length) {
+    v += `<ul class="viol" style="margin-top:14px">${all.map(([x, sev]) => `
+      <li><span class="badge ${sev}">${esc(x.kind)}</span>
+        <span>found <code>${esc(x.found)}</code> → expected <code>${esc(x.expected)}</code>
+        <span class="note">${esc(x.note || "")}</span></span></li>`).join("")}</ul>`;
+    const hidden = warns.length - Math.min(warns.length, 6);
+    if (hidden > 0) v += `<p class="empty" style="margin-top:9px">…and ${hidden} more warnings.</p>`;
+  } else if (!a.refused) {
+    v += `<p class="empty" style="margin-top:12px">No termbase or register violations.</p>`;
+  }
+  $("verdict").innerHTML = v;
+
+  /* provenance */
+  $("prov").innerHTML = `<dl class="kv">
+    <dt>typed</dt><dd>${esc(a.query_original)}</dd>
+    <dt>english</dt><dd>${esc(a.query_rewritten || "—")}</dd>
+    <dt>provider</dt><dd>${esc(a.provider)} / ${esc(t.model || "n/a")}</dd>
+    <dt>prompt</dt><dd>${esc(a.prompt_version)}</dd>
+    <dt>detection</dt><dd>${esc(t.lang_method)} @ ${t.lang_confidence}</dd>
+    <dt>latency</dt><dd>${t.latency_ms} ms</dd>
+  </dl>`;
+
+  $("raw").textContent = JSON.stringify(d, null, 2);
+}
+
+/* ---------- submit ---------- */
+let inflight = false;
+
+async function ask() {
+  if (inflight) return;
+  const query = $("q").value.trim();
+  if (!query) { $("q").focus(); return; }
+
+  const lang = document.querySelector('input[name="lang"]:checked').value || null;
+
+  inflight = true;
+  document.body.classList.add("loading");
+  $("go").disabled = true;
+  clearError();
+
+  try {
+    const r = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query, lang, k: 3 }),
+    });
+    const d = await r.json();
+    if (!r.ok) { showError(d.error || `Server returned ${r.status}.`); }
+    else { render(d); }
+  } catch {
+    showError("The request failed. Check the uvicorn console for a traceback.");
+  } finally {
+    inflight = false;
+    document.body.classList.remove("loading");
+    $("go").disabled = false;
+  }
+}
+
+$("ask-form").addEventListener("submit", (e) => { e.preventDefault(); ask(); });
+$("q").addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); ask(); }
+});
+
+boot();
+</script>
+</body>
+</html>

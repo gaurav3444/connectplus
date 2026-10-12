@@ -1,39 +1,18 @@
 """A readability proxy for Vietnamese.
 
-Why the standard metrics cannot be used
----------------------------------------
-The eval harness scores "readability grade", and the obvious tool is
-Flesch-Kincaid. It does not work here, and it does not fail loudly - it returns
-a confident number that means nothing.
+ATTRIBUTION: the Vietnamese lane is **Deval Patel's work**. This is a slim
+stand-in so the integrated pipeline runs; replace it with his
+``llm/vi/readability.py`` on merge. The reasoning below is his and is
+reproduced so the stand-in behaves the same way.
 
-Flesch-Kincaid counts syllables per *word*. Vietnamese orthography writes every
-syllable as its own whitespace-separated token, so by that definition every
-Vietnamese word has exactly one syllable and the syllable term collapses to a
-constant. The grade then reduces to sentence length alone, and reports fluent
-plain Vietnamese and dense bureaucratic Vietnamese as equally readable.
-
-What this module does instead
------------------------------
-Four signals that do discriminate, chosen because each maps to something a
-senior actually struggles with:
-
-===========================  ===========================================
-Signal                       What it catches
-===========================  ===========================================
-Syllables per sentence       Sentences too long to hold while acting on them
-Long-sentence rate           A few monsters hiding behind a fine average
-Loanword rate                Untranslated English the reader cannot decode
-Formal-register rate         Sino-Vietnamese officialese from .gov.au pages
-===========================  ===========================================
-
-Honest limitations
-------------------
-This is a **proxy, not a validated instrument.** The thresholds below are
-reasoned from Vietnamese community-health and Be Connected style guidance
-(short sentences, everyday vocabulary, one instruction per sentence), not
-derived from a reading study. It is fit for the job it has - comparing two
-prompt versions or two providers on the same questions - and unfit for
-claiming an absolute reading age. The report should say so.
+Why Flesch-Kincaid cannot be used
+----------------------------------
+It counts syllables per word. Vietnamese orthography writes every syllable
+as its own whitespace-separated token, so by that definition every word has
+exactly one syllable, the syllable term collapses to a constant, and the
+grade reduces to sentence length alone. It then reports fluent plain
+Vietnamese and dense bureaucratic Vietnamese as equally readable, and it
+fails without telling you.
 """
 
 from __future__ import annotations
@@ -41,83 +20,46 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, asdict
 
-from .normalize import fold, syllables, sentences
-from .termbase import termbase, protected_nouns
+from .termbase import PLAIN_LANGUAGE, PROTECTED_NOUNS
 
-__all__ = ["Readability", "score", "TARGETS"]
+__all__ = ["Readability", "score", "TARGETS", "WEIGHTS"]
 
-# Targets, in the units of each signal. "good" scores full marks; anything at
-# or past "poor" scores zero for that signal; between them is linear.
 TARGETS = {
     "syllables_per_sentence": {"good": 18.0, "poor": 32.0},
-    "long_sentence_rate": {"good": 0.10, "poor": 0.45},
-    "loanword_rate": {"good": 0.02, "poor": 0.12},
-    "formal_per_100": {"good": 0.5, "poor": 4.0},
+    "long_sentence_rate":     {"good": 0.10, "poor": 0.45},
+    "loanword_rate":          {"good": 0.02, "poor": 0.12},
+    "formal_per_100":         {"good": 0.5,  "poor": 4.0},
 }
 
-# Weights sum to 1.0. Sentence length carries the most because it is the
-# signal seniors report most often ("I lost my place halfway through").
 WEIGHTS = {
     "syllables_per_sentence": 0.35,
-    "long_sentence_rate": 0.25,
-    "loanword_rate": 0.25,
-    "formal_per_100": 0.15,
+    "long_sentence_rate":     0.25,
+    "loanword_rate":          0.25,
+    "formal_per_100":         0.15,
 }
 
 _LONG_SENTENCE = 20  # syllables
-
-# Above this share of untranslated English, the text is not really Vietnamese
-# and a readability score computed on it is meaningless. Weighted averaging
-# alone was not enough here: an answer that left half its content in English
-# still scored "easy" because its sentences were short. Readability presumes
-# the reader can read the words at all.
 _NOT_VIETNAMESE_LOANWORD_RATE = 0.25
 _LANGUAGE_INTEGRITY_CAP = 40.0
 
-# Shape of a legal Vietnamese syllable once diacritics are folded away.
-# Initial cluster, vowel nucleus, optional final consonant. Deliberately
-# permissive - it is used to spot obvious English, not to validate spelling.
-_VI_SYLLABLE_RE = re.compile(
-    r"^(?:ngh|ng|nh|ch|gh|gi|kh|ph|th|tr|qu|[bcdghklmnprstvx])?"
-    r"[aeiouy]{1,3}"
-    r"(?:ch|ng|nh|[cmnpt])?$"
-)
+_CITATION_RE = re.compile(r"\[\d{1,2}\]")
+_SENTENCE_SPLIT_RE = re.compile(r"[.!?;\n]+")
+_LATIN_RUN_RE = re.compile(r"[A-Za-z][A-Za-z'\-\.]*")
+_VI_CHARS = "àáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ"
 
 
 @dataclass(frozen=True)
 class Readability:
-    """Readability measurement of one Vietnamese answer.
-
-    Attributes:
-        score: 0..100, higher is easier to read.
-        grade: ``easy``, ``ok`` or ``hard``.
-        syllables_per_sentence: Mean sentence length in syllables.
-        long_sentence_rate: Share of sentences over 20 syllables.
-        loanword_rate: Share of tokens that are not Vietnamese-shaped and not
-            approved proper nouns.
-        formal_per_100: Formal-register words per 100 syllables.
-        n_sentences: Sentence count.
-        n_syllables: Syllable count.
-        offenders: The specific tokens and words that cost marks, so a bad
-            score can be acted on rather than just reported.
-    """
-
     score: float
     grade: str
-    syllables_per_sentence: float
-    long_sentence_rate: float
-    loanword_rate: float
-    formal_per_100: float
-    n_sentences: int
-    n_syllables: int
-    offenders: dict
+    signals: dict
+    capped: bool = False
 
     def as_dict(self) -> dict:
         return asdict(self)
 
 
 def _signal_score(value: float, good: float, poor: float) -> float:
-    """Map a raw signal onto 0..1, where 1 is at or better than ``good``."""
     if value <= good:
         return 1.0
     if value >= poor:
@@ -125,83 +67,63 @@ def _signal_score(value: float, good: float, poor: float) -> float:
     return 1.0 - (value - good) / (poor - good)
 
 
-def _is_loanword(token: str, allowed: set[str]) -> bool:
-    """True if a token is neither Vietnamese-shaped nor an approved name."""
-    folded = fold(token)
-    if not folded.isalpha():
-        return False          # numbers, step markers
-    if folded in allowed:
-        return False          # myGov, Centrelink, Wi-Fi, OTP ...
-    if len(folded) <= 1:
-        return False
-    return _VI_SYLLABLE_RE.match(folded) is None
+def _syllables(text: str) -> list[str]:
+    """Vietnamese writes one syllable per whitespace token."""
+    return [t for t in re.findall(r"[^\W\d_]+", text, re.UNICODE) if t]
+
+
+def _sentences(text: str) -> list[str]:
+    parts = [p.strip() for p in _SENTENCE_SPLIT_RE.split(text or "")]
+    return [p for p in parts if p and _syllables(p)]
 
 
 def score(text: str) -> Readability:
-    """Measure how hard a Vietnamese answer is to read.
+    """Score a Vietnamese answer for plain-language readability."""
+    clean = _CITATION_RE.sub("", text or "")
+    sents = _sentences(clean)
+    syls = _syllables(clean)
 
-    Args:
-        text: The generated answer. Markdown is tolerated; list markers and
-            emphasis are stripped before measuring.
+    if not sents or not syls:
+        return Readability(0.0, "hard",
+                           {"syllables_per_sentence": 0.0, "long_sentence_rate": 0.0,
+                            "loanword_rate": 0.0, "formal_per_100": 0.0,
+                            "sentences": 0, "syllables": 0}, capped=True)
 
-    Returns:
-        A :class:`Readability`. An empty or whitespace-only answer scores 0
-        and is graded ``hard`` rather than raising - a blank answer is a
-        failure, not an exception.
-    """
-    clean = re.sub(r"[*_#`>\[\]()]", " ", text or "")
-    sents = sentences(clean)
-    sylls = syllables(clean)
-
-    if not sents or not sylls:
-        return Readability(0.0, "hard", 0.0, 0.0, 0.0, 0.0, 0, 0,
-                           {"note": "empty answer"})
-
-    per_sentence = [len(syllables(s)) for s in sents]
-    mean_len = sum(per_sentence) / len(per_sentence)
+    per_sentence = [len(_syllables(s)) for s in sents]
+    syl_per_sentence = sum(per_sentence) / len(per_sentence)
     long_rate = sum(1 for n in per_sentence if n > _LONG_SENTENCE) / len(per_sentence)
 
-    allowed = {fold(n) for noun in protected_nouns() for n in noun.split()}
-    loan_tokens = [t for t in sylls if _is_loanword(t, allowed)]
-    loan_rate = len(loan_tokens) / len(sylls)
+    protected = {n.lower() for n in PROTECTED_NOUNS}
+    latin = [r for r in _LATIN_RUN_RE.findall(clean)
+             if len(r) > 2 and r.lower() not in protected]
+    # A token with no Vietnamese-only character and no Vietnamese shape is a
+    # loanword the reader has to decode rather than read.
+    loan = [t for t in latin if not any(c in _VI_CHARS for c in t.lower())
+            and len(t) > 4]
+    loanword_rate = len(loan) / len(syls) if syls else 0.0
 
-    folded_text = fold(clean)
-    formal_hits = [w for w in termbase()["plain_language"]["prefer_plain"]
-                   if fold(w) in folded_text]
-    formal_per_100 = len(formal_hits) / len(sylls) * 100
+    formal_hits = sum(clean.lower().count(k) for k in PLAIN_LANGUAGE)
+    formal_per_100 = (formal_hits / len(syls)) * 100
 
-    raw = {
-        "syllables_per_sentence": mean_len,
-        "long_sentence_rate": long_rate,
-        "loanword_rate": loan_rate,
-        "formal_per_100": formal_per_100,
+    signals = {
+        "syllables_per_sentence": round(syl_per_sentence, 1),
+        "long_sentence_rate": round(long_rate, 3),
+        "loanword_rate": round(loanword_rate, 3),
+        "formal_per_100": round(formal_per_100, 2),
+        "sentences": len(sents),
+        "syllables": len(syls),
     }
-    total = sum(
-        WEIGHTS[k] * _signal_score(v, TARGETS[k]["good"], TARGETS[k]["poor"])
-        for k, v in raw.items()
-    )
-    final = round(total * 100, 1)
 
-    # Language-integrity gate. See _NOT_VIETNAMESE_LOANWORD_RATE.
-    capped = loan_rate >= _NOT_VIETNAMESE_LOANWORD_RATE
-    if capped:
-        final = min(final, _LANGUAGE_INTEGRITY_CAP)
+    total = 0.0
+    for name, weight in WEIGHTS.items():
+        t = TARGETS[name]
+        total += _signal_score(signals[name], t["good"], t["poor"]) * weight
+    value = round(total * 100, 1)
 
-    grade = "easy" if final >= 75 else "ok" if final >= 55 else "hard"
+    capped = False
+    if loanword_rate >= _NOT_VIETNAMESE_LOANWORD_RATE and value > _LANGUAGE_INTEGRITY_CAP:
+        value = _LANGUAGE_INTEGRITY_CAP
+        capped = True
 
-    return Readability(
-        score=final,
-        grade=grade,
-        syllables_per_sentence=round(mean_len, 1),
-        long_sentence_rate=round(long_rate, 2),
-        loanword_rate=round(loan_rate, 3),
-        formal_per_100=round(formal_per_100, 2),
-        n_sentences=len(sents),
-        n_syllables=len(sylls),
-        offenders={
-            "loanwords": sorted(set(loan_tokens))[:10],
-            "formal_words": formal_hits,
-            "longest_sentence_syllables": max(per_sentence),
-            "capped_for_untranslated_english": capped,
-        },
-    )
+    grade = "easy" if value >= 70 else "ok" if value >= 45 else "hard"
+    return Readability(value, grade, signals, capped)

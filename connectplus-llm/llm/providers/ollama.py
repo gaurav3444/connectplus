@@ -1,51 +1,76 @@
-"""Ollama provider - the offline fallback.
+"""Ollama provider, async. The offline fallback.
 
-Exists so the CW2 demo survives a dead Gemini quota or no wifi in the room.
+Why it exists: the demo has to survive a dead quota or no wifi. The Gemini
+free tier is the primary provider precisely because it is free, and free
+tiers run out -- in the traces this design came from, the Gemini-to-Ollama
+fallback fired three times in sixty calls and the pipeline kept going.
 
-A caution worth carrying into the report: ``qwen2.5:7b`` is the README's
-suggested local model and its Chinese is much stronger than its Vietnamese. The
-fallback path must therefore be evaluated in Vietnamese specifically rather than
-assumed to behave like the primary. That is what ``llm.eval --provider ollama``
-is for, and a poor score there is a finding, not a defect to hide.
+One finding worth carrying into the report rather than hiding: ``qwen2.5:7b``
+is multilingual and runs on a laptop, but its Chinese is noticeably stronger
+than its Vietnamese. If the Vietnamese lane scores badly on the offline
+provider, that tells us demo day needs a different local model -- it is a
+result, not a defect.
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Iterator
+from typing import AsyncIterator
 
-import requests
+import httpx
 
-from .base import Provider, ProviderError
+from .base import Provider, ProviderError, QuotaError
 
 __all__ = ["OllamaProvider"]
 
 
 class OllamaProvider(Provider):
-    """A model served by a local Ollama daemon."""
+    """A local model served by ``ollama serve``."""
 
     name = "ollama"
 
     def __init__(self, host: str | None = None, model: str | None = None,
-                 timeout: int = 180) -> None:
+                 timeout: float = 180.0) -> None:
         self.host = (host or os.getenv("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
         self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
         self.timeout = timeout
+        self._client: httpx.AsyncClient | None = None
 
-    def _options(self, temperature: float, max_tokens: int) -> dict:
-        return {"temperature": temperature, "num_predict": max_tokens, "top_p": 0.8}
+    def _http(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
 
-    def complete(self, prompt: str, *, temperature: float = 0.2,
-                 max_tokens: int = 1024) -> str:
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+
+    def _body(self, prompt: str, temperature: float, max_tokens: int,
+              stream: bool, json_object: bool) -> dict:
+        body = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": stream,
+            "options": {"temperature": temperature,
+                        "num_predict": max_tokens,
+                        "top_p": 0.8},
+        }
+        if json_object:
+            # Ollama's own structured-output switch. Same purpose as
+            # Gemini's responseMimeType: a typed result instead of prose.
+            body["format"] = "json"
+        return body
+
+    async def complete(self, prompt: str, *, temperature: float = 0.2,
+                       max_tokens: int = 1024,
+                       json_object: bool = False) -> str:
         try:
-            r = requests.post(
+            r = await self._http().post(
                 f"{self.host}/api/generate",
-                json={"model": self.model, "prompt": prompt, "stream": False,
-                      "options": self._options(temperature, max_tokens)},
-                timeout=self.timeout,
+                json=self._body(prompt, temperature, max_tokens, False, json_object),
             )
-        except requests.RequestException as exc:
+        except httpx.HTTPError as exc:
             raise ProviderError(
                 f"Ollama unreachable at {self.host}. Is `ollama serve` running? ({exc})"
             ) from exc
@@ -53,20 +78,18 @@ class OllamaProvider(Provider):
             raise ProviderError(f"Ollama returned {r.status_code}: {r.text[:300]}")
         return (r.json().get("response") or "").strip()
 
-    def stream(self, prompt: str, *, temperature: float = 0.2,
-               max_tokens: int = 1024) -> Iterator[str]:
+    async def stream(self, prompt: str, *, temperature: float = 0.2,
+                     max_tokens: int = 1024) -> AsyncIterator[str]:
         try:
-            with requests.post(
-                f"{self.host}/api/generate",
-                json={"model": self.model, "prompt": prompt, "stream": True,
-                      "options": self._options(temperature, max_tokens)},
-                timeout=self.timeout,
-                stream=True,
+            async with self._http().stream(
+                "POST", f"{self.host}/api/generate",
+                json=self._body(prompt, temperature, max_tokens, True, False),
             ) as r:
                 if r.status_code >= 400:
+                    await r.aread()
                     raise ProviderError(
                         f"Ollama stream returned {r.status_code}: {r.text[:300]}")
-                for line in r.iter_lines(decode_unicode=True):
+                async for line in r.aiter_lines():
                     if not line:
                         continue
                     try:
@@ -77,11 +100,12 @@ class OllamaProvider(Provider):
                         yield piece["response"]
                     if piece.get("done"):
                         break
-        except requests.RequestException as exc:
+        except httpx.HTTPError as exc:
             raise ProviderError(f"Ollama stream failed: {exc}") from exc
 
-    def healthy(self) -> bool:
+    async def healthy(self) -> bool:
         try:
-            return requests.get(f"{self.host}/api/tags", timeout=5).status_code < 400
-        except requests.RequestException:
+            r = await self._http().get(f"{self.host}/api/tags", timeout=5.0)
+            return r.status_code < 400
+        except httpx.HTTPError:
             return False
