@@ -299,3 +299,37 @@ class Verdict(BaseModel):
         default_factory=list,
         description="Ids of the chunks this answer was checked against - the audit trail.",
     )
+
+
+class BrowseSubcategory(BaseModel):
+    """Second level of screen 3a (Browse topics). `query` is the English
+    search that finds its resources - the same English-only rule as
+    api.retrieve(), since keyword search runs on an 'english' tsvector."""
+
+    id: str
+    title: str
+    query: str
+
+
+class BrowseCategory(BaseModel):
+    """Top level of screen 3a. Defined in rag/config/browse_topics.json;
+    the design caps every level at seven items."""
+
+    id: str
+    title: str
+    subcategories: list[BrowseSubcategory]
+
+
+class Resource(BaseModel):
+    """Third level of screen 3a: one approved source PAGE, not one chunk.
+    Several chunks of the same page collapse into one card, keeping the
+    best-scoring chunk's heading and text as the reason it was listed."""
+
+    doc_id: str = Field(description="The page's stable id - what /resource/[id] links to")
+    url: str
+    domain: str
+    title: str
+    lang: str
+    heading_path: list[str] = Field(default_factory=list, description="Best-matching chunk's headings")
+    snippet: str = Field(description="Start of the best-matching chunk's text")
+    score: float = Field(description="Best chunk's reranker score - same scale as retrieve()'s confidence")

@@ -11,6 +11,8 @@ Usage (from README_rag.md, extended for 02-05):
     python -m rag.main index --domain scamwatch.gov.au
     python -m rag.main retrieve "how do I know if a text message is a scam"
     python -m rag.main verify
+    python -m rag.main browse                            (list the topic taxonomy)
+    python -m rag.main browse staying-safe passwords     (resources for one subcategory)
 
 `index` and `retrieve` read DATABASE_URL from a .env file in the project
 root (or the real environment) - Supabase's SESSION POOLER connection
@@ -135,6 +137,27 @@ def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
 
     print(f"Query: {query!r}")
     _print_results(results, confidence, use_reranker)
+
+
+def _run_browse(category_id: str | None, subcategory_id: str | None) -> None:
+    """No ids: print the taxonomy. Both ids: run that subcategory against the
+    real index through the same public browse() the app's API calls."""
+    from rag.api import browse, browse_topics
+
+    if not (category_id and subcategory_id):
+        for category in browse_topics():
+            print(f"{category.id}  {category.title}")
+            for sub in category.subcategories:
+                print(f"    {sub.id}  {sub.title}  - {sub.query!r}")
+        return
+
+    resources = browse(category_id, subcategory_id)
+    if not resources:
+        print("No resource scored above the refusal threshold - the app shows its empty state.")
+    for n, resource in enumerate(resources, start=1):
+        print(f"[{n}] {resource.score:.3f}  {resource.title}  ({resource.domain})")
+        print(f"     {resource.url}")
+        print(f"     {' > '.join(resource.heading_path)}")
 
 
 DEFAULT_DRAFTS_PATH = Path(__file__).parent / "fixtures" / "f06_drafts.json"
@@ -346,6 +369,12 @@ def main() -> None:
              "(~500MB). Without this flag only the three deterministic checks run.",
     )
 
+    browse_parser = subparsers.add_parser(
+        "browse", help="Screen 3a: list the topic taxonomy, or one subcategory's resources"
+    )
+    browse_parser.add_argument("category", nargs="?", help="Category id, e.g. staying-safe")
+    browse_parser.add_argument("subcategory", nargs="?", help="Subcategory id, e.g. passwords")
+
     args = parser.parse_args()
 
     if args.command == "ingest" and args.plan:
@@ -369,6 +398,8 @@ def main() -> None:
         _run_retrieve(args.query, args.top_k, use_reranker=not args.no_rerank)
     elif args.command == "verify":
         _run_verify(args.drafts, use_grounding=args.grounding)
+    elif args.command == "browse":
+        _run_browse(args.category, args.subcategory)
 
 
 if __name__ == "__main__":

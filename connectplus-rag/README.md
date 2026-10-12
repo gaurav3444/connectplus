@@ -186,13 +186,35 @@ verdict = verify(draft, chunks, lang=lang)         # draft: answer_md str, or an
 
 `rag/api.py` binds the production dependencies (Postgres from this repo's own `.env`, the reranker, the NLI model), so the caller passes plain values only. The reranker is always on, which makes `confidence` equal the top chunk's score - so `verify` recomputes it from `chunks` instead of taking it from the caller, and a draft cannot vouch for its own confidence. Pass `chunks` back exactly as `retrieve` returned them: `[n]` means the n-th chunk the generator was shown. A failing verdict means drop the answer and offer a mentor; never patch and retry. Both calls log to the `rag` logger.
 
+## Browse topics (screen 3a)
+
+The app's Browse screen is three levels: category, subcategory, resource. The first two are a fixed, human-written taxonomy in `rag/config/browse_topics.json` (seven categories from the design, at most seven subcategories each, the design's own cap). Each subcategory carries an English search query. The third level comes from the index: `browse()` runs that query through the same `retrieve()` that answers questions (hybrid search + reranker), then collapses the chunks into **one resource per source page**, best page first, at most seven.
+
+```python
+from rag import browse_topics, browse
+
+categories = browse_topics()                              # levels 1-2, static, no database
+resources = browse("staying-safe", "passwords", lang)     # level 3: list[Resource]
+# Resource = {doc_id, url, domain, title, lang, heading_path, snippet, score}
+```
+
+Nothing is fetched from the web at request time - the approved sites were already crawled and indexed by stages 01-04, so a resource can only be a page someone approved. The answer path's trust rules hold here too: a page whose best chunk scores below `REFUSAL_THRESHOLD` is not listed (an empty list is the app's designed empty state, not a reason to show weak matches), and a page from a domain no longer on the approved list is dropped, since the index outlives approvals. Results are cached per process per subcategory; the query is English for every language, so one cached result serves all of them. An unknown id raises `KeyError`, which the HTTP layer in `connectplus-llm` should turn into a 404.
+
+```bash
+python -m rag.main browse                          # print the taxonomy and each subcategory's query
+python -m rag.main browse staying-safe passwords   # resources for one subcategory, against the real index
+```
+
+Tuning a subcategory is an edit to its `query` in `browse_topics.json`, checked with the second command. Not yet built: a step count per resource ("5 steps, with practice" in the design) - that belongs with screen 3c, which decides what a step is.
+
 ## Project structure
 
 ```
 rag/
   schemas.py          # every contract between stages, frozen
-  api.py              # retrieve(query_en, lang, k) and verify(draft, chunks, lang) - the public surface
-  main.py             # CLI: ingest / extract / chunk / index / retrieve / verify
+  api.py              # retrieve(query_en, lang, k), verify(draft, chunks, lang), browse_topics(), browse(...) - the public surface
+  browse.py           # screen 3a: topic taxonomy, chunks -> one resource per page
+  main.py             # CLI: ingest / extract / chunk / index / retrieve / verify / browse
   s01_ingest.py
   s01_sources.py      # per-domain fetch strategies (live_scoped, wayback), --plan, extract-time URL exclusion
   s02_extract.py
@@ -203,6 +225,7 @@ rag/
   lang.py             # langdetect, used by stage 02
   config/
     approved_domains.json
+    browse_topics.json      # screen 3a taxonomy: categories, subcategories, and each one's English query
     source_strategies.json  # how each domain is fetched, scoped and filtered
     domain_decisions.md
     schema.sql
@@ -220,6 +243,7 @@ scripts/
   compare_extracted.py   # before/after diff of one domain's stage 02 output (decides whether re-index is needed)
 tests/
   test_api.py
+  test_browse.py
   test_s01_ingest.py
   test_s01_sources.py
   test_s02_extract.py
@@ -297,7 +321,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-216 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
+225 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 

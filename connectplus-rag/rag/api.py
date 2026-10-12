@@ -26,6 +26,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from rag.browse import CHUNKS_PER_QUERY, find_subcategory, load_topics, resources_from_chunks
 from rag.s05_retrieve import (
     DEFAULT_TOP_K_FINAL,
     ChunkFetchFunction,
@@ -41,9 +42,10 @@ from rag.s06_verify import (
     DEFAULT_CONFIDENCE_THRESHOLD,
     MULTILINGUAL_NLI_MODEL_NAME,
     get_default_entailment,
+    load_approved_domains,
 )
 from rag.s06_verify import verify as _verify
-from rag.schemas import Chunk, Retrieved, Verdict
+from rag.schemas import BrowseCategory, Chunk, Resource, Retrieved, Verdict
 
 log = logging.getLogger("rag")
 
@@ -173,3 +175,35 @@ def verify(
         verdict.confidence, verdict.chunk_ids,
     )
     return verdict
+
+
+def browse_topics() -> list[BrowseCategory]:
+    """Screen 3a's first two levels: categories and their subcategories.
+    Static - no database, no model."""
+    return list(load_topics())
+
+
+def browse(category_id: str, subcategory_id: str, lang: str = "en") -> list[Resource]:
+    """Screen 3a's third level: up to seven approved source pages for one
+    subcategory, best first. An empty list is the designed empty state.
+
+    `lang` is logged, as in retrieve(); the subcategory's query is English
+    whatever language the senior reads, so one cached result serves all.
+    Raises KeyError for an unknown category or subcategory id.
+    """
+    resources = list(_browse(category_id, subcategory_id))
+    log.info(
+        "browse topic=%s/%s lang=%s doc_ids=%s",
+        category_id, subcategory_id, lang, [r.doc_id for r in resources],
+    )
+    return resources
+
+
+# ponytail: per-process cache, cleared only by a restart - the index only
+# changes when ingest re-runs. Precompute into a table at index time if the
+# first, reranked request per subcategory is too slow on CPU.
+@lru_cache(maxsize=128)
+def _browse(category_id: str, subcategory_id: str) -> tuple[Resource, ...]:
+    sub = find_subcategory(category_id, subcategory_id)
+    chunks, _ = retrieve(sub.query, "en", CHUNKS_PER_QUERY)
+    return tuple(resources_from_chunks(chunks, load_approved_domains(), REFUSAL_THRESHOLD))

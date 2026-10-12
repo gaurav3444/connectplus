@@ -1,0 +1,80 @@
+[
+  {
+    "id": "phone-tablet",
+    "title": "Phone & Tablet",
+    "subcategories": [
+      {"id": "calls", "title": "Calls", "query": "how to make and answer phone calls on a smartphone"},
+      {"id": "messages", "title": "Messages", "query": "how to send and read text messages on a phone"},
+      {"id": "camera-photos", "title": "Camera & photos", "query": "how to take photos with a phone camera and view them"},
+      {"id": "apps", "title": "Apps", "query": "how to download, install and use apps on a phone or tablet"},
+      {"id": "settings", "title": "Settings", "query": "how to change phone settings such as making the text bigger"},
+      {"id": "wifi", "title": "Wi-Fi", "query": "how to connect a phone or tablet to Wi-Fi"}
+    ]
+  },
+  {
+    "id": "computer",
+    "title": "Computer",
+    "subcategories": [
+      {"id": "getting-started", "title": "Getting started", "query": "getting started with a computer, mouse and keyboard basics"},
+      {"id": "email", "title": "Email", "query": "how to set up and use email on a computer"},
+      {"id": "internet", "title": "Using the internet", "query": "how to use a web browser and search the internet"},
+      {"id": "files", "title": "Files & folders", "query": "how to save, find and organise files and folders on a computer"},
+      {"id": "updates", "title": "Updates & security", "query": "how to keep your computer software updated and secure"}
+    ]
+  },
+  {
+    "id": "staying-safe",
+    "title": "Staying Safe Online",
+    "subcategories": [
+      {"id": "scam-texts-calls", "title": "Scam texts & calls", "query": "how to spot a scam text message or phone call"},
+      {"id": "email-scams", "title": "Email scams", "query": "how to recognise a phishing scam email with a suspicious link"},
+      {"id": "passwords", "title": "Passwords", "query": "how to create a strong password and keep it safe"},
+      {"id": "two-step", "title": "Two-step verification", "query": "two-factor authentication and verification codes to protect your accounts"},
+      {"id": "been-scammed", "title": "If you've been scammed", "query": "what to do if you have been scammed or lost money"},
+      {"id": "report-scam", "title": "Report a scam", "query": "how to report a scam"}
+    ]
+  },
+  {
+    "id": "government-health",
+    "title": "Government & Health",
+    "subcategories": [
+      {"id": "mygov", "title": "myGov", "query": "what is myGov and how to create and sign in to a myGov account"},
+      {"id": "linking-services", "title": "Linking services", "query": "how to link Medicare, Centrelink or the ATO to myGov"},
+      {"id": "health-online", "title": "Health online", "query": "telehealth, My Health Record and health services online"},
+      {"id": "ageing", "title": "Ageing & aged care", "query": "government help and services for older Australians and aged care"},
+      {"id": "your-language", "title": "Help in your language", "query": "government information and help in languages other than English"}
+    ]
+  },
+  {
+    "id": "talking-to-family",
+    "title": "Talking to Family",
+    "subcategories": [
+      {"id": "video-calls", "title": "Video calls", "query": "how to make a video call to family and friends"},
+      {"id": "messaging-apps", "title": "Messaging apps", "query": "how to use messaging apps like WhatsApp to chat with family"},
+      {"id": "social-media", "title": "Social media", "query": "how to use social media such as Facebook to stay in touch"},
+      {"id": "sharing-photos", "title": "Sharing photos", "query": "how to share photos with family online"},
+      {"id": "safe-social", "title": "Staying safe on social media", "query": "privacy settings and staying safe on social media"}
+    ]
+  },
+  {
+    "id": "money-shopping",
+    "title": "Money & Shopping",
+    "subcategories": [
+      {"id": "online-banking", "title": "Online banking", "query": "how to use online banking safely"},
+      {"id": "shopping-online", "title": "Shopping online", "query": "how to shop online safely"},
+      {"id": "paying-safely", "title": "Paying safely", "query": "safe ways to pay online and protect your card details"},
+      {"id": "investment-scams", "title": "Investment scams", "query": "how to spot investment and cryptocurrency scams"},
+      {"id": "buying-selling", "title": "Buying & selling", "query": "buying and selling online on marketplaces and avoiding fake sellers"}
+    ]
+  },
+  {
+    "id": "ai-new-tech",
+    "title": "AI & New Technology",
+    "subcategories": [
+      {"id": "what-is-ai", "title": "What is AI?", "query": "what is artificial intelligence and how is it used"},
+      {"id": "ai-chatbots", "title": "AI chatbots", "query": "how to use AI chatbots and assistants safely"},
+      {"id": "ai-scams", "title": "AI scams & deepfakes", "query": "how scammers use AI, deepfakes and voice cloning"},
+      {"id": "smart-devices", "title": "Smart home devices", "query": "how to set up and use smart home devices and voice assistants"}
+    ]
+  }
+]
