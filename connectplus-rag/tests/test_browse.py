@@ -251,3 +251,16 @@ def test_script_contents_do_not_count_as_the_page_order() -> None:
     assert [p["title"] for p in site_order(landing, pages)] == [
         "Service NSW", "Queensland government websites",
     ]
+
+
+def test_a_temp_placeholder_lesson_is_hidden() -> None:
+    course = "https://beconnected.esafety.gov.au/topic-library/wi-fi-and-mobile-networks/home-networks"
+    pages = [
+        _page(course, "Home networks"),
+        _page(f"{course}/what-is-the-nbn", "What is the nbn?"),
+        _page(f"{course}/temp-lesson-what-is-the-nbn", "TEMP lesson - What is the nbn?"),
+    ]
+
+    [resource] = resources_for(_sub(course[8:]), pages, APPROVED)
+
+    assert [p.title for p in resource.pages] == ["Home networks", "What is the nbn?"]

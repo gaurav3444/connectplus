@@ -156,6 +156,14 @@ def cached_page_html(cache_dir: Path, fetch_missing: bool = False) -> HtmlFuncti
     return read
 
 
+def _is_placeholder(doc: DocRow) -> bool:
+    """A page the site left published as a stand-in, not meant for visitors.
+    Real case, the only one in the index (2026-10-13): Be Connected's "TEMP
+    lesson - What is the nbn?", a copy of the real "What is the nbn?" that is
+    missing from its course's lesson list."""
+    return str(doc.get("title") or "").startswith("TEMP ")
+
+
 def _in_site_order(
     parent_key: str,
     parent: DocRow | None,
@@ -204,7 +212,8 @@ def resources_for(
     `page_html` supplies landing pages for site_order(); without it, or when
     a landing page is unavailable, steps stay in URL order."""
     keyed = sorted(
-        ((page_key(d), d) for d in docs if d["domain"] in approved_domains), key=lambda pair: pair[0]
+        ((page_key(d), d) for d in docs if d["domain"] in approved_domains and not _is_placeholder(d)),
+        key=lambda pair: pair[0],
     )
     groups: dict[str, list[tuple[str, DocRow]]] = {}
     for source in sub.sources:
