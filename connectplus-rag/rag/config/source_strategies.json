@@ -70,8 +70,9 @@
     "domain": "beconnected.esafety.gov.au",
     "strategy": "live",
     "exclude_url_patterns": [
-      "/mod/scorm/view\\.php"
+      "/mod/scorm/view\\.php",
+      "/temp-lesson-"
     ],
-    "notes": "Crawled by the original s01_ingest crawler (strategy live). SCORM pages are interactive practice games ('Tap and hold your finger on the green circle'), 6 docs / 65 chunks of game instructions; remove this pattern if the client wants them kept."
+    "notes": "Crawled by the original s01_ingest crawler (strategy live). SCORM pages are interactive practice games ('Tap and hold your finger on the green circle'), 6 docs / 65 chunks of game instructions; remove this pattern if the client wants them kept. /temp-lesson- drops 'TEMP lesson - What is the nbn?' (1 doc / 5 chunks), a placeholder copy of the real 'What is the nbn?' lesson that its course does not list."
   }
 ]

@@ -380,3 +380,17 @@ def test_live_strategy_domains_keep_the_cli_max_pages(tmp_path: Path, monkeypatc
     ingest(["scamwatch.gov.au"], approved, tmp_path / "c", **run)
     ingest(["scamwatch.gov.au"], approved, tmp_path / "c", max_pages=1500, **run)
     assert seen == [500, 1500]
+
+
+def test_be_connected_temp_placeholder_lesson_is_excluded_at_extract_time() -> None:
+    from rag.s01_sources import filter_pages_for_extraction
+    from rag.schemas import PageRecord
+
+    course = "https://beconnected.esafety.gov.au/topic-library/wi-fi-and-mobile-networks/home-networks"
+    pages = [
+        PageRecord(url=f"{course}/{slug}", domain="beconnected.esafety.gov.au", html="<p>x</p>", status=200,
+                   content_type="text/html")
+        for slug in ("temp-lesson-what-is-the-nbn", "what-is-the-nbn")
+    ]
+    kept, excluded = filter_pages_for_extraction("beconnected.esafety.gov.au", pages)
+    assert excluded == 1 and [str(p.url) for p in kept] == [f"{course}/what-is-the-nbn"]

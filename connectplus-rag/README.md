@@ -45,15 +45,15 @@ Online order per question: 07 query, 05 retrieve, 08 prompt, 09 generate, 06 ver
 | `my.gov.au` | scoped live crawl | Help/about, Ageing and Languages sections only; URL variants merged |
 | `esafety.gov.au` | Internet Archive copies | The live site blocks automated clients; we don't evade that. Scoped to sections for seniors and carers |
 
-**Current real numbers** (last full run, 2026-10-04):
+**Current real numbers** (last full run, 2026-10-04; on 2026-10-13 one placeholder page, Be Connected's "TEMP lesson - What is the nbn?", was deleted from the index and is now excluded at extract time):
 
 | Domain | Pages crawled | Docs extracted | Chunks |
 |---|---:|---:|---:|
-| Be Connected | 1,094 | 923 | 3,901 |
+| Be Connected | 1,094 | 922 | 3,896 |
 | Scamwatch | 500 | 140 | 1,010 |
 | eSafety | 466 | 437 | 2,080 |
 | myGov | 117 | 101 | 243 |
-| **Total** | | **1,601** | **7,234** |
+| **Total** | | **1,600** | **7,229** |
 
 Chunk quality, first four-domain run → now: chunks over the 500-token budget 135 → 12 (the 12 are long checklists and PDFs kept whole on purpose); chunks with no heading 1,119 → 0; chunks containing site UI text 294 → 0; chunks from junk listing/game pages 244 → 0; chunks repeating other content from the same page 942 → 73.
 
@@ -359,7 +359,7 @@ The question set is `rag/fixtures/eval_queries.json` - ten questions phrased the
 
 **All 10 expected pages are set.** 4 were confirmed against `f01_pages.json` up front; the other 6 were filled after the first live run by checking which pages exist in the index, never by copying what retrieval happened to return. A bare hostname (`scamwatch.gov.au`) is never a valid expectation: it scores *any* page on that domain as a hit. q03 (two-factor) is a weak target - no page in the corpus is about two-factor authentication itself, so it points at the page with the most chunks mentioning it. That is a corpus gap, not a retrieval one.
 
-> **These results predate the four-domain index.** They were measured on the 5,332-chunk index (Be Connected + Scamwatch only, before the stage 02/03 quality fixes). The index is now 7,234 chunks across four domains; the baseline needs re-running. Two expectations are also now too narrow: q03 (two-factor) - eSafety now has pages about two-factor authentication itself - and q02 (myGov) - myGov's own pages are now indexed. Consider letting a query accept more than one correct page.
+> **These results predate the four-domain index.** They were measured on the 5,332-chunk index (Be Connected + Scamwatch only, before the stage 02/03 quality fixes). The index is now 7,229 chunks across four domains; the baseline needs re-running. Two expectations are also now too narrow: q03 (two-factor) - eSafety now has pages about two-factor authentication itself - and q02 (myGov) - myGov's own pages are now indexed. Consider letting a query accept more than one correct page.
 
 ### Results (2026-09-28, full index: 5,332 chunks)
 
@@ -397,7 +397,7 @@ The output includes a `kw` column showing whether the keyword half contributed a
 
 This repo's own stages are complete. What remains is `connectplus-llm`'s half - stages **07-10** (query understanding, prompt, generation, answer API) - plus:
 
-- **Re-run the eval on the four-domain index** (7,234 chunks), reranker off and on.
+- **Re-run the eval on the four-domain index** (7,229 chunks), reranker off and on.
 - **The reranked eval run.** The no-rerank baseline is recorded above (EN 5/10, ZH 4/10); the reranked half of stage 05's before/after is not. Until it is, keep-or-drop for the reranker is undecided.
 - **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 06 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated - the no-rerank run already shows an out-of-scope question at 0.495. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
 
