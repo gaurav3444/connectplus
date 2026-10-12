@@ -1,0 +1,120 @@
+[
+  {
+    "id": "en_01",
+    "raw_query": "my phone keeps asking for a code",
+    "expect_concepts": [
+      "two-factor authentication",
+      "verification code"
+    ],
+    "lang": "other",
+    "query_rewritten": "two-factor authentication verification code mobile phone",
+    "degraded": false
+  },
+  {
+    "id": "en_02",
+    "raw_query": "the writing is too small on my screen",
+    "expect_concepts": [
+      "text size",
+      "accessibility",
+      "display settings"
+    ],
+    "lang": "other",
+    "query_rewritten": "increase text size accessibility display settings",
+    "degraded": false
+  },
+  {
+    "id": "en_03",
+    "raw_query": "someone rang me about my tax",
+    "expect_concepts": [
+      "tax scam",
+      "phone call",
+      "impersonation",
+      "ATO"
+    ],
+    "lang": "other",
+    "query_rewritten": "tax scam phone call impersonation ATO",
+    "degraded": false
+  },
+  {
+    "id": "en_04",
+    "raw_query": "is this text message a scam",
+    "expect_concepts": [
+      "scam text",
+      "smishing",
+      "phishing"
+    ],
+    "lang": "other",
+    "query_rewritten": "how to identify text message scam smishing Scamwatch",
+    "degraded": false
+  },
+  {
+    "id": "en_05",
+    "raw_query": "I want to video call my grandson",
+    "expect_concepts": [
+      "video call",
+      "app"
+    ],
+    "lang": "other",
+    "query_rewritten": "how to make a video call",
+    "degraded": false
+  },
+  {
+    "id": "zh_01",
+    "raw_query": "我的手机一直要我输入验证码",
+    "expect_concepts": [
+      "two-factor authentication",
+      "verification code"
+    ],
+    "lang": "zh",
+    "query_rewritten": "two-factor authentication verification code keeps asking phone",
+    "degraded": false
+  },
+  {
+    "id": "zh_02",
+    "raw_query": "银行发短信说我账户有问题叫我点链接是真的吗",
+    "expect_concepts": [
+      "bank scam",
+      "phishing link",
+      "text message"
+    ],
+    "lang": "zh",
+    "query_rewritten": "bank text message scam link phishing fake alert",
+    "degraded": false
+  },
+  {
+    "id": "zh_03",
+    "raw_query": "myGov账户密码忘记了怎么办",
+    "expect_concepts": [
+      "myGov",
+      "forgot password",
+      "reset"
+    ],
+    "lang": "zh",
+    "query_rewritten": "forgot myGov account password reset help",
+    "degraded": false
+  },
+  {
+    "id": "zh_04",
+    "raw_query": "我孙女教我用微信视频通话但是我忘了怎么打开摄像头",
+    "expect_concepts": [
+      "video call",
+      "camera",
+      "app settings"
+    ],
+    "lang": "zh",
+    "query_rewritten": "WeChat video call enable camera settings",
+    "degraded": false
+  },
+  {
+    "id": "zh_05",
+    "raw_query": "有人打电话说我中奖了要我先付钱这个可信吗",
+    "expect_concepts": [
+      "prize scam",
+      "phone call",
+      "advance fee"
+    ],
+    "lang": "zh",
+    "query_rewritten": "lottery prize scam fake win send money advance fee fraud",
+    "degraded": false
+  }
+]
