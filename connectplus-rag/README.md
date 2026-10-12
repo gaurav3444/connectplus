@@ -10,10 +10,10 @@ This is a class project (CW2, Monash TAP) built stage by stage, testing each sta
 
 | Stage | What it does | Status |
 |---|---|---|
-| 01 - Ingest | Allowlisted crawl, robots.txt/sitemap-aware, cached to disk | ✅ Done - both domains fully crawled |
-| 02 - Extract | HTML/PDF → clean text + structure, via trafilatura + pypdf | ✅ Done - real content-loss bugs found and fixed |
+| 01 - Ingest | Allowlisted crawl, robots.txt/sitemap-aware, cached to disk; per-domain fetch strategies | ✅ Done - all four domains crawled |
+| 02 - Extract | HTML/PDF → clean text + structure, via trafilatura + pypdf | ✅ Done - content-loss and content-quality bugs found and fixed |
 | 03 - Chunk | Heading-aware, list-safe, token-budgeted chunking | ✅ Done - 3 real bugs found and fixed against real data |
-| 04 - Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done - both domains fully embedded and indexed |
+| 04 - Embed + Index | BGE-m3 embeddings → Supabase Postgres (pgvector + tsvector) | ✅ Done - all four domains embedded and indexed |
 | 05 - Retrieve | Hybrid vector + keyword search, RRF fusion, optional reranking, confidence score | ✅ Built and tested - real-query verification pending |
 | 06 - Verify / Guardrails | Citation resolution, approved-domain enforcement, confidence threshold, safety deny-list, NLI grounding | ✅ Built and tested - adversarial fixture green |
 
@@ -36,14 +36,26 @@ RAG owns stages **01-06**; `connectplus-llm` owns **07-10**. File numbers match 
 
 Online order per question: 07 query, 05 retrieve, 08 prompt, 09 generate, 06 verify, 10 respond.
 
-**Approved sources:** `beconnected.esafety.gov.au`, `scamwatch.gov.au`. A third domain, `esafety.gov.au`, was dropped after confirming it blocks automated crawlers - see `rag/config/domain_decisions.md`.
+**Approved sources** (how each is fetched is set in `rag/config/source_strategies.json`; why, in `rag/config/domain_decisions.md`):
 
-**Current real numbers** (last full run):
+| Domain | Fetched by | Notes |
+|---|---|---|
+| `beconnected.esafety.gov.au` | live crawl (original crawler) | Practice-game SCORM pages skipped at extract time |
+| `scamwatch.gov.au` | live crawl (original crawler) | Faceted "browse news and alerts" listing pages skipped at extract time |
+| `my.gov.au` | scoped live crawl | Help/about, Ageing and Languages sections only; URL variants merged |
+| `esafety.gov.au` | Internet Archive copies | The live site blocks automated clients; we don't evade that. Scoped to sections for seniors and carers |
+
+**Current real numbers** (last full run, 2026-10-04):
 
 | Domain | Pages crawled | Docs extracted | Chunks |
 |---|---:|---:|---:|
-| Be Connected | 1,094 | 929 | 4,148 |
-| Scamwatch | 500 | 314 | 1,184 |
+| Be Connected | 1,094 | 923 | 3,901 |
+| Scamwatch | 500 | 140 | 1,010 |
+| eSafety | 466 | 437 | 2,080 |
+| myGov | 117 | 101 | 243 |
+| **Total** | | **1,601** | **7,234** |
+
+Chunk quality, first four-domain run → now: chunks over the 500-token budget 135 → 12 (the 12 are long checklists and PDFs kept whole on purpose); chunks with no heading 1,119 → 0; chunks containing site UI text 294 → 0; chunks from junk listing/game pages 244 → 0; chunks repeating other content from the same page 942 → 73.
 
 ## Pipeline
 
@@ -70,11 +82,25 @@ Stages 01-04 are the offline ingest job; each reads the previous stage's the pre
 ### Stage 01 - Ingest
 Domain-level allowlist enforced in code before any network call. Discovers pages via `sitemap.xml` (falling back to same-domain link-following if a sitemap is empty or missing). Caches raw responses to disk, keyed by a hash of the URL, so re-running a domain that's already been crawled makes zero network calls. A circuit breaker aborts a domain after 5 consecutive fetch failures rather than grinding through hundreds of guaranteed timeouts - this is exactly how `esafety.gov.au` was confirmed to be blocking the crawler. Binary content (PDFs) is cached as raw bytes separately from text, after discovering that decoding a PDF's bytes as text silently corrupts it.
 
+**Per-domain fetch strategies** (`rag/s01_sources.py`, configured in `rag/config/source_strategies.json`). A domain with no entry uses the original crawler unchanged. Two new strategies:
+
+- **`live_scoped`** (myGov): an honest live crawl with the same User-Agent, robots.txt and cache rules, plus URL normalisation (the same page appears as `/en/x`, `/content/mygov/en/x.html` and with `:443`) and `include_paths`/`exclude_paths` scoping, so the sign-in app and off-topic sections are never fetched. A page that redirects out of scope is dropped.
+- **`wayback`** (eSafety): the live site blocks automated clients, so pages come from the Internet Archive's public copies (CDX listing + raw `id_` snapshots) instead. Stored URLs stay the original esafety.gov.au URLs; `fetched_at` is the snapshot date. eSafety's robots.txt is still honoured, and The eSafety Guide is excluded because it is outside eSafety's CC BY 4.0 licence. The first run spent 176 of its 500 page slots on Akamai tracking-pixel URLs (`/akam/...`) and most of the rest on research and teen-audience pages; scoping fixed both (13,074 archived URLs → 466 in scope, not truncated).
+
+`python -m rag.main ingest --plan --domain <domain>` reports how many pages a strategy domain would fetch, by section, without downloading anything - use it to set `max_pages` from evidence. `exclude_url_patterns` drops matching cached pages at extract time, for any domain, with no re-crawl.
+
 ### Stage 02 - Extract
 `trafilatura` for HTML, `pypdf` for PDFs. Two real content-loss bugs were found and fixed here, both confirmed against actual crawled pages before being treated as real:
 
 - **Recovered content.** `trafilatura`'s boilerplate-detection sometimes drops entire content blocks that are structurally marked as "callout" components - a real Scamwatch page had its entire "what to do if you've been scammed" procedure silently excluded this way. A recovery pass detects `<ol>`/`<ul>` content trafilatura excluded but that looks like real content (long-ish text per item, not a nav menu), and adds it back. Confirmed at scale: 315 of 929 Be Connected docs and 34 of 314 Scamwatch docs gained recovered content this way - over 1,000,000 characters total, mostly full video transcripts hidden behind toggle/expand widgets.
 - **Deduplication.** Scamwatch's sitemap lists both `http://` and `https://` versions of many pages. 162 of 477 raw Scamwatch docs were exact-duplicate content; deduplication keeps one canonical copy per unique text, preferring the `https://` version.
+
+- **Post-extraction clean-up**, each rule measured on the real corpus before it was written:
+  - *Blank titles*: 56 eSafety video pages had the title "| eSafety Commissioner"; a missing title now falls back to the page's first heading.
+  - *One-column tables*: eSafety wraps video transcripts in a one-column "Audio" table (84 docs); those become plain paragraphs. Real multi-column tables are untouched.
+  - *Repeated passages*: on about 210 Be Connected course pages the transcript appeared twice, so ~20% of its chunks were copies. A block whose text already appeared earlier on the same page is dropped. Repeated procedure steps are protected (myGov repeats steps across procedures on one page), so only long copied passages are removed.
+  - *Site UI text*: "Join or sign in…" and course-menu lines ("3 Signing in to myGov 6 min Start now") are removed.
+  - *Oversized blocks*: whole transcripts held in one block (a long `<p>`, a long `<p>` inside a list item, or one list item holding many paragraphs) are split or flattened, so stage 03 can size them. Lists that contain headings are left for stage 03, and one-line-per-item bullet lists are never flattened.
 
 Known, deliberately deferred: two Chinese-language pages that `trafilatura` can't extract at all (a documented limitation of readability-style extractors on CJK text), and lower text-extraction quality on some non-English PDFs (Hindi, Greek), likely a `pypdf` limitation with complex scripts.
 
@@ -90,8 +116,12 @@ Chunks target 300–500 tokens, measured with **BGE-m3's own tokenizer** - not a
 
 The worst chunk in the real test data went from 8,968 tokens (before these fixes) to 479 tokens (after).
 
+**Page-title fallback for headings.** Content before a page's first heading, pages with no recoverable headings, and PDFs used to get `heading_path == []` (1,119 chunks, mostly Be Connected transcripts and Scamwatch intros), so citations said nothing about where the text came from. Those chunks now get `[page title]`, with a trailing " | Site name" removed. Applied only when a chunk is created, so chunk boundaries, ids and token counts are unchanged.
+
 ### Stage 04 - Embed + Index
 `BAAI/bge-m3` (1024-dim, multilingual) via `sentence-transformers`, batched, upserted into Supabase Postgres. The table (`rag/config/schema.sql`) carries a `vector(1024)` column with an HNSW index for similarity search, and a generated `tsvector` column with a GIN index for keyword search - both from the same table, since stage 05 needs to fuse both. Re-running `index` on the same chunks is idempotent (`ON CONFLICT (id) DO UPDATE`), since chunk IDs are stable hashes from stage 03. Upserting happens after every batch, not once at the end - a real crash (PyTorch's Metal/MPS backend running out of GPU memory on Apple Silicon, mid-run) confirmed that collecting everything in memory before writing loses all progress on failure; embedding now defaults to CPU-only for the same reason.
+
+The upserter opens **one** database connection per run and reuses it for every batch, reconnecting and retrying a batch if the connection drops (waits of 2/5/10/20/30s, then a clear error saying earlier batches are saved). Confirmed real need: opening a new connection per batch meant 244 TLS handshakes through Supabase's session pooler for Be Connected alone, and a single failed handshake ("SSL SYSCALL error: EOF detected") killed the run three times. Retrying is safe because the upsert overwrites by id.
 
 ### Stage 05 - Retrieve
 Vector search (pgvector cosine similarity) and keyword search (Postgres full-text search over the `tsvector` column) run independently, then combine via Reciprocal Rank Fusion - a chunk both methods agree on outranks one only a single method found. Reranking with `BAAI/bge-reranker-v2-m3` (the standard cross-encoder pairing for BGE-m3) is optional, not hardwired, per this stage's own DONE criterion in `README_rag.md`: measure hit@3 before and after the reranker, and drop it if it doesn't move the number.
@@ -164,6 +194,7 @@ rag/
   api.py              # retrieve(query_en, lang, k) and verify(draft, chunks, lang) - the public surface
   main.py             # CLI: ingest / extract / chunk / index / retrieve / verify
   s01_ingest.py
+  s01_sources.py      # per-domain fetch strategies (live_scoped, wayback), --plan, extract-time URL exclusion
   s02_extract.py
   s03_chunk.py
   s04_embed.py
@@ -172,6 +203,7 @@ rag/
   lang.py             # langdetect, used by stage 02
   config/
     approved_domains.json
+    source_strategies.json  # how each domain is fetched, scoped and filtered
     domain_decisions.md
     schema.sql
   fixtures/
@@ -185,10 +217,13 @@ scripts/
   spot_check_index.py    # manual vector-search-only smoke test (superseded by `retrieve`, kept for reference)
   eval_queries.py        # hit@3 over the eval set, per language, reranker on/off
   make_f03_chunks.py     # regenerates f03_chunks.json with the real stage 02 + 03
+  compare_extracted.py   # before/after diff of one domain's stage 02 output (decides whether re-index is needed)
 tests/
   test_api.py
   test_s01_ingest.py
+  test_s01_sources.py
   test_s02_extract.py
+  test_s02_tables_titles.py
   test_s03_chunk.py
   test_s04_embed.py
   test_s05_retrieve.py
@@ -220,18 +255,25 @@ For stage 04, you also need a Supabase project:
 # Stage 01 - crawl (idempotent; re-running an already-crawled domain makes no network calls)
 python -m rag.main ingest --domain scamwatch.gov.au
 python -m rag.main ingest --domain beconnected.esafety.gov.au --max-pages 1200
+python -m rag.main ingest --domain my.gov.au                  # scoped live crawl
+python -m rag.main ingest --domain esafety.gov.au             # Internet Archive copies (slow: ~2s per page)
+python -m rag.main ingest --plan --domain esafety.gov.au      # count in-scope pages, fetch nothing
 
 # Stage 02 - extract
 python -m rag.main extract --domain scamwatch.gov.au
 python -m rag.main extract --domain beconnected.esafety.gov.au
+python -m rag.main extract --domain my.gov.au --domain esafety.gov.au
 
 # Stage 03 - chunk
 python -m rag.main chunk --domain scamwatch.gov.au
 python -m rag.main chunk --domain beconnected.esafety.gov.au
+python -m rag.main chunk --domain my.gov.au --domain esafety.gov.au
 
 # Stage 04 - embed + index (needs Supabase set up, see above)
 python -m rag.main index --domain scamwatch.gov.au
 python -m rag.main index --domain beconnected.esafety.gov.au
+python -m rag.main index --domain my.gov.au
+python -m rag.main index --domain esafety.gov.au
 
 # Stage 05 - retrieve (query against the real index)
 python -m rag.main retrieve "how do I know if a text message is a scam"
@@ -255,7 +297,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-168 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
+216 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 
@@ -271,6 +313,8 @@ python scripts/eval_queries.py --no-rerank      # the "before" half of before/af
 The question set is `rag/fixtures/eval_queries.json` - ten questions phrased the way a senior would actually ask (vague, wrong word, symptom described rather than named), each in English and Mandarin, plus two queries the knowledge base should *not* be able to answer. A query set written in the corpus's own vocabulary measures nothing: it would score well without query understanding existing at all.
 
 **All 10 expected pages are set.** 4 were confirmed against `f01_pages.json` up front; the other 6 were filled after the first live run by checking which pages exist in the index, never by copying what retrieval happened to return. A bare hostname (`scamwatch.gov.au`) is never a valid expectation: it scores *any* page on that domain as a hit. q03 (two-factor) is a weak target - no page in the corpus is about two-factor authentication itself, so it points at the page with the most chunks mentioning it. That is a corpus gap, not a retrieval one.
+
+> **These results predate the four-domain index.** They were measured on the 5,332-chunk index (Be Connected + Scamwatch only, before the stage 02/03 quality fixes). The index is now 7,234 chunks across four domains; the baseline needs re-running. Two expectations are also now too narrow: q03 (two-factor) - eSafety now has pages about two-factor authentication itself - and q02 (myGov) - myGov's own pages are now indexed. Consider letting a query accept more than one correct page.
 
 ### Results (2026-09-28, full index: 5,332 chunks)
 
@@ -308,6 +352,7 @@ The output includes a `kw` column showing whether the keyword half contributed a
 
 This repo's own stages are complete. What remains is `connectplus-llm`'s half - stages **07-10** (query understanding, prompt, generation, answer API) - plus:
 
+- **Re-run the eval on the four-domain index** (7,234 chunks), reranker off and on.
 - **The reranked eval run.** The no-rerank baseline is recorded above (EN 5/10, ZH 4/10); the reranked half of stage 05's before/after is not. Until it is, keep-or-drop for the reranker is undecided.
 - **`confidence` has two incompatible scales.** With reranking it is bge-reranker-v2-m3's calibrated `[0,1]` probability; without, it is the top result's raw cosine similarity, which on this project's real data landed in the 0.53–0.78 range for *confirmed relevant* results. Stage 06 refuses on a single threshold (`DEFAULT_CONFIDENCE_THRESHOLD = 0.45`) that cannot serve both. The public `retrieve` always reranks, so only the CLI's `--no-rerank` path hits this; the 0.45 itself is still uncalibrated - the no-rerank run already shows an out-of-scope question at 0.495. The eval harness prints the real distribution, including for queries that should be refused - calibrate against that, not against percentage-match intuition.
 

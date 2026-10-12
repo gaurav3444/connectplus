@@ -250,3 +250,127 @@ def test_real_fixture_chunks_embed_and_index_end_to_end() -> None:
     assert len(upserted_rows) == len(chunks)
     # Every real chunk's embedding must actually have landed at the right dimension.
     assert all(len(row["embedding"]) == DEFAULT_EMBEDDING_DIM for row in upserted_rows)
+
+
+# ---------------------------------------------------------------------------
+# make_postgres_upserter: one reused connection + reconnect/retry
+# (fake connection objects only; no real database)
+# ---------------------------------------------------------------------------
+
+class _FakeCursor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _FakeConn:
+    def __init__(self):
+        self.commits = 0
+        self.closed = False
+
+    def cursor(self):
+        return _FakeCursor()
+
+    def commit(self):
+        self.commits += 1
+
+    def close(self):
+        self.closed = True
+
+
+def _fake_db(connect_failures: int = 0, execute_failures: int = 0):
+    """connect() raises OperationalError for the first `connect_failures`
+    calls; execute_values raises for the first `execute_failures` calls —
+    the same error class as the real 'SSL SYSCALL error: EOF detected'."""
+    import psycopg2
+
+    log = {"connects": 0, "execute_calls": 0, "connections": [], "executed": [], "sleeps": []}
+
+    def connect(dsn, **kwargs):
+        log["connects"] += 1
+        if log["connects"] <= connect_failures:
+            raise psycopg2.OperationalError("SSL SYSCALL error: EOF detected")
+        conn = _FakeConn()
+        log["connections"].append(conn)
+        return conn
+
+    def execute(cur, query, values):
+        log["execute_calls"] += 1
+        if log["execute_calls"] <= execute_failures:
+            raise psycopg2.OperationalError("server closed the connection unexpectedly")
+        log["executed"].append(values)
+
+    return log, connect, execute
+
+
+def _rows(n: int, start: int = 0) -> list[dict]:
+    embedded, _ = embed_chunks([_chunk(f"c{i}") for i in range(start, start + n)], embed_fn=fake_embedder())
+    return [_to_row(c) for c in embedded]
+
+
+def test_upserter_reuses_one_connection_across_batches() -> None:
+    """Real failure: a new connection per batch meant 244 TLS handshakes
+    for Be Connected, and one failed handshake killed the run."""
+    from rag.s04_embed import make_postgres_upserter
+
+    log, connect, execute = _fake_db()
+    upsert = make_postgres_upserter("postgresql://fake", _connect=connect, _execute_values=execute,
+                                    _sleep=lambda s: log["sleeps"].append(s))
+    for b in range(5):
+        upsert(_rows(3, start=b * 3))
+    assert log["connects"] == 1
+    assert len(log["executed"]) == 5
+    assert log["connections"][0].commits == 5
+
+
+def test_upserter_retries_a_failed_connect_then_succeeds() -> None:
+    from rag.s04_embed import DB_RETRY_DELAYS, make_postgres_upserter
+
+    log, connect, execute = _fake_db(connect_failures=2)
+    upsert = make_postgres_upserter("postgresql://fake", _connect=connect, _execute_values=execute,
+                                    _sleep=lambda s: log["sleeps"].append(s))
+    upsert(_rows(3))
+    assert log["connects"] == 3
+    assert log["sleeps"] == list(DB_RETRY_DELAYS[:2])
+    assert len(log["executed"]) == 1                                # the batch landed exactly once
+
+
+def test_upserter_reconnects_when_an_open_connection_drops_mid_run() -> None:
+    from rag.s04_embed import make_postgres_upserter
+
+    log, connect, execute = _fake_db(execute_failures=1)
+    upsert = make_postgres_upserter("postgresql://fake", _connect=connect, _execute_values=execute,
+                                    _sleep=lambda s: log["sleeps"].append(s))
+    upsert(_rows(3))
+    assert log["connects"] == 2                                     # dropped one closed, fresh one opened
+    assert log["connections"][0].closed is True
+    assert len(log["executed"]) == 1
+
+
+def test_upserter_gives_up_with_a_clear_error_after_all_retries() -> None:
+    from rag.s04_embed import DB_RETRY_DELAYS, make_postgres_upserter
+
+    log, connect, execute = _fake_db(connect_failures=99)
+    upsert = make_postgres_upserter("postgresql://fake", _connect=connect, _execute_values=execute,
+                                    _sleep=lambda s: log["sleeps"].append(s))
+    with pytest.raises(RuntimeError, match="re-running the same command is safe"):
+        upsert(_rows(3))
+    assert log["connects"] == len(DB_RETRY_DELAYS) + 1
+
+
+def test_upserter_does_not_retry_non_connection_errors() -> None:
+    """A bad row or schema mismatch can't be fixed by retrying — raise at once."""
+    from rag.s04_embed import make_postgres_upserter
+
+    log, connect, _ = _fake_db()
+
+    def bad_execute(cur, query, values):
+        raise ValueError("column mismatch")
+
+    upsert = make_postgres_upserter("postgresql://fake", _connect=connect, _execute_values=bad_execute,
+                                    _sleep=lambda s: log["sleeps"].append(s))
+    with pytest.raises(ValueError, match="column mismatch"):
+        upsert(_rows(1))
+    assert log["sleeps"] == []

@@ -1,4 +1,4 @@
-"""Stage 03 - Chunking.
+"""Stage 03 — Chunking.
 
 Heading-aware splitting with overlap. A numbered procedure never gets split
 mid-sequence.
@@ -7,7 +7,7 @@ Design decisions made explicit here (on top of README_rag.md's brief
 description):
 
 - Structure comes from ExtractedDoc.content_xml (stage 02's trafilatura XML
-  output - <head rend="h1"/"h2"/etc.>, <p>, <list><item>), not from raw
+  output — <head rend="h1"/"h2"/etc.>, <p>, <list><item>), not from raw
   HTML and not from plain `text`. Plain text has no way to distinguish a
   heading from a body line at all. An earlier version of this parsed
   markdown text instead; that was abandoned after finding two real,
@@ -16,13 +16,21 @@ description):
   separating newline, and a heading nested inside a list item rendered
   with no separator) that don't exist in its XML output for the same
   content, where headings and paragraphs are distinct, unambiguous
-  elements. XML in, real elements out - no string-parsing heuristics
+  elements. XML in, real elements out — no string-parsing heuristics
   guessing where a heading ends and a paragraph begins.
-- heading_path is best-effort, not guaranteed: one real Scamwatch page has
-  its headings entirely excluded by trafilatura (a different symptom of
-  the same root cause as the list-recovery fix in stage 02). A doc with no
-  usable content_xml still chunks correctly - just with an empty
-  heading_path - rather than being treated as an error case.
+- heading_path falls back to the page title. Structure-derived headings
+  are best-effort: one real Scamwatch page has its headings entirely
+  excluded by trafilatura, a doc with no usable content_xml (a PDF) has
+  none at all, and content before a page's first heading has none either.
+  Measured on the real corpus: 670 of 3,901 Be Connected chunks (mostly
+  video transcripts at the top of course pages) and 591 of 1,010 Scamwatch
+  chunks (intro text and PDFs) had heading_path == [], so their citations
+  and retrieval results said nothing about where the text came from. Those
+  chunks now get [page title] instead, with a trailing " | Site name"
+  removed ("Seniors | eSafety Commissioner" -> "Seniors"). Applied only
+  when a chunk is created, so chunk boundaries, ids and token counts are
+  exactly what they'd be without it, and chunks that do have real headings
+  are untouched.
 - "Never split a numbered procedure" is implemented as "never split any
   <list> element", not just numbered ones. trafilatura's XML uses the same
   <list rend="ul"|"ol"> element shape for both; there's no reliable signal
@@ -64,7 +72,7 @@ MAX_CHUNK_TOKENS = 500
 # standing alone as their own under-sized chunk.
 MERGE_BELOW_TOKENS = 150
 # When a section must be split across multiple chunks, this many tokens of
-# the previous piece's tail are repeated at the start of the next piece -
+# the previous piece's tail are repeated at the start of the next piece —
 # the "with overlap" part of the README's stage 03 description. Only
 # applies to within-section splits (see design note above on why overlap
 # never crosses a heading boundary).
@@ -75,19 +83,19 @@ HEADING_LEVELS = {f"h{i}": i for i in range(1, 7)}
 
 @lru_cache(maxsize=1)
 def get_default_token_counter() -> TokenCounter:
-    """BGE-m3's own tokenizer (via transformers), loaded once per process -
+    """BGE-m3's own tokenizer (via transformers), loaded once per process —
     deliberately not tiktoken, an earlier choice since revised: tiktoken
     (OpenAI's tokenizer) handles non-Latin scripts inefficiently, and this
     corpus has confirmed real content in Vietnamese, Chinese, Hindi, and
-    Greek - Scamwatch's in-your-language section and several translated
+    Greek — Scamwatch's in-your-language section and several translated
     PDFs. Measuring chunk size with the tokenizer belonging to the model
     these chunks actually get embedded with (stage 04's BGE-m3) is more
     correct than an approximation borrowed from an unrelated model's
-    vocabulary. Loads only the tokenizer, not the full ~2GB model - a
+    vocabulary. Loads only the tokenizer, not the full ~2GB model — a
     much smaller download, and keeps stage 03 independently runnable
     without stage 04's model in memory.
 
-    Not used by any test in this repo - this sandbox can't reach
+    Not used by any test in this repo — this sandbox can't reach
     huggingface.co to download it and verify it actually works (the same
     restriction that blocked testing BGE-m3's encoder in stage 04), so
     tests inject a stand-in counter instead (see tests/test_s03_chunk.py).
@@ -120,7 +128,7 @@ class _Section:
 
 def _element_text(el: ElementTree.Element) -> str:
     """All text within an element, including nested tags (e.g. a <p>
-    containing an inline <ref> link) - .itertext() walks the whole subtree,
+    containing an inline <ref> link) — .itertext() walks the whole subtree,
     not just el.text (which would miss anything after a child element)."""
     return " ".join(t.strip() for t in el.itertext() if t.strip())
 
@@ -129,13 +137,13 @@ def _parse_blocks(content_xml: str) -> list[_Block]:
     """Walks trafilatura's XML output in document order, tracking the
     active heading stack via each <head rend="hN"> element's level, and
     emits one _Block per <p> and one atomic _Block per genuine list (all
-    its <item>s joined - this is the mechanism that makes "never split a
+    its <item>s joined — this is the mechanism that makes "never split a
     list" possible downstream: a real list simply never exists as more
     than one indivisible unit in the first place).
 
     A <list> is only treated as atomic if its items are flat text. Confirmed
     real counter-case: trafilatura natively captured an entire podcast
-    transcript - headings and all - inside a single <ul><li>, because the
+    transcript — headings and all — inside a single <ul><li>, because the
     source HTML used an accordion/"read transcript" toggle widget built
     with <ul><li>, not because it's a numbered procedure. Protecting that
     as atomic produced a single 2,630-token chunk with no way to split it.
@@ -144,8 +152,8 @@ def _parse_blocks(content_xml: str) -> list[_Block]:
     structure, exactly as if the <list> wrapper weren't there.
 
     Walks every element in the tree (.iter(), not just <main>'s direct
-    children) since real content nests - e.g. a <list><item> containing a
-    stray <head>, a real quirk found in real data - but only <head>/<p>/
+    children) since real content nests — e.g. a <list><item> containing a
+    stray <head>, a real quirk found in real data — but only <head>/<p>/
     <list> elements at any depth are treated as content; anything else
     (the <doc> wrapper, <comments>) is ignored.
     """
@@ -160,7 +168,7 @@ def _parse_blocks(content_xml: str) -> list[_Block]:
     def current_path() -> tuple[str, ...]:
         return tuple(text for _level, text in heading_stack)
 
-    # A list is genuinely atomic only if it has no nested headings - see
+    # A list is genuinely atomic only if it has no nested headings — see
     # the docstring above for the real case that makes this necessary.
     atomic_lists: set[int] = {
         id(lst) for lst in root.iter("list") if lst.find(".//head") is None
@@ -168,7 +176,7 @@ def _parse_blocks(content_xml: str) -> list[_Block]:
 
     # Elements nested inside a GENUINELY ATOMIC list (confirmed real: one
     # real page has a list containing 32 nested <p> and 3 nested <head>
-    # elements) must be skipped during the flat walk below - their text is
+    # elements) must be skipped during the flat walk below — their text is
     # already captured once via the list's own _element_text() aggregation.
     # Non-atomic ("unwrapped") lists are deliberately excluded from this set:
     # their children need to be walked individually, not skipped.
@@ -181,7 +189,7 @@ def _parse_blocks(content_xml: str) -> list[_Block]:
                 inside_a_list.add(id(descendant))
 
     # iter() is document order (depth-first), which is exactly reading
-    # order for this tree shape - headings and paragraphs are siblings
+    # order for this tree shape — headings and paragraphs are siblings
     # under <main>, so walking every element and filtering by tag name
     # reconstructs the right sequence without needing to special-case
     # <main>'s structure.
@@ -203,7 +211,7 @@ def _parse_blocks(content_xml: str) -> list[_Block]:
                 blocks.append(_Block(heading_path=current_path(), text=text, is_list=False))
         elif tag == "list":
             if id(el) not in atomic_lists:
-                continue  # unwrapped - its <head>/<p> children are walked individually instead
+                continue  # unwrapped — its <head>/<p> children are walked individually instead
             items = [
                 _element_text(item) for item in el.findall("item") if _element_text(item)
             ]
@@ -219,7 +227,7 @@ def _group_into_sections(blocks: list[_Block]) -> list[_Section]:
     """Groups consecutive blocks sharing the same heading_path into one
     section. Trafilatura's output commonly repeats the page title as both
     an "h2" and an "h1" heading at the very top with nothing in between
-    (confirmed on real data) - that produces a heading_path change with
+    (confirmed on real data) — that produces a heading_path change with
     zero blocks attached, which simply never becomes a section (sections
     need at least one block), so no empty chunk results from it.
     """
@@ -243,7 +251,7 @@ def _common_prefix(a: tuple[str, ...], b: tuple[str, ...]) -> tuple[str, ...]:
 
 def _merge_small_sections(sections: list[_Section], count_tokens: TokenCounter) -> list[_Section]:
     """Merges a section below MERGE_BELOW_TOKENS forward into the next one,
-    using their common heading ancestor as the merged path - deliberately
+    using their common heading ancestor as the merged path — deliberately
     conservative: only merges with the *next* section (document order),
     never reorders content, and never merges across a top-level heading
     change (a merged path shorter than 1 element means "no shared heading
@@ -279,8 +287,8 @@ def _split_by_token_boundary(text: str, count_tokens: TokenCounter) -> list[str]
     Exists for the case even sentence-splitting can't handle: a run of
     text with no sentence-ending punctuation to split on at all (real
     transcript and PDF text can do this). This is not a real
-    tokenizer-aware split - that would need the tokenizer's actual
-    encode/decode, not just a token-count callable - but a bounded
+    tokenizer-aware split — that would need the tokenizer's actual
+    encode/decode, not just a token-count callable — but a bounded
     guarantee that no piece leaves this function over budget, which is
     the correctness property that actually matters here.
     """
@@ -307,7 +315,7 @@ def _split_by_token_boundary(text: str, count_tokens: TokenCounter) -> list[str]
             piece = piece[:shrink].rstrip()
 
         if not piece:
-            # No safe cut point found at all (one giant unbroken "word") -
+            # No safe cut point found at all (one giant unbroken "word") —
             # accept the whole remainder rather than loop forever.
             pieces.append(remaining)
             break
@@ -329,12 +337,12 @@ def _split_long_paragraph(text: str, count_tokens: TokenCounter) -> list[str]:
     one block over 2,000 tokens that the block-level packing in
     _split_oversized_section has no opportunity to split, since it only
     ever splits *between* blocks. Unlike a list, a paragraph has no
-    correctness reason to stay whole - splitting it at a sentence boundary
+    correctness reason to stay whole — splitting it at a sentence boundary
     doesn't corrupt a procedure the way splitting a list would.
 
     Falls through to _split_by_token_boundary for text with no sentence
     punctuation at all, or for any single sentence that's itself still
-    oversized - this used to just be accepted as an oversized exception;
+    oversized — this used to just be accepted as an oversized exception;
     now it's a real, bounded fallback instead.
     """
     sentences = [s for s in SENTENCE_BOUNDARY_RE.split(text) if s.strip()]
@@ -348,7 +356,7 @@ def _split_long_paragraph(text: str, count_tokens: TokenCounter) -> list[str]:
         sentence_tokens = count_tokens(sentence)
 
         if sentence_tokens > MAX_CHUNK_TOKENS:
-            # A single sentence alone is oversized - flush what's pending,
+            # A single sentence alone is oversized — flush what's pending,
             # token-boundary-split just this sentence, and move on.
             if current:
                 pieces.append(" ".join(current))
@@ -382,10 +390,10 @@ def _split_oversized_section(
     into the next piece.
 
     An atomic list block that alone exceeds MAX_CHUNK_TOKENS is kept whole
-    anyway and allowed to exceed the budget - the numbered-list-safety
+    anyway and allowed to exceed the budget — the numbered-list-safety
     guarantee is a hard correctness property (README's stage 03 DONE
     criterion), token budget is a soft target. A non-list block that alone
-    exceeds the budget is NOT given the same pass - it goes through
+    exceeds the budget is NOT given the same pass — it goes through
     _split_long_paragraph instead. Confirmed real and necessary: 160 real
     Be Connected chunks (across 149 distinct pages) were stuck at
     500-2,446 tokens because a single oversized <p> (a whole transcript
@@ -412,7 +420,7 @@ def _split_oversized_section(
         if current and current_tokens + block_tokens > MAX_CHUNK_TOKENS:
             flush()
             # Carry trailing context forward for continuity across the
-            # split - only for non-list content, so overlap can't
+            # split — only for non-list content, so overlap can't
             # duplicate part of a list into the next chunk.
             tail = current[-1]
             if not block.is_list and count_tokens(tail) <= OVERLAP_TOKENS * 2:
@@ -429,6 +437,16 @@ def _split_oversized_section(
     return pieces if pieces else [(section.heading_path, section.text())]
 
 
+def _page_heading(title: str) -> list[str]:
+    """Fallback heading_path for a chunk with no structural headings: the
+    page title, minus a trailing " | Site name" segment (eSafety's titles
+    all end in " | eSafety Commissioner"). " - " is deliberately NOT
+    treated as a separator: real titles use it for meaningful parts, e.g.
+    "NASC Targeting Scams Report - March 2026". Empty title -> []."""
+    name = title.rsplit(" | ", 1)[0].strip() if " | " in title else title.strip()
+    return [name] if name else []
+
+
 def _doc_chunk_id(doc_id: str, order_idx: int) -> str:
     return f"{doc_id}-chunk-{order_idx:03d}"
 
@@ -438,11 +456,11 @@ def chunk_doc(doc: ExtractedDoc, count_tokens: TokenCounter | None = None) -> li
     empty (a PDF, or the one known real page with no recoverable headings)
     by splitting `text` into paragraph-level blocks (on blank lines) and
     running those through the same section/splitting logic as any other
-    doc - NOT by treating the whole doc as one block. Confirmed a real bug
+    doc — NOT by treating the whole doc as one block. Confirmed a real bug
     from the one-block version: the entire ~4000-word "Little Book of
     Scams" PDF became a single unsplit 3949-token chunk, nowhere near the
     300-500 token target, because a single block can't be split internally
-    by _split_oversized_section - there was nothing to pack/break between.
+    by _split_oversized_section — there was nothing to pack/break between.
     """
     count_tokens = count_tokens or get_default_token_counter()
 
@@ -471,7 +489,8 @@ def chunk_doc(doc: ExtractedDoc, count_tokens: TokenCounter | None = None) -> li
             chunks.append(Chunk(
                 id=_doc_chunk_id(doc.doc_id, order_idx), doc_id=doc.doc_id, url=doc.url,
                 domain=doc.domain, title=doc.title, lang=doc.lang, fetched_at=doc.fetched_at,
-                heading_path=list(heading_path), text=text, token_count=count_tokens(text),
+                heading_path=list(heading_path) or _page_heading(doc.title),
+                text=text, token_count=count_tokens(text),
                 order_idx=order_idx,
             ))
     return chunks

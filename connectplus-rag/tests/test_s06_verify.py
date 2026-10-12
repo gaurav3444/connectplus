@@ -294,7 +294,7 @@ def test_the_real_allowlist_file_is_what_gets_enforced() -> None:
     """Not a hardcoded set - the same file stage 01 enforces at fetch time,
     so the two checks cannot drift apart."""
     domains = load_approved_domains()
-    assert domains == {"beconnected.esafety.gov.au", "scamwatch.gov.au"}
+    assert domains == {"beconnected.esafety.gov.au", "scamwatch.gov.au", "my.gov.au", "esafety.gov.au"}
 
 
 def test_verify_defaults_to_the_real_allowlist_when_none_is_passed() -> None:

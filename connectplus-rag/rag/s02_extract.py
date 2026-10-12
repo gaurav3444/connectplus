@@ -45,6 +45,43 @@ Design decisions made explicit here:
   with no spaces between words. Not fixed here - logged as a known
   limitation rather than silently accepted, so it doesn't get rediscovered
   from scratch when multilingual sourcing gets a real look later.
+- Single-column tables are unwrapped into plain paragraphs (both in text
+  and content_xml). Confirmed on real eSafety data: 80 of 294 docs wrap a
+  whole video transcript in a one-column table headed "Audio". In text that
+  came out as markdown table rows ("| Audio |", "|---|", then the entire
+  transcript squashed into one "| ... |" cell line); in content_xml as a
+  <table> stage 03 would have to know to look inside. A table with only one
+  column has no tabular meaning — it's layout — so unwrapping it is a
+  general rule, not an eSafety special case. Real multi-column tables are
+  left exactly as they are.
+- Missing-title fallback. Confirmed on real eSafety data: all 56 /media
+  pages had title "| eSafety Commissioner" — the site-name suffix with an
+  empty page name in front, because those pages' <title>/og:title are
+  blank before the separator. A title that is empty or starts with a
+  separator is treated as missing and replaced by the page's first heading
+  (else first text line), keeping the site suffix for consistency:
+  "Changing passwords on Macs | eSafety Commissioner".
+- Within-document clean-up (_clean_document_xml / _clean_document_text),
+  all measured on the real chunk files before writing it:
+  * Repeated content: on 212 of 929 Be Connected pages the video transcript
+    appeared twice — once as clean sentences, once line-wrapped under
+    "Topic outline > General" — so ~20% of Be Connected chunks (and ~42% of
+    its tokens) were copies of other chunks in the same page, and two copies
+    of one page took 2 of 5 retrieval slots. A text block whose whitespace-
+    normalised text is already contained in earlier text of the SAME page is
+    dropped (first copy kept). Whitespace-normalised because the copies
+    differ only in where lines wrap. Blocks under MIN_REPEAT_CHARS are never
+    dropped this way: short lines can legitimately repeat.
+  * UI boilerplate: Be Connected's "Join or sign in / Sign in to save your
+    progress..." (262 chunks) and course menus "3 Signing in to myGov 6 min
+    Start now" (513 lines). Exact whole-block patterns only.
+  * Oversized blocks: 122 Be Connected chunks exceeded 500 tokens (max
+    2,642) because a whole transcript was one block, which stage 03 can't
+    split. Three real shapes: a long <p>; a long <p> inside a list item; and
+    (84 pages) one list item holding many normal <p> — see
+    PROSE_LIST_MIN_CHARS. <p>/<quote> over MAX_PARAGRAPH_CHARS are split at sentence ends
+    (inline formatting inside them is flattened), and a <list> with an item
+    that long is turned into paragraphs, since stage 03 keeps lists whole.
 """
 
 from __future__ import annotations
@@ -53,11 +90,13 @@ import hashlib
 import io
 import json
 import logging
+import re
 import uuid
 from collections import Counter
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
+from xml.etree import ElementTree
 from xml.sax import saxutils
 
 import trafilatura
@@ -193,7 +232,381 @@ def _extract_html(html: str, url: str) -> tuple[str, str, str] | None:
         )
         content_xml = content_xml.replace("</main>", f"{xml_items}\n</main>", 1)
 
+    content_xml, tables_unwrapped = _unwrap_single_column_tables_xml(content_xml)
+    if tables_unwrapped:
+        text = _unwrap_single_column_tables_text(text)
+    content_xml, _cleanup_counts = _clean_document_xml(content_xml)
+    text = _clean_document_text(text)
+    if _title_is_missing(title):
+        title = _fallback_title(title, content_xml, text)
+
     return title, text, content_xml
+
+
+# ---------------------------------------------------------------------------
+# Single-column table unwrapping + missing-title fallback (see module docstring)
+# ---------------------------------------------------------------------------
+
+_HEADER_LABEL_MAX_CHARS = 40  # "Audio", "Transcript" — a label, not content
+_MD_ONE_COL_SEPARATOR = re.compile(r"^\|\s*:?-{3,}:?\s*\|\s*$")
+_TITLE_SEPARATORS = ("|", "-", "\u2013", "\u2014", ":")
+
+
+def _is_single_column(table: ElementTree.Element) -> bool:
+    rows = table.findall("row")
+    return bool(rows) and all(len(row.findall("cell")) <= 1 for row in rows)
+
+
+def _unwrap_single_column_tables_xml(content_xml: str) -> tuple[str, int]:
+    """Replaces each one-column <table> with its cells' contents, in place.
+    A short header-cell label ("Audio") is dropped; any other cell text is
+    kept as a <p>. Returns (content_xml, tables_unwrapped). Multi-column
+    tables and unparseable XML are returned untouched."""
+    if "<table" not in content_xml:
+        return content_xml, 0
+    try:
+        root = ElementTree.fromstring(content_xml)
+    except ElementTree.ParseError:
+        return content_xml, 0
+
+    unwrapped = 0
+    for parent in list(root.iter()):
+        for table in [c for c in parent if c.tag == "table" and _is_single_column(c)]:
+            replacement: list[ElementTree.Element] = []
+            for row in table.findall("row"):
+                for cell in row.findall("cell"):
+                    cell_text = (cell.text or "").strip()
+                    is_label = (cell.get("role") == "head" and len(cell) == 0
+                                and len(cell_text) <= _HEADER_LABEL_MAX_CHARS)
+                    if is_label:
+                        continue
+                    if cell_text:
+                        p = ElementTree.Element("p")
+                        p.text = cell_text
+                        replacement.append(p)
+                    replacement.extend(list(cell))
+            if replacement and table.tail and table.tail.strip():
+                replacement[-1].tail = (replacement[-1].tail or "") + table.tail
+            position = list(parent).index(table)
+            parent.remove(table)
+            for offset, element in enumerate(replacement):
+                parent.insert(position + offset, element)
+            unwrapped += 1
+    if not unwrapped:
+        return content_xml, 0
+    ElementTree.indent(root)
+    return ElementTree.tostring(root, encoding="unicode"), unwrapped
+
+
+def _unwrap_single_column_tables_text(text: str) -> str:
+    """Text-side twin of the XML unwrap. trafilatura renders a one-column
+    table as markdown rows: '| Audio |', '|---|', then '| ...content... |'.
+    Drops a short header label + separator and strips the cell pipes."""
+    lines = text.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        if line.startswith("|") and line.endswith("|") and _MD_ONE_COL_SEPARATOR.match(nxt):
+            header = line.strip("|").strip()
+            if header and len(header) > _HEADER_LABEL_MAX_CHARS:
+                out.append(header)
+            i += 2
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                cell = lines[i].strip()
+                cell = cell[1:] if cell.startswith("|") else cell
+                cell = cell[:-1] if cell.endswith("|") else cell
+                if cell.strip():
+                    out.append(cell.strip())
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Within-document clean-up: repeated content, UI boilerplate, oversized
+# paragraphs (see module docstring for the real data behind each)
+# ---------------------------------------------------------------------------
+
+MIN_REPEAT_CHARS = 40          # shorter lines ("Start now", "FAQs") may legitimately repeat
+LONG_REPEAT_CHARS = 250        # a repeated block this long is a copied passage on its own
+MIN_REPEAT_RUN_CHARS = 800     # ...or consecutive repeated blocks totalling this much (see below)
+LABEL_PREFIX_MAX_CHARS = 120   # "Transcript: <video title> " in front of a copied passage
+MAX_PARAGRAPH_CHARS = 1200     # ~270 BGE-m3 tokens: comfortably under stage 03's 500-token budget
+TARGET_SPLIT_CHARS = 900
+PROSE_LIST_MIN_CHARS = 2000    # ~450 tokens: a list shorter than this fits in one chunk anyway
+_BLOCK_TAGS = {"p", "item", "quote"}
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'\u2018\u201c(\[])")
+
+# Whole-block UI text, matched against a block's full whitespace-normalised
+# text. All confirmed on real Be Connected course pages (262 and 513 chunks).
+BOILERPLATE_BLOCK_PATTERNS = [
+    re.compile(r"(Join or sign in\s*)?Sign in to save your progress( and earn a certificate)?"
+               r"(\s*Join / Sign in)?"),
+    re.compile(r"\d+\s+.{3,150}?\s+\d+\s+min\s+(Start now|Continue|Review|Completed|Start again)"),
+]
+
+
+def _norm_ws(s: str) -> str:
+    return " ".join(s.split())
+
+
+def _is_boilerplate(normalised: str) -> bool:
+    return any(p.fullmatch(normalised) for p in BOILERPLATE_BLOCK_PATTERNS)
+
+
+def _is_labelled_copy(text: str, seen: str) -> bool:
+    """A long block that is an earlier passage with a short label in front.
+    Confirmed real case (Be Connected): the second transcript copy is one
+    block starting "Transcript: How to make a video call with WhatsApp", then
+    the same text as the clean copy earlier on the page, so a whole-block
+    containment check never matches. Only for long blocks, and the part that
+    must already be present is everything after the first ~quarter (capped
+    at LABEL_PREFIX_MAX_CHARS)."""
+    if len(text) < LONG_REPEAT_CHARS:
+        return False
+    skip = min(LABEL_PREFIX_MAX_CHARS, len(text) // 4)
+    return text[skip:] in seen
+
+
+def _repeated_block_indexes(texts: list[str]) -> set[int]:
+    """Which blocks are copies of earlier content in the same document.
+
+    A block is a *candidate* if its normalised text (>= MIN_REPEAT_CHARS) is
+    contained in the text before it. Candidates are only dropped when they're
+    clearly a copied passage: long on their own (>= LONG_REPEAT_CHARS), or
+    part of a consecutive run of candidates totalling >= MIN_REPEAT_RUN_CHARS.
+
+    Why not drop every candidate: procedures legitimately repeat steps.
+    Confirmed on my.gov.au: "Select Get started in the Digital ID
+    (Recommended) box and follow the prompts." appears in several separate
+    procedures on one page, and set-up-the-mygov-app repeats a 4-step run
+    for two devices. Removing them from the later procedure breaks it.
+    800 chars comes from the real data: every repeated run on myGov and
+    Scamwatch is <= 753 chars (repeated procedures), while the duplicated
+    Be Connected transcripts this exists for are 900-10,000 chars."""
+    candidate: list[bool] = []
+    seen = ""
+    for text in texts:
+        candidate.append(len(text) >= MIN_REPEAT_CHARS and (text in seen or _is_labelled_copy(text, seen)))
+        seen = f"{seen} {text}"
+    drop: set[int] = set()
+    i = 0
+    while i < len(texts):
+        if not candidate[i]:
+            i += 1
+            continue
+        j = i
+        while j < len(texts) and candidate[j]:
+            j += 1
+        run = range(i, j)
+        if sum(len(texts[k]) for k in run) >= MIN_REPEAT_RUN_CHARS:
+            drop.update(run)
+        else:
+            drop.update(k for k in run if len(texts[k]) >= LONG_REPEAT_CHARS)
+        i = j
+    return drop
+
+
+def _split_long_paragraph(text: str) -> list[str]:
+    """Sentence-boundary split into pieces of roughly TARGET_SPLIT_CHARS.
+    A single sentence longer than that stays whole (never cut mid-sentence)."""
+    sentences = _SENTENCE_END.split(text)
+    pieces: list[str] = []
+    current = ""
+    for sentence in sentences:
+        if current and len(current) + 1 + len(sentence) > TARGET_SPLIT_CHARS:
+            pieces.append(current)
+            current = sentence
+        else:
+            current = f"{current} {sentence}" if current else sentence
+    if current:
+        pieces.append(current)
+    return pieces
+
+
+def _outermost_list(
+    element: ElementTree.Element, parent_of: dict[ElementTree.Element, ElementTree.Element]
+) -> ElementTree.Element | None:
+    """The outermost <list> containing `element` (stage 03 keeps that whole
+    list together, nested lists included), or None."""
+    found = None
+    node = parent_of.get(element)
+    while node is not None:
+        if node.tag == "list":
+            found = node
+        node = parent_of.get(node)
+    return found
+
+
+def _list_text_units(lst: ElementTree.Element) -> list[str]:
+    """One text unit per leaf block (<p>/<quote>/<item> holding no other
+    blocks) inside the list, in document order, so paragraph breaks inside
+    an item survive the flattening."""
+    units = []
+    for el in lst.iter():
+        if el.tag not in _BLOCK_TAGS:
+            continue
+        if any(child.tag in _BLOCK_TAGS for child in el.iter() if child is not el):
+            continue
+        text = _norm_ws("".join(el.itertext()))
+        if text:
+            units.append(text)
+    return units
+
+
+def _replace_with_paragraphs(
+    parent: ElementTree.Element, old: ElementTree.Element, pieces: list[str]
+) -> None:
+    """Swap `old` for one plain <p> per piece, in place, keeping its tail."""
+    position = list(parent).index(old)
+    tail = old.tail
+    parent.remove(old)
+    for offset, piece in enumerate(pieces):
+        new_p = ElementTree.Element("p")
+        new_p.text = piece
+        parent.insert(position + offset, new_p)
+    if pieces and tail and tail.strip():
+        parent[position + len(pieces) - 1].tail = tail
+
+
+def _clean_document_xml(content_xml: str) -> tuple[str, dict[str, int]]:
+    """One pass over content_xml's text blocks (<p>, <item>, <quote>), in
+    document order:
+    - drops UI boilerplate blocks;
+    - drops a block whose whitespace-normalised text is already contained in
+      what came before it in the same document (keeps the FIRST copy);
+    - splits an over-long <p>/<quote> into several <p> at sentence ends, and
+      turns a <list> containing an over-long item into paragraphs.
+    Returns (content_xml, counts). Unparseable XML is returned untouched."""
+    counts = {"boilerplate": 0, "repeated": 0, "split": 0}
+    if not content_xml:
+        return content_xml, counts
+    try:
+        root = ElementTree.fromstring(content_xml)
+    except ElementTree.ParseError:
+        return content_xml, counts
+
+    parent_of = {child: parent for parent in root.iter() for child in parent}
+    blocks: list[tuple[ElementTree.Element, str]] = []
+    for block in [el for el in root.iter() if el.tag in _BLOCK_TAGS]:
+        if any(child.tag in _BLOCK_TAGS for child in block.iter() if child is not block):
+            continue  # container (e.g. an <item> holding <p>s): judge its leaf blocks instead
+        text = _norm_ws("".join(block.itertext()))
+        if not text or parent_of.get(block) is None:
+            continue
+        if _is_boilerplate(text):
+            parent_of[block].remove(block)
+            counts["boilerplate"] += 1
+            continue
+        blocks.append((block, text))
+
+    repeated = _repeated_block_indexes([text for _, text in blocks])
+    lists_to_flatten: list[ElementTree.Element] = []
+    for index, (block, text) in enumerate(blocks):
+        parent = parent_of[block]
+        if index in repeated:
+            parent.remove(block)
+            counts["repeated"] += 1
+            continue
+        if len(text) > MAX_PARAGRAPH_CHARS:
+            enclosing_list = _outermost_list(block, parent_of)
+            if enclosing_list is not None and enclosing_list.find(".//head") is None:
+                # Splitting a block that sits inside a heading-less list
+                # wouldn't help: the pieces stay in the list, and stage 03
+                # keeps such lists whole. Confirmed real shape on Be Connected:
+                # <list><item><p>whole transcript</p></item></list>.
+                lists_to_flatten.append(enclosing_list)
+            elif block.tag in ("p", "quote"):
+                # Includes paragraphs inside a list that DOES contain headings:
+                # stage 03 already unwraps those lists itself (see its test
+                # test_native_list_with_nested_headings_is_unwrapped_not_atomic),
+                # so the list and its headings are left alone and only the
+                # over-long paragraph is split, ready for stage 03's packing.
+                pieces = _split_long_paragraph(text)
+                if len(pieces) > 1:
+                    _replace_with_paragraphs(parent, block, pieces)
+                    counts["split"] += 1
+
+    # Prose wrapped in a list: one <item> holding several ordinary-sized <p>,
+    # so no single block is long but the list is. Confirmed real shape on 84
+    # Be Connected pages (e.g. "iPad: Listening to podcasts"):
+    # <list rend="ul"><item><p>Welcome to...</p><p>A podcast is...</p>...
+    # which stage 03 kept whole as one chunk of up to 2,508 tokens. An item
+    # made of 2+ paragraphs is prose, not a procedure step; real bullet lists
+    # (e.g. eSafety's checklists) have one line per item and are untouched.
+    for lst in [el for el in root.iter("list") if _outermost_list(el, parent_of) is None]:
+        if lst.find(".//head") is not None:
+            continue  # stage 03 unwraps lists with headings itself
+        has_prose_item = any(len(item.findall("p")) >= 2 for item in lst.iter("item"))
+        if has_prose_item and len(_norm_ws("".join(lst.itertext()))) > PROSE_LIST_MIN_CHARS:
+            lists_to_flatten.append(lst)
+
+    # Stage 03 keeps a <list> whole (right for a short procedure). A list
+    # with an item longer than MAX_PARAGRAPH_CHARS isn't a procedure: on real
+    # Be Connected pages it's a whole video transcript in one <li> (122
+    # chunks of 500-2,642 tokens, all the first block on the page). Turn
+    # such a list into paragraphs so normal size-based packing applies.
+    for lst in dict.fromkeys(lists_to_flatten):
+        holder = parent_of.get(lst)
+        if holder is None or lst not in list(holder):
+            continue
+        paragraphs = [piece
+                      for unit in _list_text_units(lst)
+                      for piece in _split_long_paragraph(unit)
+                      if piece]
+        _replace_with_paragraphs(holder, lst, paragraphs)
+        counts["split"] += 1
+
+    # A <list> whose every item was removed would be an empty shell.
+    for parent in list(root.iter()):
+        for child in [c for c in parent if c.tag == "list" and not c.findall("item")]:
+            parent.remove(child)
+
+    if not any(counts.values()):
+        return content_xml, counts
+    ElementTree.indent(root)
+    return ElementTree.tostring(root, encoding="unicode"), counts
+
+
+def _clean_document_text(text: str) -> str:
+    """Text-side twin of _clean_document_xml (boilerplate + repeats, line by
+    line, same rules), so `text` and `content_xml` tell the same story."""
+    lines = [ln for ln in text.split("\n") if not _is_boilerplate(_norm_ws(ln))]
+    content = [(i, _norm_ws(ln)) for i, ln in enumerate(lines) if _norm_ws(ln)]
+    repeated = {content[k][0] for k in _repeated_block_indexes([t for _, t in content])}
+    kept = [ln for i, ln in enumerate(lines) if i not in repeated]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+
+
+def _title_is_missing(title: str) -> bool:
+    stripped = title.strip()
+    return not stripped or stripped.startswith(_TITLE_SEPARATORS)
+
+
+def _fallback_title(title: str, content_xml: str, text: str) -> str:
+    """Only called when _title_is_missing(title). Prefers the first heading
+    in content_xml, then the first real text line; keeps the original site
+    suffix ("| eSafety Commissioner") when there is one."""
+    page_name = ""
+    if content_xml:
+        try:
+            head = ElementTree.fromstring(content_xml).find(".//head")
+            if head is not None:
+                page_name = " ".join("".join(head.itertext()).split())
+        except ElementTree.ParseError:
+            pass
+    if not page_name:
+        page_name = next((ln.strip() for ln in text.splitlines()
+                          if ln.strip() and not ln.strip().startswith("|")), "")
+    page_name = page_name[:150]
+    suffix = title.strip()
+    if page_name and suffix:
+        return f"{page_name} {suffix}"
+    return page_name or suffix
 
 
 def _list_item_texts(html: str) -> list[list[str]]:
