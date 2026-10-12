@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+
+# Raw crawl cache - regenerate locally with `python -m rag.main ingest`.
+# Never commit real scraped HTML: it's large, it goes stale, and re-fetching
+# is how stage 01 proves idempotency in the first place.
+.cache/
+
+# Real database credentials. .env.example is the template that gets
+# committed; .env (with your actual Supabase connection string) never does.
+.env
+
+.DS_Store
