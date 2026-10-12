@@ -3,78 +3,534 @@
     "id": "phone-tablet",
     "title": "Phone & Tablet",
     "subcategories": [
-      {"id": "calls", "title": "Calls", "query": "how to make and answer phone calls on a smartphone"},
-      {"id": "messages", "title": "Messages", "query": "how to send and read text messages on a phone"},
-      {"id": "camera-photos", "title": "Camera & photos", "query": "how to take photos with a phone camera and view them"},
-      {"id": "apps", "title": "Apps", "query": "how to download, install and use apps on a phone or tablet"},
-      {"id": "settings", "title": "Settings", "query": "how to change phone settings such as making the text bigger"},
-      {"id": "wifi", "title": "Wi-Fi", "query": "how to connect a phone or tablet to Wi-Fi"}
+      {
+        "id": "calls",
+        "title": "Calls",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/course/how-to-block-a-number-on-an-iphone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-block-a-number-on-an-android-phone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-call-emergency-services-from-your-iphones-lock-screen",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-call-emergency-services-from-your-android-phones-lock-screen",
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-iphones/apple-iphone-calls-and-privacy",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-phones/android-phone-calls-and-privacy",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-stop-unwanted-calls"
+        ]
+      },
+      {
+        "id": "messages",
+        "title": "Messages",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/course/how-to-send-an-sms-to-an-emergency-contact-on-an-iphone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-send-an-sms-to-an-emergency-contact-on-an-android-phone",
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-ipads/apple-ipad-messages-and-privacy",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-tablets/android-tablet-messages-and-privacy",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-share-a-contact-from-an-iphone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-share-a-contact-from-an-android-phone",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/helping-you-identify-text-message-scams"
+        ]
+      },
+      {
+        "id": "camera-photos",
+        "title": "Camera & photos",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-iphones/apple-iphone-using-the-camera",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-phones/android-phone-using-the-camera",
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-ipads/apple-ipad-using-the-camera",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-tablets/android-tablet-using-the-camera",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-take-a-screenshot-on-your-iphone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-take-a-screenshot-on-your-android-phone",
+          "beconnected.esafety.gov.au/topic-library/fun-things-to-do-with-your-photos/managing-and-storing-your-photos"
+        ]
+      },
+      {
+        "id": "apps",
+        "title": "Apps",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/useful-apps/*",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-search-for-an-app-on-your-iphone"
+        ]
+      },
+      {
+        "id": "settings",
+        "title": "Settings",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-iphones/iphone-system-settings",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-phones/android-phone-system-settings",
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-ipads/ipad-system-settings",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-tablets/android-tablet-system-settings",
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-iphones/iphone-accessibility",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-phones/android-phone-accessibility"
+        ]
+      },
+      {
+        "id": "wifi",
+        "title": "Wi-Fi",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/wi-fi-and-mobile-networks/*",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-hotspot-on-an-iphone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-hotspot-on-an-android-phone"
+        ]
+      },
+      {
+        "id": "new-device",
+        "title": "Setting up a new device",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-iphones/iphone-set-up",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-phones/android-phone-set-up",
+          "beconnected.esafety.gov.au/topic-library/all-about-apple-ipads/ipad-set-up",
+          "beconnected.esafety.gov.au/topic-library/all-about-android-tablets/android-tablet-set-up",
+          "beconnected.esafety.gov.au/topic-library/computer-basics-for-beginners/what-is-a-smartphone",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-choose-mobile-phones-for-seniors",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/tablet-vs-laptop"
+        ]
+      }
     ]
   },
   {
     "id": "computer",
     "title": "Computer",
     "subcategories": [
-      {"id": "getting-started", "title": "Getting started", "query": "getting started with a computer, mouse and keyboard basics"},
-      {"id": "email", "title": "Email", "query": "how to set up and use email on a computer"},
-      {"id": "internet", "title": "Using the internet", "query": "how to use a web browser and search the internet"},
-      {"id": "files", "title": "Files & folders", "query": "how to save, find and organise files and folders on a computer"},
-      {"id": "updates", "title": "Updates & security", "query": "how to keep your computer software updated and secure"}
+      {
+        "id": "basics",
+        "title": "Computer basics",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/computer-basics-for-beginners/*"
+        ]
+      },
+      {
+        "id": "setting-up",
+        "title": "Setting up your computer",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/windows-desktop-getting-started/windows-desktop-set-up",
+          "beconnected.esafety.gov.au/topic-library/windows-laptop-getting-started/windows-laptop-set-up",
+          "beconnected.esafety.gov.au/topic-library/apple-desktop-getting-started/apple-desktop-set-up",
+          "beconnected.esafety.gov.au/topic-library/apple-laptop-getting-started/apple-laptop-set-up"
+        ]
+      },
+      {
+        "id": "email",
+        "title": "Email",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/setting-up-and-using-email/*"
+        ]
+      },
+      {
+        "id": "searching",
+        "title": "Searching the internet",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/finding-what-you-want-with-google-search/*"
+        ]
+      },
+      {
+        "id": "files",
+        "title": "Files & folders",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/windows-desktop-getting-started/windows-desktop-managing-files",
+          "beconnected.esafety.gov.au/topic-library/windows-laptop-getting-started/windows-laptop-managing-files",
+          "beconnected.esafety.gov.au/topic-library/apple-desktop-getting-started/apple-desktop-managing-files",
+          "beconnected.esafety.gov.au/topic-library/apple-laptop-getting-started/apple-laptop-managing-files",
+          "beconnected.esafety.gov.au/topic-library/transferring-files-between-operating-systems/*"
+        ]
+      },
+      {
+        "id": "security",
+        "title": "Keeping your computer safe",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/advanced-online-security/using-antivirus-software",
+          "beconnected.esafety.gov.au/topic-library/advanced-online-security/understanding-web-browsers",
+          "beconnected.esafety.gov.au/topic-library/advanced-online-security/downloading-and-saving-documents",
+          "beconnected.esafety.gov.au/topic-library/windows-desktop-getting-started/windows-desktop-security-and-privacy",
+          "beconnected.esafety.gov.au/topic-library/apple-desktop-getting-started/apple-desktop-security-and-privacy",
+          "beconnected.esafety.gov.au/topic-library/course/what-to-do-when-your-device-freezes"
+        ]
+      },
+      {
+        "id": "practice",
+        "title": "Practice with your device",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/practice-area/practice-area-for-mouse-and-keyboard",
+          "beconnected.esafety.gov.au/topic-library/practice-area/practice-area-for-smart-devices",
+          "beconnected.esafety.gov.au/topic-library/practice-area/tapping-and-swiping",
+          "beconnected.esafety.gov.au/topic-library/practice-area/scrolling-and-zooming",
+          "beconnected.esafety.gov.au/topic-library/practice-area/using-the-onscreen-keyboard",
+          "beconnected.esafety.gov.au/topic-library/practice-area/closing-pop-ups",
+          "beconnected.esafety.gov.au/topic-library/practice-area/using-the-search-feature"
+        ]
+      }
     ]
   },
   {
     "id": "staying-safe",
     "title": "Staying Safe Online",
     "subcategories": [
-      {"id": "scam-texts-calls", "title": "Scam texts & calls", "query": "how to spot a scam text message or phone call"},
-      {"id": "email-scams", "title": "Email scams", "query": "how to recognise a phishing scam email with a suspicious link"},
-      {"id": "passwords", "title": "Passwords", "query": "how to create a strong password and keep it safe"},
-      {"id": "two-step", "title": "Two-step verification", "query": "two-factor authentication and verification codes to protect your accounts"},
-      {"id": "been-scammed", "title": "If you've been scammed", "query": "what to do if you have been scammed or lost money"},
-      {"id": "report-scam", "title": "Report a scam", "query": "how to report a scam"}
+      {
+        "id": "scam-texts-calls",
+        "title": "Scam texts & calls",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/text-or-sms-scams",
+          "scamwatch.gov.au/types-of-scams/text-or-sms-scams",
+          "scamwatch.gov.au/types-of-scams/phone-scams",
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/remote-access-scams",
+          "scamwatch.gov.au/about-us/news-and-alerts/warning-about-emergency-text-messages"
+        ]
+      },
+      {
+        "id": "email-scams",
+        "title": "Email & phishing scams",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/phishing-scams",
+          "beconnected.esafety.gov.au/topic-library/setting-up-and-using-email/how-to-avoid-common-email-scams",
+          "scamwatch.gov.au/types-of-scams/phishing-scams",
+          "scamwatch.gov.au/types-of-scams/email-scams",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-spot-a-fake-email"
+        ]
+      },
+      {
+        "id": "common-scams",
+        "title": "Common scams",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/avoiding-common-scams",
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/romance-scams",
+          "scamwatch.gov.au/types-of-scams/dating-romance",
+          "scamwatch.gov.au/types-of-scams/unexpected-money-scams",
+          "scamwatch.gov.au/types-of-scams/account-or-identity-takeover-scams",
+          "scamwatch.gov.au/types-of-scams/website-scams",
+          "scamwatch.gov.au/types-of-scams/threat-scams"
+        ]
+      },
+      {
+        "id": "passwords",
+        "title": "Passwords & passkeys",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/advanced-online-security/managing-passwords",
+          "beconnected.esafety.gov.au/topic-library/using-google-passkeys/*",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-create-a-passkey-in-mygov",
+          "esafety.gov.au/media/two-factor-authentication-for-extra-security",
+          "esafety.gov.au/key-topics/staying-safe/identity-theft",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/8-tips-to-avoid-identity-theft"
+        ]
+      },
+      {
+        "id": "privacy",
+        "title": "Privacy online",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/advanced-online-security/protecting-your-privacy-online",
+          "beconnected.esafety.gov.au/topic-library/advanced-online-security/web-tracking-and-data-breaches-explained",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/8-ways-to-protect-your-privacy-online",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/data-breaches-what-to-do-and-how-to-protect-yourself-against-scams",
+          "esafety.gov.au/key-topics/digital-wellbeing/manage-your-digital-safety-settings",
+          "esafety.gov.au/key-topics/online-tools-and-features/location-sharing"
+        ]
+      },
+      {
+        "id": "been-scammed",
+        "title": "If you've been scammed",
+        "sources": [
+          "scamwatch.gov.au/stay-protected/what-to-do-if-youve-been-scammed",
+          "scamwatch.gov.au/report-a-scam",
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/text-or-sms-scams/what-to-do-if-you-re-a-victim-of-a-text-or-sms-scam",
+          "scamwatch.gov.au/types-of-scams/money-recovery-scams",
+          "esafety.gov.au/report/how-to-collect-evidence",
+          "esafety.gov.au/key-topics/staying-safe/online-scams"
+        ]
+      },
+      {
+        "id": "helping-others",
+        "title": "Helping someone being scammed",
+        "sources": [
+          "scamwatch.gov.au/stop-check-protect/help-someone-whos-being-scammed/*",
+          "scamwatch.gov.au/stay-protected/help-someone-whos-being-scammed",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/elder-financial-abuse-how-to-spot-the-signs",
+          "esafety.gov.au/seniors/online-scams"
+        ]
+      }
     ]
   },
   {
     "id": "government-health",
     "title": "Government & Health",
     "subcategories": [
-      {"id": "mygov", "title": "myGov", "query": "what is myGov and how to create and sign in to a myGov account"},
-      {"id": "linking-services", "title": "Linking services", "query": "how to link Medicare, Centrelink or the ATO to myGov"},
-      {"id": "health-online", "title": "Health online", "query": "telehealth, My Health Record and health services online"},
-      {"id": "ageing", "title": "Ageing & aged care", "query": "government help and services for older Australians and aged care"},
-      {"id": "your-language", "title": "Help in your language", "query": "government information and help in languages other than English"}
+      {
+        "id": "mygov",
+        "title": "Getting started with myGov",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-mygov/all-about-mygov",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-mygov/setting-up-mygov",
+          "my.gov.au/en/about/help/mygov-website/create-mygov-account",
+          "my.gov.au/en/about/help/mygov-website/sign-in-to-mygov",
+          "beconnected.esafety.gov.au/topic-library/getting-started-with-the-mygov-app",
+          "my.gov.au/en/about/help/mygov-app",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-create-a-passkey-in-mygov"
+        ]
+      },
+      {
+        "id": "linking-services",
+        "title": "Linking services to myGov",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-mygov/linking-services-in-mygov",
+          "my.gov.au/en/about/help/mygov-website/link-services-to-your-account",
+          "my.gov.au/en/about/help/help-others-use-mygov"
+        ]
+      },
+      {
+        "id": "mygov-safety",
+        "title": "Keeping myGov safe",
+        "sources": [
+          "my.gov.au/en/about/privacy-and-security/security",
+          "my.gov.au/en/about/privacy-and-security/mygov-scams",
+          "scamwatch.gov.au/about-us/news-and-alerts/australian-taxation-office-ato-and-mygov-impersonation-scams",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/tax-and-medicare-scams"
+        ]
+      },
+      {
+        "id": "medicare-health",
+        "title": "Medicare & health",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-mygov/claiming-medicare-with-mygov",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-mygov/my-health-record-and-mygov",
+          "beconnected.esafety.gov.au/topic-library/using-the-medicare-express-plus-app",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-do-electronic-prescriptions-work",
+          "beconnected.esafety.gov.au/topic-library/health-wellbeing-technology-and-you/fitness-apps-and-devices-to-monitor-your-health",
+          "beconnected.esafety.gov.au/topic-library/health-wellbeing-technology-and-you/how-technology-helps-with-health-and-wellbeing"
+        ]
+      },
+      {
+        "id": "ageing",
+        "title": "Ageing & aged care",
+        "sources": [
+          "my.gov.au/en/services/ageing/*"
+        ]
+      },
+      {
+        "id": "state-services",
+        "title": "State government services",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/state-and-territory-government-services-online"
+        ]
+      },
+      {
+        "id": "your-language",
+        "title": "Help in your language",
+        "sources": [
+          "my.gov.au/en/languages",
+          "scamwatch.gov.au/stop-check-protect/in-your-language-scam-information",
+          "esafety.gov.au/communities/cultural-linguistic/translations",
+          "esafety.gov.au/key-topics/domestic-family-violence/get-help-in-your-language"
+        ]
+      }
     ]
   },
   {
     "id": "talking-to-family",
     "title": "Talking to Family",
     "subcategories": [
-      {"id": "video-calls", "title": "Video calls", "query": "how to make a video call to family and friends"},
-      {"id": "messaging-apps", "title": "Messaging apps", "query": "how to use messaging apps like WhatsApp to chat with family"},
-      {"id": "social-media", "title": "Social media", "query": "how to use social media such as Facebook to stay in touch"},
-      {"id": "sharing-photos", "title": "Sharing photos", "query": "how to share photos with family online"},
-      {"id": "safe-social", "title": "Staying safe on social media", "query": "privacy settings and staying safe on social media"}
+      {
+        "id": "video-calls",
+        "title": "Video calls",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/connecting-to-others/getting-set-up-for-video-calling",
+          "beconnected.esafety.gov.au/topic-library/connecting-to-others/how-to-use-zoom",
+          "beconnected.esafety.gov.au/topic-library/connecting-to-others/how-to-use-facetime",
+          "esafety.gov.au/seniors/making-video-calls",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-make-video-calls"
+        ]
+      },
+      {
+        "id": "messaging-apps",
+        "title": "Messaging apps",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/connecting-to-others/how-to-use-whatsapp",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/what-does-the-whatsapp-privacy-update-mean-for-you",
+          "esafety.gov.au/key-topics/online-tools-and-features/online-chat-video-chat"
+        ]
+      },
+      {
+        "id": "social-media",
+        "title": "Social media",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/social-media-apps/*"
+        ]
+      },
+      {
+        "id": "safe-social",
+        "title": "Staying safe on social media",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-stay-safe-on-facebook",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-deactivate-or-delete-facebook",
+          "esafety.gov.au/media/facebook-privacy-settings",
+          "esafety.gov.au/media/privacy-settings-in-instagram",
+          "scamwatch.gov.au/types-of-scams/social-media-scams",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/what-you-need-to-know-about-the-new-social-media-rules"
+        ]
+      },
+      {
+        "id": "sharing-photos",
+        "title": "Sharing photos",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/using-the-cloud/apple-iphone-cloud-backup-and-photo-sharing",
+          "beconnected.esafety.gov.au/topic-library/using-the-cloud/android-phone-cloud-backup-and-photo-sharing",
+          "beconnected.esafety.gov.au/topic-library/using-the-cloud/apple-ipad-cloud-backup-and-photo-sharing",
+          "beconnected.esafety.gov.au/topic-library/using-the-cloud/android-tablet-cloud-backup-and-photo-sharing",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-use-airdrop-on-an-iphone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-use-quick-share-on-an-android-phone",
+          "beconnected.esafety.gov.au/topic-library/fun-things-to-do-with-your-photos/creating-a-gift-from-a-personal-photo"
+        ]
+      },
+      {
+        "id": "grandchildren",
+        "title": "Grandchildren online",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-keep-your-grandkids-safe-online",
+          "esafety.gov.au/seniors/online-safety-grandparents-carers",
+          "beconnected.esafety.gov.au/grandparents-guide"
+        ]
+      },
+      {
+        "id": "family-history",
+        "title": "Family history",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/online-hobbies/researching-family-history",
+          "beconnected.esafety.gov.au/topic-library/podcast/unlock-your-family-history"
+        ]
+      }
     ]
   },
   {
     "id": "money-shopping",
     "title": "Money & Shopping",
     "subcategories": [
-      {"id": "online-banking", "title": "Online banking", "query": "how to use online banking safely"},
-      {"id": "shopping-online", "title": "Shopping online", "query": "how to shop online safely"},
-      {"id": "paying-safely", "title": "Paying safely", "query": "safe ways to pay online and protect your card details"},
-      {"id": "investment-scams", "title": "Investment scams", "query": "how to spot investment and cryptocurrency scams"},
-      {"id": "buying-selling", "title": "Buying & selling", "query": "buying and selling online on marketplaces and avoiding fake sellers"}
+      {
+        "id": "online-banking",
+        "title": "Online banking",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-online-banking/*",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/is-it-time-to-give-online-banking-a-go",
+          "beconnected.esafety.gov.au/internet-banking"
+        ]
+      },
+      {
+        "id": "mobile-banking",
+        "title": "Mobile banking",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-mobile-banking/*"
+        ]
+      },
+      {
+        "id": "shopping-online",
+        "title": "Shopping online",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-buying-and-selling-online/buying-and-selling-online",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-buying-and-selling-online/how-to-buy-online-using-ebay",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-buying-and-selling-online/buying-on-ebay-case-study",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/what-you-need-to-know-about-shopping-online",
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/tips-for-shopping-safely-online",
+          "scamwatch.gov.au/about-us/news-and-alerts/online-shopping-scams"
+        ]
+      },
+      {
+        "id": "selling-online",
+        "title": "Selling online",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-buying-and-selling-online/how-to-sell-online-using-ebay",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-buying-and-selling-online/selling-on-ebay-case-study",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/gumtree-scams-how-to-avoid-them",
+          "scamwatch.gov.au/types-of-scams/buying-and-selling-scams"
+        ]
+      },
+      {
+        "id": "paying-safely",
+        "title": "Paying safely",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-buying-and-selling-online/how-to-pay-online",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/payid-what-is-it-and-how-does-it-work",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/paypal-how-does-it-work",
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/protecting-yourself-against-fake-invoice-scams"
+        ]
+      },
+      {
+        "id": "investment-scams",
+        "title": "Investment & crypto scams",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/investment-scams",
+          "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/crypto-scams",
+          "scamwatch.gov.au/types-of-scams/investment-scams",
+          "scamwatch.gov.au/about-us/news-and-alerts/scam-alert-fake-crypto-trading-platforms",
+          "scamwatch.gov.au/about-us/news-and-alerts/scam-alert-fake-celebrity-online-investment-scams",
+          "beconnected.esafety.gov.au/topic-library/podcast/what-is-crypto-currency-and-is-it-the-future-of-money"
+        ]
+      },
+      {
+        "id": "data-plans",
+        "title": "Phone & internet plans",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/all-about-data/*",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-save-money-on-your-mobile-data"
+        ]
+      }
     ]
   },
   {
     "id": "ai-new-tech",
     "title": "AI & New Technology",
     "subcategories": [
-      {"id": "what-is-ai", "title": "What is AI?", "query": "what is artificial intelligence and how is it used"},
-      {"id": "ai-chatbots", "title": "AI chatbots", "query": "how to use AI chatbots and assistants safely"},
-      {"id": "ai-scams", "title": "AI scams & deepfakes", "query": "how scammers use AI, deepfakes and voice cloning"},
-      {"id": "smart-devices", "title": "Smart home devices", "query": "how to set up and use smart home devices and voice assistants"}
+      {
+        "id": "what-is-ai",
+        "title": "What is AI?",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/what-is-ai",
+          "beconnected.esafety.gov.au/topic-library/podcast/artificial-intelligence-explained",
+          "beconnected.esafety.gov.au/topic-library/podcast/the-future-of-the-internet",
+          "beconnected.esafety.gov.au/topic-library/podcast/what-does-the-future-hold"
+        ]
+      },
+      {
+        "id": "assistants",
+        "title": "AI & voice assistants",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/course/how-to-use-gemini-on-your-android-phone",
+          "beconnected.esafety.gov.au/topic-library/course/how-to-use-siri-on-an-iphone",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/using-a-voice-assistant"
+        ]
+      },
+      {
+        "id": "ai-scams",
+        "title": "AI scams & fake news",
+        "sources": [
+          "scamwatch.gov.au/stop-check-protect/help-to-spot-and-avoid-scams/how-scammers-use-technology-and-ai",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-spot-fake-news",
+          "esafety.gov.au/key-topics/fake-news-and-misinformation"
+        ]
+      },
+      {
+        "id": "smart-home",
+        "title": "Smart home devices",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/what-is-smart-home-technology",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/how-to-set-up-smart-home-technology",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/using-smart-home-devices",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/using-smart-tvs",
+          "beconnected.esafety.gov.au/topic-library/podcast/can-a-smarter-home-improve-my-life"
+        ]
+      },
+      {
+        "id": "streaming",
+        "title": "TV & streaming",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/tv-movie-and-music-streaming-services",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/streaming-services-how-to-watch-netflix-stan-and-more",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/how-to-get-started-with-podcasts"
+        ]
+      },
+      {
+        "id": "cloud",
+        "title": "The cloud",
+        "sources": [
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/what-is-the-cloud",
+          "beconnected.esafety.gov.au/topic-library/introduction-to-smart-homes/the-cloud-and-you",
+          "beconnected.esafety.gov.au/topic-library/articles-and-tips/what-is-the-cloud-and-do-i-need-it",
+          "beconnected.esafety.gov.au/topic-library/apps-that-come-with-your-cloud-subscription"
+        ]
+      }
     ]
   }
 ]

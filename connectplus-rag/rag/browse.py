@@ -1,38 +1,43 @@
 """Screen 3a - Browse topics: category -> subcategory -> resource.
 
-The two upper levels are a fixed taxonomy (rag/config/browse_topics.json),
-written by people, because the design caps each level at seven items and a
-senior needs the same menu every visit. Only the third level comes from the
-index: each subcategory carries an English query, retrieve() runs it like
-any other question, and the chunks it returns collapse into one Resource per
-source page.
+Built from what is already in the index, nothing else. The approved sites
+organise their own pages into sections, and that structure survives in the
+URLs stages 01-04 stored - Be Connected's
+/topic-library/<topic>/<course>/<lesson> is literally topic -> course ->
+steps. So browse needs no search, no embeddings and no models: it groups the
+indexed pages by URL path.
 
-Nothing here fetches from the web at request time. The approved sites were
-already crawled, cleaned, chunked and indexed by stages 01-04; browse reads
-that index, so a resource can only ever be a page someone approved.
+rag/config/browse_topics.json is the only hand-written part. It names the
+design's seven categories (at most seven subcategories each) and, for each
+subcategory, which site sections belong in it - a "source" is a domain plus
+path, as stored in the chunks table:
 
-The same two trust rules as answering apply:
+    "my.gov.au/en/services/ageing/*"   every section below this path is one resource
+    "scamwatch.gov.au/report-a-scam"   this page/section is one resource
 
-- A chunk below REFUSAL_THRESHOLD is not listed. An empty subcategory is
-  shown as the designed empty state, never filled with weak matches.
-- A chunk whose domain is no longer approved is not listed. Stage 04 never
-  deletes rows, so the index can outlive a domain's approval - the same
-  reason stage 06 re-checks domains on citations.
+A resource is one section of a trusted site: its landing page plus every
+page under it, which are the steps screen 3c walks through. A page that is
+not in the index - because its domain or section was never approved, or it
+was never crawled - cannot appear, and a source that matches nothing simply
+yields no resource (`python -m rag.main browse` reports those).
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from rag.schemas import BrowseCategory, BrowseSubcategory, Resource, Retrieved
+from rag.schemas import BrowseCategory, BrowsePage, BrowseSubcategory, Resource
 
 TOPICS_PATH = Path(__file__).parent / "config" / "browse_topics.json"
-MAX_PER_LEVEL = 7        # design rule: never more than seven cards per level
-SNIPPET_CHARS = 200
-CHUNKS_PER_QUERY = 20    # enough chunks to still leave several distinct pages after grouping
+MAX_PER_LEVEL = 7  # design rule: never more than seven cards per level
+
+# One indexed page: {"doc_id", "url", "domain", "title"} - a row of
+# `select distinct doc_id, url, domain, title from chunks`.
+DocRow = Mapping[str, str | None]
 
 
 @lru_cache(maxsize=1)
@@ -52,28 +57,61 @@ def find_subcategory(category_id: str, subcategory_id: str) -> BrowseSubcategory
     raise KeyError(f"unknown browse topic {category_id}/{subcategory_id}")
 
 
-def resources_from_chunks(
-    chunks: Sequence[Retrieved],
-    approved_domains: set[str],
-    threshold: float,
-    limit: int = MAX_PER_LEVEL,
+def page_key(doc: DocRow) -> str:
+    """'domain/path' with no scheme, query or trailing slash - the form
+    sources are written in. Uses the stored domain, not the URL's host, so
+    'www.esafety.gov.au' and 'esafety.gov.au' are the same key."""
+    return f"{doc['domain']}{urlsplit(str(doc['url'])).path.rstrip('/')}"
+
+
+def _title(doc: DocRow | None, key: str) -> str:
+    """Page title without its ' | Site name' suffix; the URL slug when the
+    page has none (real case: several my.gov.au pages are stored untitled)."""
+    title = str((doc or {}).get("title") or "").split(" | ")[0].strip()
+    if title and title != "None":
+        return title
+    return key.rsplit("/", 1)[-1].replace("-", " ").capitalize()
+
+
+def resources_for(
+    sub: BrowseSubcategory, docs: Iterable[DocRow], approved_domains: set[str]
 ) -> list[Resource]:
-    """One Resource per page, best page first. `chunks` arrive best-first
-    from retrieve(), so the first chunk seen for a page is its best one."""
-    by_doc: dict[str, Resource] = {}
-    for chunk in sorted(chunks, key=lambda c: c.score, reverse=True):
-        if chunk.doc_id in by_doc or chunk.score < threshold or chunk.domain not in approved_domains:
-            continue
-        by_doc[chunk.doc_id] = Resource(
-            doc_id=chunk.doc_id,
-            url=str(chunk.url),
-            domain=chunk.domain,
-            title=chunk.title,
-            lang=chunk.lang,
-            heading_path=chunk.heading_path,
-            snippet=chunk.text[:SNIPPET_CHARS].rstrip(),
-            score=chunk.score,
+    """Groups indexed pages into this subcategory's resources, in the order
+    its sources list them. Pages from unapproved domains are skipped: the
+    index outlives a domain's approval (stage 04 never deletes rows)."""
+    keyed = sorted(
+        ((page_key(d), d) for d in docs if d["domain"] in approved_domains), key=lambda pair: pair[0]
+    )
+    groups: dict[str, list[tuple[str, DocRow]]] = {}
+    for source in sub.sources:
+        children = source.endswith("/*")
+        prefix = source.removesuffix("/*")
+        for key, doc in keyed:
+            if key.startswith(prefix + "/"):
+                group = prefix + "/" + key[len(prefix) + 1 :].split("/")[0] if children else prefix
+            elif key == prefix and not children:
+                group = prefix
+            else:
+                continue  # unrelated page, or the landing page of a section whose children are listed
+            groups.setdefault(group, []).append((key, doc))
+
+    resources = []
+    for group, pages in groups.items():
+        landing = next((doc for key, doc in pages if key == group), None)
+        # ponytail: steps after the landing page are in URL order - the index does
+        # not keep the site's own lesson order. Store order_idx per page at crawl
+        # time if 'What is X?' must come before 'How to identify X'.
+        ordered = ([landing] if landing else []) + [doc for key, doc in pages if key != group]
+        resources.append(
+            Resource(
+                id=group,
+                url=str(ordered[0]["url"]),
+                domain=str(ordered[0]["domain"]),
+                title=_title(landing, group),
+                pages=[
+                    BrowsePage(doc_id=str(d["doc_id"]), url=str(d["url"]), title=_title(d, page_key(d)))
+                    for d in ordered
+                ],
+            )
         )
-        if len(by_doc) == limit:
-            break
-    return list(by_doc.values())
+    return resources

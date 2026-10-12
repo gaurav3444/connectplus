@@ -188,24 +188,43 @@ verdict = verify(draft, chunks, lang=lang)         # draft: answer_md str, or an
 
 ## Browse topics (screen 3a)
 
-The app's Browse screen is three levels: category, subcategory, resource. The first two are a fixed, human-written taxonomy in `rag/config/browse_topics.json` (seven categories from the design, at most seven subcategories each, the design's own cap). Each subcategory carries an English search query. The third level comes from the index: `browse()` runs that query through the same `retrieve()` that answers questions (hybrid search + reranker), then collapses the chunks into **one resource per source page**, best page first, at most seven.
+The app's Browse screen is three levels: category, subcategory, resource. All three are built from what is **already in the index** - no search, no embeddings, no model, nothing fetched at request time.
+
+The approved sites organise their own pages into sections, and that structure survives in the stored URLs. Be Connected's `/topic-library/<topic>/<course>/<lesson>` is literally topic, course, steps; Scamwatch has `/types-of-scams/<type>`, myGov `/en/services/ageing/<section>/...`. So a **resource is one section of an approved site** - its landing page plus every page under it, which become the steps screen 3c walks through.
+
+`rag/config/browse_topics.json` is the only hand-written part: the design's seven categories (at most seven subcategories each), and for each subcategory which site sections belong in it. A source is `domain/path`, as stored in the `chunks` table:
+
+```json
+"sources": [
+  "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/text-or-sms-scams",
+  "scamwatch.gov.au/types-of-scams/text-or-sms-scams",
+  "my.gov.au/en/services/ageing/*"
+]
+```
+
+A source ending in `/*` makes every section below it its own resource; otherwise the path itself is one resource. Every source was chosen from the real index (2026-10-13: 48 subcategories, 249 resources, every source matched). Only pages in the index can appear, so nothing from an unapproved site or section can reach the menu, and pages from a domain later removed from `approved_domains.json` are dropped (the index outlives approvals).
 
 ```python
 from rag import browse_topics, browse
 
-categories = browse_topics()                              # levels 1-2, static, no database
-resources = browse("staying-safe", "passwords", lang)     # level 3: list[Resource]
-# Resource = {doc_id, url, domain, title, lang, heading_path, snippet, score}
+categories = browse_topics()                     # levels 1-2, static
+resources = browse("staying-safe", "passwords")  # level 3: list[Resource]
+# Resource = {id, url, domain, title, pages: [{doc_id, url, title}, ...]}  - landing page first
 ```
 
-Nothing is fetched from the web at request time - the approved sites were already crawled and indexed by stages 01-04, so a resource can only be a page someone approved. The answer path's trust rules hold here too: a page whose best chunk scores below `REFUSAL_THRESHOLD` is not listed (an empty list is the app's designed empty state, not a reason to show weak matches), and a page from a domain no longer on the approved list is dropped, since the index outlives approvals. Results are cached per process per subcategory; the query is English for every language, so one cached result serves all of them. An unknown id raises `KeyError`, which the HTTP layer in `connectplus-llm` should turn into a 404.
+**How the app reads it.** The app is TypeScript and cannot call Python, so `--build` snapshots every subcategory into a `browse_resources` table (defined at the end of `rag/config/schema.sql`, read-only to the public via RLS). The app selects from it with the Supabase client it already has - no endpoint in `connectplus-llm` needed:
 
 ```bash
-python -m rag.main browse                          # print the taxonomy and each subcategory's query
-python -m rag.main browse staying-safe passwords   # resources for one subcategory, against the real index
+python -m rag.main browse                          # check every subcategory against the index: counts, >7 warnings, unmatched sources
+python -m rag.main browse staying-safe passwords   # one subcategory's resources
+python -m rag.main browse --build                  # rebuild browse_resources (run after every re-index)
 ```
 
-Tuning a subcategory is an edit to its `query` in `browse_topics.json`, checked with the second command. Not yet built: a step count per resource ("5 steps, with practice" in the design) - that belongs with screen 3c, which decides what a step is.
+```sql
+select * from browse_resources order by category_pos, subcategory_pos, resource_pos;
+```
+
+A subcategory with no resources has no rows; the app shows its empty state. Known limits: steps after the landing page are in URL order, since the index does not keep the site's own lesson order; and sections without a crawled landing page take their title from the URL slug.
 
 ## Project structure
 
@@ -213,7 +232,7 @@ Tuning a subcategory is an edit to its `query` in `browse_topics.json`, checked 
 rag/
   schemas.py          # every contract between stages, frozen
   api.py              # retrieve(query_en, lang, k), verify(draft, chunks, lang), browse_topics(), browse(...) - the public surface
-  browse.py           # screen 3a: topic taxonomy, chunks -> one resource per page
+  browse.py           # screen 3a: indexed pages grouped into site sections
   main.py             # CLI: ingest / extract / chunk / index / retrieve / verify / browse
   s01_ingest.py
   s01_sources.py      # per-domain fetch strategies (live_scoped, wayback), --plan, extract-time URL exclusion
@@ -225,7 +244,7 @@ rag/
   lang.py             # langdetect, used by stage 02
   config/
     approved_domains.json
-    browse_topics.json      # screen 3a taxonomy: categories, subcategories, and each one's English query
+    browse_topics.json      # screen 3a taxonomy: categories, subcategories, and the site sections in each
     source_strategies.json  # how each domain is fetched, scoped and filtered
     domain_decisions.md
     schema.sql
@@ -321,7 +340,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-225 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
+228 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 

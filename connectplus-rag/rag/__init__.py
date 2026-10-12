@@ -13,17 +13,18 @@ not from here - nothing outside this repo should be crawling or embedding.
         ...  # drop the answer, offer a mentor. Never patch it.
 
     categories = browse_topics()                           # screen 3a, levels 1-2
-    resources = browse(category_id, subcategory_id, lang)  # screen 3a, level 3
+    resources = browse(category_id, subcategory_id)        # screen 3a, level 3
 
 That is the whole public surface. Everything else is internal.
 """
 
 from rag.api import REFUSAL_THRESHOLD, browse, browse_topics, retrieve, verify
-from rag.schemas import BrowseCategory, BrowseSubcategory, Chunk, Resource, Retrieved, Verdict
+from rag.schemas import BrowseCategory, BrowsePage, BrowseSubcategory, Chunk, Resource, Retrieved, Verdict
 
 __all__ = [
     "REFUSAL_THRESHOLD",
     "BrowseCategory",
+    "BrowsePage",
     "BrowseSubcategory",
     "Chunk",
     "Resource",

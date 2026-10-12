@@ -42,3 +42,29 @@ create index if not exists chunks_tsv_idx
 -- Vector search - README's stack table: "pgvector (HNSW)"
 create index if not exists chunks_embedding_hnsw_idx
     on chunks using hnsw (embedding vector_cosine_ops);
+
+-- Screen 3a (Browse topics), written by `python -m rag.main browse --build`.
+-- A snapshot of rag.browse() for every subcategory, so the app reads it
+-- straight from Supabase: no Python, no model, no endpoint in between.
+-- Rebuilt in full (delete + insert, one transaction) after each re-index.
+-- Read-only and public on purpose: it lists public pages of approved sites.
+create table if not exists browse_resources (
+    category_id       text not null,
+    category_title    text not null,
+    category_pos      int  not null,
+    subcategory_id    text not null,
+    subcategory_title text not null,
+    subcategory_pos   int  not null,
+    resource_pos      int  not null,
+    resource_id       text not null,   -- 'domain/path' of the section
+    url               text not null,
+    domain            text not null,
+    title             text not null,
+    pages             jsonb not null,  -- [{doc_id, url, title}], landing page first: the steps
+    built_at          timestamptz not null default now(),
+    primary key (category_id, subcategory_id, resource_pos)
+);
+
+alter table browse_resources enable row level security;
+drop policy if exists "browse is readable by anyone" on browse_resources;
+create policy "browse is readable by anyone" on browse_resources for select using (true);

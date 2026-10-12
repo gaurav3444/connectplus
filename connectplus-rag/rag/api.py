@@ -22,11 +22,12 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Mapping, Sequence
+from contextlib import closing
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from rag.browse import CHUNKS_PER_QUERY, find_subcategory, load_topics, resources_from_chunks
+from rag.browse import DocRow, find_subcategory, load_topics, resources_for
 from rag.s05_retrieve import (
     DEFAULT_TOP_K_FINAL,
     ChunkFetchFunction,
@@ -70,15 +71,10 @@ def _entailment_for(lang: str):
     return get_default_entailment(override) if override else get_default_entailment()
 
 
-@lru_cache(maxsize=1)
-def _search_fns() -> tuple[VectorSearchFunction, KeywordSearchFunction, ChunkFetchFunction]:
-    """Postgres-bound search functions, built once per process.
-
-    Reads this repo's own .env, so connectplus-llm has nothing to configure
-    for us. A missing DATABASE_URL raises rather than returning no chunks:
-    an empty result would reach verify() as low confidence and the senior
-    would be told "no trusted information" when the real fault is config.
-    """
+def _database_url() -> str:
+    """This repo's own .env, so connectplus-llm has nothing to configure for
+    us. Missing raises rather than returning nothing: an empty result would
+    reach the senior as "no trusted information" when the fault is config."""
     from dotenv import load_dotenv
 
     load_dotenv(ENV_PATH)
@@ -88,6 +84,13 @@ def _search_fns() -> tuple[VectorSearchFunction, KeywordSearchFunction, ChunkFet
             f"DATABASE_URL is not set (checked the environment and {ENV_PATH}). "
             "Use Supabase's SESSION POOLER connection string - see .env.example."
         )
+    return db_url
+
+
+@lru_cache(maxsize=1)
+def _search_fns() -> tuple[VectorSearchFunction, KeywordSearchFunction, ChunkFetchFunction]:
+    """Postgres-bound search functions, built once per process."""
+    db_url = _database_url()
     return (
         make_postgres_vector_search(db_url),
         make_postgres_keyword_search(db_url),
@@ -179,31 +182,32 @@ def verify(
 
 def browse_topics() -> list[BrowseCategory]:
     """Screen 3a's first two levels: categories and their subcategories.
-    Static - no database, no model."""
+    Static - no database."""
     return list(load_topics())
 
 
-def browse(category_id: str, subcategory_id: str, lang: str = "en") -> list[Resource]:
-    """Screen 3a's third level: up to seven approved source pages for one
-    subcategory, best first. An empty list is the designed empty state.
+def browse(category_id: str, subcategory_id: str) -> list[Resource]:
+    """Screen 3a's third level: the approved-site sections filed under one
+    subcategory, each with its pages in step order. An empty list is the
+    designed empty state. Raises KeyError for an unknown id.
 
-    `lang` is logged, as in retrieve(); the subcategory's query is English
-    whatever language the senior reads, so one cached result serves all.
-    Raises KeyError for an unknown category or subcategory id.
+    Built from the pages already in the index - no search, no model.
     """
-    resources = list(_browse(category_id, subcategory_id))
-    log.info(
-        "browse topic=%s/%s lang=%s doc_ids=%s",
-        category_id, subcategory_id, lang, [r.doc_id for r in resources],
-    )
+    sub = find_subcategory(category_id, subcategory_id)
+    resources = resources_for(sub, _indexed_pages(), load_approved_domains())
+    log.info("browse topic=%s/%s resources=%s", category_id, subcategory_id, [r.id for r in resources])
     return resources
 
 
-# ponytail: per-process cache, cleared only by a restart - the index only
-# changes when ingest re-runs. Precompute into a table at index time if the
-# first, reranked request per subcategory is too slow on CPU.
-@lru_cache(maxsize=128)
-def _browse(category_id: str, subcategory_id: str) -> tuple[Resource, ...]:
-    sub = find_subcategory(category_id, subcategory_id)
-    chunks, _ = retrieve(sub.query, "en", CHUNKS_PER_QUERY)
-    return tuple(resources_from_chunks(chunks, load_approved_domains(), REFUSAL_THRESHOLD))
+# ponytail: one read of every indexed page (~1,600 rows) per process; restart
+# after re-indexing. `python -m rag.main browse --build` snapshots the result
+# into the browse_resources table, which is what the app reads.
+@lru_cache(maxsize=1)
+def _indexed_pages() -> tuple[DocRow, ...]:
+    import psycopg2
+
+    with closing(psycopg2.connect(_database_url())) as conn, conn.cursor() as cur:
+        cur.execute("select distinct doc_id, url, domain, title from chunks")
+        return tuple(
+            {"doc_id": row[0], "url": row[1], "domain": row[2], "title": row[3]} for row in cur.fetchall()
+        )

@@ -11,8 +11,9 @@ Usage (from README_rag.md, extended for 02-05):
     python -m rag.main index --domain scamwatch.gov.au
     python -m rag.main retrieve "how do I know if a text message is a scam"
     python -m rag.main verify
-    python -m rag.main browse                            (list the topic taxonomy)
+    python -m rag.main browse                            (check every subcategory against the index)
     python -m rag.main browse staying-safe passwords     (resources for one subcategory)
+    python -m rag.main browse --build                    (write the browse_resources table the app reads)
 
 `index` and `retrieve` read DATABASE_URL from a .env file in the project
 root (or the real environment) - Supabase's SESSION POOLER connection
@@ -139,25 +140,57 @@ def _run_retrieve(query: str, top_k: int, use_reranker: bool) -> None:
     _print_results(results, confidence, use_reranker)
 
 
-def _run_browse(category_id: str | None, subcategory_id: str | None) -> None:
-    """No ids: print the taxonomy. Both ids: run that subcategory against the
-    real index through the same public browse() the app's API calls."""
+def _run_browse(category_id: str | None, subcategory_id: str | None, build: bool) -> None:
+    """No ids: report every subcategory against the real index - resource
+    count, the seven-per-level rule, and any source that matched nothing.
+    Both ids: print that subcategory's resources. --build: write every
+    subcategory into the browse_resources table the app reads."""
     from rag.api import browse, browse_topics
+    from rag.browse import MAX_PER_LEVEL
 
-    if not (category_id and subcategory_id):
-        for category in browse_topics():
-            print(f"{category.id}  {category.title}")
-            for sub in category.subcategories:
-                print(f"    {sub.id}  {sub.title}  - {sub.query!r}")
+    if category_id and subcategory_id:
+        for n, resource in enumerate(browse(category_id, subcategory_id), start=1):
+            print(f"[{n}] {resource.title}  ({resource.domain}, {len(resource.pages)} pages)")
+            print(f"     {resource.url}")
         return
 
-    resources = browse(category_id, subcategory_id)
-    if not resources:
-        print("No resource scored above the refusal threshold - the app shows its empty state.")
-    for n, resource in enumerate(resources, start=1):
-        print(f"[{n}] {resource.score:.3f}  {resource.title}  ({resource.domain})")
-        print(f"     {resource.url}")
-        print(f"     {' > '.join(resource.heading_path)}")
+    rows = []
+    for c_pos, category in enumerate(browse_topics()):
+        print(f"{category.id}  {category.title}")
+        for s_pos, sub in enumerate(category.subcategories):
+            resources = browse(category.id, sub.id)
+            flag = "  <-- over the seven-per-level limit" if len(resources) > MAX_PER_LEVEL else ""
+            print(f"    {sub.id}: {len(resources)} resources{flag}")
+            matched = {r.id for r in resources}
+            for source in sub.sources:
+                prefix = source.removesuffix("/*")
+                if not any(rid == prefix or rid.startswith(prefix + "/") for rid in matched):
+                    print(f"        no indexed page matches {source}")
+            rows += [
+                (category.id, category.title, c_pos, sub.id, sub.title, s_pos, r_pos,
+                 r.id, r.url, r.domain, r.title, json.dumps([p.model_dump() for p in r.pages]))
+                for r_pos, r in enumerate(resources)
+            ]
+
+    if build:
+        import psycopg2
+
+        db_url = _get_db_url()
+        if not db_url:
+            return
+        conn = psycopg2.connect(db_url)
+        try:
+            with conn, conn.cursor() as cur:
+                cur.execute("delete from browse_resources")
+                cur.executemany(
+                    "insert into browse_resources (category_id, category_title, category_pos, "
+                    "subcategory_id, subcategory_title, subcategory_pos, resource_pos, resource_id, "
+                    "url, domain, title, pages) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    rows,
+                )
+        finally:
+            conn.close()
+        print(f"browse_resources rebuilt: {len(rows)} rows")
 
 
 DEFAULT_DRAFTS_PATH = Path(__file__).parent / "fixtures" / "f06_drafts.json"
@@ -370,10 +403,14 @@ def main() -> None:
     )
 
     browse_parser = subparsers.add_parser(
-        "browse", help="Screen 3a: list the topic taxonomy, or one subcategory's resources"
+        "browse", help="Screen 3a: check the browse taxonomy, show one subcategory, or --build its table"
     )
     browse_parser.add_argument("category", nargs="?", help="Category id, e.g. staying-safe")
     browse_parser.add_argument("subcategory", nargs="?", help="Subcategory id, e.g. passwords")
+    browse_parser.add_argument(
+        "--build", action="store_true",
+        help="Write every subcategory into the browse_resources table (see rag/config/schema.sql).",
+    )
 
     args = parser.parse_args()
 
@@ -399,7 +436,7 @@ def main() -> None:
     elif args.command == "verify":
         _run_verify(args.drafts, use_grounding=args.grounding)
     elif args.command == "browse":
-        _run_browse(args.category, args.subcategory)
+        _run_browse(args.category, args.subcategory, build=args.build)
 
 
 if __name__ == "__main__":
