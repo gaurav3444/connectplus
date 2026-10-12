@@ -224,7 +224,9 @@ python -m rag.main browse --build                  # rebuild browse_resources (r
 select * from browse_resources order by category_pos, subcategory_pos, resource_pos;
 ```
 
-A subcategory with no resources has no rows; the app shows its empty state. Known limits: steps after the landing page are in URL order, since the index does not keep the site's own lesson order; and sections without a crawled landing page take their title from the URL slug.
+**Step order follows the site.** The index keeps page text, not course menus, so the order comes from each section's landing page HTML, read from stage 01's cache (`--build` fetches a missing one once, with stage 01's own fetcher and User-Agent; eSafety is never fetched live, since its live site blocks automated clients). Be Connected numbers its lessons ("1 What is a text or SMS scam? 2 How to identify a text or SMS scam"), and that number wins - titles also appear earlier in intros and transcripts, and on real data ordering by first mention alone put "Managing passwords"' sixth lesson first. Titles are matched on words only, since the stored title and the list disagree on punctuation (`What is email used for` vs `1 What is email used for?`). Pages without a number go by first mention, and pages not on the landing page keep URL order, last. Measured on the real build (2026-10-13): 75 of the 92 multi-page sections fully matched a numbered list; the rest are myGov link lists (ordered by mention), Be Connected's practice area, two whole-topic resources whose nested lessons follow their courses, and 3 sections with no cached landing page (two eSafety, one with no landing page at all).
+
+A subcategory with no resources has no rows; the app shows its empty state. Sections without a crawled landing page take their title from the URL slug.
 
 ## Project structure
 
@@ -340,7 +342,7 @@ First run of `chunk` downloads BGE-m3's tokenizer (~a few MB); first run of `ind
 pytest tests/ -v
 ```
 
-228 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
+234 tests. Every stage's tests run against the real 6-page fixture in `rag/fixtures/` (not just synthetic cases) - several of the bugs described above were only caught because of this. Every external dependency (network calls, the BGE-m3 model/tokenizer, the reranker, the Supabase connection, the NLI cross-encoder) is injectable, so the full test suite runs with no internet access and no live services.
 
 ## Evaluating retrieval
 

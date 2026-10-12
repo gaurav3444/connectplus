@@ -27,7 +27,15 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from rag.browse import DocRow, find_subcategory, load_topics, resources_for
+from rag.browse import (
+    PAGE_CACHE_DIR,
+    DocRow,
+    HtmlFunction,
+    cached_page_html,
+    find_subcategory,
+    load_topics,
+    resources_for,
+)
 from rag.s05_retrieve import (
     DEFAULT_TOP_K_FINAL,
     ChunkFetchFunction,
@@ -186,15 +194,21 @@ def browse_topics() -> list[BrowseCategory]:
     return list(load_topics())
 
 
-def browse(category_id: str, subcategory_id: str) -> list[Resource]:
+def browse(
+    category_id: str, subcategory_id: str, page_html: HtmlFunction | None = None
+) -> list[Resource]:
     """Screen 3a's third level: the approved-site sections filed under one
     subcategory, each with its pages in step order. An empty list is the
     designed empty state. Raises KeyError for an unknown id.
 
-    Built from the pages already in the index - no search, no model.
+    Built from the pages already in the index - no search, no model. Step
+    order comes from landing pages in stage 01's cache; `page_html` overrides
+    that (`browse --build` passes one that fetches cache misses).
     """
     sub = find_subcategory(category_id, subcategory_id)
-    resources = resources_for(sub, _indexed_pages(), load_approved_domains())
+    resources = resources_for(
+        sub, _indexed_pages(), load_approved_domains(), page_html or cached_page_html(PAGE_CACHE_DIR)
+    )
     log.info("browse topic=%s/%s resources=%s", category_id, subcategory_id, [r.id for r in resources])
     return resources
 

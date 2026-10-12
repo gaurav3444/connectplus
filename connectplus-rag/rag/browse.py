@@ -20,12 +20,22 @@ page under it, which are the steps screen 3c walks through. A page that is
 not in the index - because its domain or section was never approved, or it
 was never crawled - cannot appear, and a source that matches nothing simply
 yields no resource (`python -m rag.main browse` reports those).
+
+Steps follow the site's own order. The index keeps page text, not the
+course menu, so the order comes from the section's landing page HTML: each
+page sits where its title first appears there (Be Connected lists its
+lessons as "1 What is a text or SMS scam? 2 How to identify...").
+Landing pages come from stage 01's cache; `browse --build` fetches the
+missing ones once.
 """
 
 from __future__ import annotations
 
+import html
 import json
-from collections.abc import Iterable, Mapping
+import re
+import time
+from collections.abc import Callable, Iterable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -34,10 +44,16 @@ from rag.schemas import BrowseCategory, BrowsePage, BrowseSubcategory, Resource
 
 TOPICS_PATH = Path(__file__).parent / "config" / "browse_topics.json"
 MAX_PER_LEVEL = 7  # design rule: never more than seven cards per level
+PAGE_CACHE_DIR = Path(".cache/html")  # stage 01's cache, as the CLI lays it out
 
 # One indexed page: {"doc_id", "url", "domain", "title"} - a row of
 # `select distinct doc_id, url, domain, title from chunks`.
 DocRow = Mapping[str, str | None]
+
+# (url, domain) -> that page's raw HTML, or None when it is not available.
+HtmlFunction = Callable[[str, str], str | None]
+
+_TAG_RE = re.compile(r"<[^>]+>")
 
 
 @lru_cache(maxsize=1)
@@ -67,18 +83,88 @@ def page_key(doc: DocRow) -> str:
 def _title(doc: DocRow | None, key: str) -> str:
     """Page title without its ' | Site name' suffix; the URL slug when the
     page has none (real case: several my.gov.au pages are stored untitled)."""
-    title = str((doc or {}).get("title") or "").split(" | ")[0].strip()
+    # Be Connected stores some lessons as "What do apps do? - lesson".
+    title = str((doc or {}).get("title") or "").split(" | ")[0].strip().removesuffix(" - lesson")
     if title and title != "None":
         return title
     return key.rsplit("/", 1)[-1].replace("-", " ").capitalize()
 
 
+def _words(text: str) -> str:
+    """Casefolded words only, single-spaced. Punctuation goes because stored
+    titles and the landing page's list disagree on it (real: 'What is email
+    used for' vs '1 What is email used for?', 'you’re' vs 'you&rsquo;re')."""
+    return " ".join(re.sub(r"[^\w\s]", " ", html.unescape(text).casefold()).split())
+
+
+def site_order(landing_html: str, docs: list[DocRow]) -> list[DocRow]:
+    """`docs` in the order the landing page lists them.
+
+    A numbered entry wins ("2 How to identify a text or SMS scam" - Be
+    Connected's activity list): titles also turn up earlier in intros and
+    transcripts, so first appearance alone put a course's last lesson first
+    on real data. Unnumbered titles go by first appearance (myGov's link
+    lists); titles not on the page keep URL order, last.
+    """
+    text = _words(_TAG_RE.sub(" ", landing_html))
+
+    def position(doc: DocRow) -> tuple[int, int]:
+        words = _words(_title(doc, page_key(doc))).split()
+        title = re.escape(" ".join(words))
+        # Full title, then its first four words: list wording drifts from the
+        # stored title (real: 'A new kind of control: voice assistants').
+        for candidate in (title, re.escape(" ".join(words[:4])) if len(words) > 4 else None):
+            numbered = candidate and re.search(rf"(?:^|\s)(\d{{1,2}}) {candidate}(?=\s|$)", text)
+            if numbered:
+                return 0, int(numbered.group(1))
+        found = re.search(title, text)
+        return (1, found.start()) if found else (2, 0)
+
+    return sorted(docs, key=position)  # stable: ties keep URL order
+
+
+def cached_page_html(cache_dir: Path, fetch_missing: bool = False) -> HtmlFunction:
+    """Reads pages from stage 01's cache (`<cache_dir>/<domain>/pages/`).
+
+    With fetch_missing, a page not in the cache is fetched once through stage
+    01's own fetcher - same User-Agent, cached for next time, a politeness
+    delay after each real request - and only for domains crawled live. A
+    'wayback' domain (eSafety blocks automated clients) is never fetched live.
+    """
+    import httpx
+
+    from rag.s01_ingest import DEFAULT_DELAY_SECONDS, _fetch_page, _JsonLogAdapter, _url_hash, logger
+    from rag.s01_sources import load_strategies
+
+    log = _JsonLogAdapter(logger, {"run_id": "browse"})
+    archived = {d for d, s in load_strategies().items() if s.strategy == "wayback"}
+    client = httpx.Client(follow_redirects=True)
+
+    def read(url: str, domain: str) -> str | None:
+        pages_dir = cache_dir / domain / "pages"
+        cached = (pages_dir / f"{_url_hash(url)}.meta.json").exists()
+        if not cached and (not fetch_missing or domain in archived):
+            return None
+        record, cache_hit = _fetch_page(url, domain, client, pages_dir, log)
+        if not cache_hit:
+            time.sleep(DEFAULT_DELAY_SECONDS)
+        return record.html if record.status == 200 else None
+
+    return read
+
+
 def resources_for(
-    sub: BrowseSubcategory, docs: Iterable[DocRow], approved_domains: set[str]
+    sub: BrowseSubcategory,
+    docs: Iterable[DocRow],
+    approved_domains: set[str],
+    page_html: HtmlFunction | None = None,
 ) -> list[Resource]:
     """Groups indexed pages into this subcategory's resources, in the order
     its sources list them. Pages from unapproved domains are skipped: the
-    index outlives a domain's approval (stage 04 never deletes rows)."""
+    index outlives a domain's approval (stage 04 never deletes rows).
+
+    `page_html` supplies landing pages for site_order(); without it, or when
+    a landing page is unavailable, steps stay in URL order."""
     keyed = sorted(
         ((page_key(d), d) for d in docs if d["domain"] in approved_domains), key=lambda pair: pair[0]
     )
@@ -98,10 +184,13 @@ def resources_for(
     resources = []
     for group, pages in groups.items():
         landing = next((doc for key, doc in pages if key == group), None)
-        # ponytail: steps after the landing page are in URL order - the index does
-        # not keep the site's own lesson order. Store order_idx per page at crawl
-        # time if 'What is X?' must come before 'How to identify X'.
-        ordered = ([landing] if landing else []) + [doc for key, doc in pages if key != group]
+        steps = [doc for key, doc in pages if key != group]
+        landing_html = None
+        if landing and page_html and len(steps) > 1:
+            landing_html = page_html(str(landing["url"]), str(landing["domain"]))
+        if landing_html:
+            steps = site_order(landing_html, steps)
+        ordered = ([landing] if landing else []) + steps
         resources.append(
             Resource(
                 id=group,

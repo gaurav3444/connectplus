@@ -4,11 +4,13 @@ course layout (topic -> course -> lesson) seen in the live index."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import rag.api
 from rag import browse, browse_topics
-from rag.browse import MAX_PER_LEVEL, find_subcategory, page_key, resources_for
+from rag.browse import MAX_PER_LEVEL, cached_page_html, find_subcategory, page_key, resources_for, site_order
 from rag.s06_verify import load_approved_domains
 from rag.schemas import BrowseSubcategory
 
@@ -120,4 +122,91 @@ def test_browse_reads_the_indexed_pages(monkeypatch: pytest.MonkeyPatch) -> None
     assert [r.id for r in resources] == [
         "beconnected.esafety.gov.au/topic-library/identifying-and-avoiding-scams/text-or-sms-scams",
         "scamwatch.gov.au/types-of-scams/text-or-sms-scams",
+    ]
+
+
+COURSE_HTML = """
+<nav><a href="/topic-library/identifying-and-avoiding-scams">Identifying and avoiding scams</a></nav>
+<h2>Activities</h2>
+<li>1 What is a text or SMS scam? <a href="/mod/lesson/view.php?id=8478">Start now</a></li>
+<li>2 How to identify a text or SMS scam <a href="/mod/lesson/view.php?id=8479">Start now</a></li>
+"""
+
+
+def test_steps_follow_the_order_the_landing_page_lists_them() -> None:
+    def page_html(url: str, _domain: str) -> str | None:
+        return COURSE_HTML if url == f"{TOPIC}/text-or-sms-scams" else None
+
+    [course] = resources_for(_sub(f"{TOPIC[8:]}/text-or-sms-scams"), PAGES, APPROVED, page_html)
+
+    assert [p.title for p in course.pages] == [
+        "Text or SMS scams", "What is a text or SMS scam?", "How to identify a text or SMS scam",
+    ]
+
+
+def test_titles_match_through_entities_and_curly_quotes_and_unlisted_pages_go_last() -> None:
+    pages = [
+        _page("https://x.gov.au/a/z-listed-second", "What to do if you’re a victim"),
+        _page("https://x.gov.au/a/m-not-listed", "Something the menu never mentions"),
+        _page("https://x.gov.au/a/b-listed-first", "Protecting yourself"),
+    ]
+    landing = "<li>1 Protecting  yourself</li><li>2 What to do if you&rsquo;re a victim</li>"
+
+    ordered = site_order(landing, pages)
+
+    assert [str(p["url"]).rsplit("/", 1)[-1] for p in ordered] == [
+        "b-listed-first", "z-listed-second", "m-not-listed",
+    ]
+
+
+def test_cache_only_reader_never_touches_the_network(tmp_path: Path) -> None:
+    read = cached_page_html(tmp_path)
+
+    assert read("https://beconnected.esafety.gov.au/topic-library/x", "beconnected.esafety.gov.au") is None
+
+
+def test_a_numbered_entry_beats_an_earlier_mention_in_the_intro() -> None:
+    pages = [
+        _page("https://x.gov.au/a/other-things", "Other things a password manager can do"),
+        _page("https://x.gov.au/a/importance", "The importance of strong and secure passwords"),
+    ]
+    landing = (
+        "<p>You'll find out what other things a password manager can do.</p>"
+        "<li>1 The importance of strong and secure passwords 7 min</li>"
+        "<li>2 Other things a password manager can do 5 min</li>"
+    )
+
+    assert [p["title"] for p in site_order(landing, pages)] == [
+        "The importance of strong and secure passwords", "Other things a password manager can do",
+    ]
+
+
+def test_titles_match_the_list_despite_punctuation_and_a_lesson_suffix() -> None:
+    pages = [
+        _page("https://x.gov.au/a/safely", "Safely downloading apps - lesson"),
+        _page("https://x.gov.au/a/what", "What do apps do - lesson"),
+    ]
+    landing = "<li>1 What do apps do? 5 min</li><li>2 Safely downloading apps 6 min</li>"
+
+    assert [p["title"] for p in site_order(landing, pages)] == [
+        "What do apps do - lesson", "Safely downloading apps - lesson",
+    ]
+    [resource] = resources_for(_sub(f"{TOPIC[8:]}/text-or-sms-scams"), [
+        _page(f"{TOPIC}/text-or-sms-scams", "Text or SMS scams"),
+        _page(f"{TOPIC}/text-or-sms-scams/what-do-apps-do", "What do apps do? - lesson"),
+    ], APPROVED)
+    assert resource.pages[1].title == "What do apps do?"  # the suffix never reaches the screen
+
+
+def test_a_numbered_entry_worded_slightly_differently_still_matches_on_its_first_words() -> None:
+    pages = [
+        _page("https://x.gov.au/a/how", "How a voice assistant works"),
+        _page("https://x.gov.au/a/new", "A new kind of control: voice assistants"),
+    ]
+    landing = (
+        "<li>1 A new kind of control: voice assistant 4 min</li><li>2 How a voice assistant works 5 min</li>"
+    )
+
+    assert [p["title"] for p in site_order(landing, pages)] == [
+        "A new kind of control: voice assistants", "How a voice assistant works",
     ]

@@ -146,19 +146,25 @@ def _run_browse(category_id: str | None, subcategory_id: str | None, build: bool
     Both ids: print that subcategory's resources. --build: write every
     subcategory into the browse_resources table the app reads."""
     from rag.api import browse, browse_topics
-    from rag.browse import MAX_PER_LEVEL
+    from rag.browse import MAX_PER_LEVEL, PAGE_CACHE_DIR, cached_page_html
+
+    # --build fetches landing pages missing from stage 01's cache, once, so
+    # the table gets the site's step order; the dry runs never touch the network.
+    page_html = cached_page_html(PAGE_CACHE_DIR, fetch_missing=build)
 
     if category_id and subcategory_id:
-        for n, resource in enumerate(browse(category_id, subcategory_id), start=1):
+        for n, resource in enumerate(browse(category_id, subcategory_id, page_html), start=1):
             print(f"[{n}] {resource.title}  ({resource.domain}, {len(resource.pages)} pages)")
             print(f"     {resource.url}")
+            for step, page in enumerate(resource.pages[1:], start=1):
+                print(f"       {step}. {page.title}")
         return
 
     rows = []
     for c_pos, category in enumerate(browse_topics()):
         print(f"{category.id}  {category.title}")
         for s_pos, sub in enumerate(category.subcategories):
-            resources = browse(category.id, sub.id)
+            resources = browse(category.id, sub.id, page_html)
             flag = "  <-- over the seven-per-level limit" if len(resources) > MAX_PER_LEVEL else ""
             print(f"    {sub.id}: {len(resources)} resources{flag}")
             matched = {r.id for r in resources}
