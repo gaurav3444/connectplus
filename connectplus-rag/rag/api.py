@@ -37,7 +37,11 @@ from rag.s05_retrieve import (
     make_postgres_vector_search,
 )
 from rag.s05_retrieve import retrieve as _retrieve
-from rag.s06_verify import DEFAULT_CONFIDENCE_THRESHOLD, get_default_entailment
+from rag.s06_verify import (
+    DEFAULT_CONFIDENCE_THRESHOLD,
+    MULTILINGUAL_NLI_MODEL_NAME,
+    get_default_entailment,
+)
 from rag.s06_verify import verify as _verify
 from rag.schemas import Chunk, Retrieved, Verdict
 
@@ -48,6 +52,20 @@ ENV_PATH = Path(__file__).parent.parent / ".env"
 # The same number verify() refuses on, exported so connectplus-llm can skip
 # generation early instead of generating an answer verify() will drop.
 REFUSAL_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD
+
+
+def _entailment_for(lang: str):
+    """English keeps the English model unless RAG_NLI_MODEL_EN overrides it
+    (set it in .env to the multilingual model if the English one misbehaves
+    with your installed transformers version). Other languages always use
+    the multilingual model, which can read them."""
+    if lang != "en":
+        return get_default_entailment(MULTILINGUAL_NLI_MODEL_NAME)
+    from dotenv import load_dotenv
+
+    load_dotenv(ENV_PATH)
+    override = os.environ.get("RAG_NLI_MODEL_EN")
+    return get_default_entailment(override) if override else get_default_entailment()
 
 
 @lru_cache(maxsize=1)
@@ -145,7 +163,9 @@ def verify(
         _answer_md(draft),
         as_chunks,
         confidence,
-        entail_fn=get_default_entailment(),
+        # English answers keep the English model the threshold was set
+        # against; every other language needs one that can read it.
+        entail_fn=_entailment_for(lang),
     )
     log.info(
         "verify lang=%s passed=%s reason=%s grounded=%.3f confidence=%.3f chunk_ids=%s",

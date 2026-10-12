@@ -301,3 +301,32 @@ def test_verify_defaults_to_the_real_allowlist_when_none_is_passed() -> None:
     d = draft("d04-citation-to-unapproved-domain")
     verdict = verify(d["answer_md"], chunks_for(d), d["confidence"])
     assert verdict.reason == "bad_citation"
+
+
+def test_a_claim_supported_by_part_of_a_long_chunk_is_scored_on_that_part() -> None:
+    """Real NLI models score a near-copied sentence ~0 against a whole long
+    chunk and ~1 against the few sentences it came from. Windows must be
+    offered so the supporting passage can be found."""
+    from rag.s06_verify import premise_windows
+
+    long_text = " ".join(f"Filler sentence number {i} about something else." for i in range(12))
+    long_text += " Avoid clicking links in unexpected messages. More filler follows here."
+    chunk = ALL_CHUNKS[0].model_copy(update={"text": long_text})
+
+    def entail(premises, hypotheses):   # behaves like a real model: short premise only
+        return [0.95 if len(p.split()) < 40 and "Avoid clicking links" in p else 0.01
+                for p in premises]
+
+    assert premise_windows(long_text)
+    score = grounded_score("Avoid clicking links in unexpected messages [1].", [chunk], entail)
+    assert score == pytest.approx(0.95)
+
+
+def test_single_source_sentences_are_offered_as_premises() -> None:
+    """Real case: 0.995 against the one sentence, 0.089 once the next two
+    sentences were attached. The single sentence must be offered on its own."""
+    from rag.s06_verify import premise_windows
+
+    text = ("If you receive an Unverified message, avoid clicking links. "
+            "Contact the organisation directly. Scammers are very resilient.")
+    assert "If you receive an Unverified message, avoid clicking links." in premise_windows(text)

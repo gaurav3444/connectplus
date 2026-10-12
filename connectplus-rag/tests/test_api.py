@@ -45,7 +45,7 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> dict[str, float]:
         ],
     )
     monkeypatch.setattr(rag.s05_retrieve, "get_default_embedder", lambda _name: lambda qs: [[0.0]] * len(qs))
-    monkeypatch.setattr(rag.api, "get_default_entailment", lambda: lambda p, h: [1.0] * len(p))
+    monkeypatch.setattr(rag.api, "get_default_entailment", lambda *_args: lambda p, h: [1.0] * len(p))
     return rerank_scores
 
 

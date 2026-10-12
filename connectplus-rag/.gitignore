@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 *.egg-info/
+traces.jsonl
 
 # Raw crawl cache - regenerate locally with `python -m rag.main ingest`.
 # Never commit real scraped HTML: it's large, it goes stale, and re-fetching

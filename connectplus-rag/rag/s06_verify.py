@@ -125,10 +125,18 @@ _NEGATION_WINDOW = 60  # characters before the match to search for a negation
 
 
 NLI_MODEL_NAME = "cross-encoder/nli-deberta-v3-base"
+
+# Used for every non-English answer. The English model above only reads
+# English, so on real Gemini output it scored correct Vietnamese sentences
+# 0.000-0.001 (premise English, hypothesis Vietnamese). This one is trained
+# on XNLI in 100 languages, including Chinese and Vietnamese, and its
+# id2label carries an "entailment" class, so get_default_entailment() works
+# with it unchanged.
+MULTILINGUAL_NLI_MODEL_NAME = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 _ENTAILMENT_LABEL = "entailment"
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def get_default_entailment(model_name: str = NLI_MODEL_NAME) -> EntailmentFunction:
     """Real NLI cross-encoder, loaded once per process.
 
@@ -209,6 +217,66 @@ def find_unsafe_instruction(answer_md: str) -> str | None:
     return None
 
 
+# ---- Chinese and Vietnamese disclosure instructions -------------------
+# The English regex above cannot see "请把验证码发给对方" or "Hãy gửi mã xác
+# minh cho họ" - both passed the safety check on real output. Same idea as
+# the English rule: a "give" verb near a secret, unless the same sentence
+# negates it or attributes it to a scammer ("骗子会要求您提供密码").
+
+_ZH_SECRET = (
+    r"密码|密碼|验证码|驗證碼|校验码|校驗碼|动态码|動態碼|PIN码|PIN碼|"
+    r"银行卡号|銀行卡號|卡号|卡號|银行账户|銀行帳戶|网银|網銀|信用卡|"
+    r"安全码|安全碼|CVV|远程控制|遠端控制|远程访问|遠端存取|TeamViewer|AnyDesk"
+)
+_ZH_GIVE = (
+    r"告诉|告訴|发给|發給|发送给|發送給|提供|输入|輸入|透露|分享|"
+    r"念给|唸給|回复|回覆|报给|報給|交给|交給|给他|給他|给她|給她|给对方|給對方"
+)
+_ZH_DISCLOSURE_RE = re.compile(
+    rf"(?:{_ZH_GIVE})[^。！？\n]{{0,20}}?(?:{_ZH_SECRET})"
+    rf"|(?:{_ZH_SECRET})[^。！？\n]{{0,15}}?(?:{_ZH_GIVE})"
+)
+_ZH_NEGATION_RE = re.compile(
+    r"不要|别|別|千万|千萬|切勿|绝不|絕不|决不|決不|不会|不會|从不|從不|"
+    r"永远不|永遠不|不可以|不能|不应|不應|勿|无需|無需|不需要|"
+    r"骗子|騙子|诈骗|詐騙|要求|假装|假裝|冒充"
+)
+
+_VI_SECRET = (
+    r"mật khẩu|mã xác minh|mã xác nhận|mã xác thực|mã OTP|OTP|mã PIN|số PIN|"
+    r"số thẻ|thông tin thẻ|thông tin ngân hàng|tài khoản ngân hàng|mã bảo mật|CVV"
+)
+_VI_GIVE = r"gửi|cung cấp|chia sẻ|đưa|nhập|đọc|báo"
+_VI_DISCLOSURE_RE = re.compile(
+    rf"\b(?:{_VI_GIVE})\b[^.!?\n]{{0,40}}?\b(?:{_VI_SECRET})\b", re.IGNORECASE
+)
+_VI_NEGATION_RE = re.compile(
+    r"\b(?:đừng|không|chớ|kẻ lừa đảo|lừa đảo|yêu cầu|giả danh|giả mạo)\b", re.IGNORECASE
+)
+
+_SENTENCE_END = ".!?。！？\n"
+
+
+def _sentence_prefix(text: str, start: int, window: int = 40) -> str:
+    """Text from the start of the current sentence up to `start`."""
+    sentence_start = max(text.rfind(ch, 0, start) for ch in _SENTENCE_END)
+    return text[max(sentence_start + 1, start - window, 0):start]
+
+
+def find_unsafe_instruction_multilingual(answer_md: str) -> str | None:
+    """English, then Chinese, then Vietnamese. First genuine match wins."""
+    hit = find_unsafe_instruction(answer_md)
+    if hit is not None:
+        return hit
+    for pattern, negation in ((_ZH_DISCLOSURE_RE, _ZH_NEGATION_RE),
+                              (_VI_DISCLOSURE_RE, _VI_NEGATION_RE)):
+        for match in pattern.finditer(answer_md):
+            if not negation.search(_sentence_prefix(answer_md, match.start())
+                                   + match.group(0)):
+                return match.group(0)
+    return None
+
+
 def resolve_citations(
     answer_md: str,
     chunks: list[Chunk],
@@ -239,17 +307,35 @@ def resolve_citations(
     return citations
 
 
-def _substantive_sentences(answer_md: str, min_words: int = 4) -> list[str]:
+_CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+
+
+def _substantive_sentences(answer_md: str, min_words: int = 4, min_cjk: int = 6) -> list[str]:
     """Sentences worth grounding.
 
     Skips headers, list bullets stripped to nothing, and short connective
     lines ("Here's how:"), which carry no factual claim and would drag a
     min-based grounded_score down for no reason.
+
+    Chinese ends sentences with 。！？ and has no spaces between words, so
+    the English rules (split on .!? followed by a space, count words by
+    whitespace) found ZERO sentences in a real Chinese answer - which made
+    grounded_score 0.0 and refused every Chinese answer, however well
+    supported. Chinese sentences now split on 。！？ and count as
+    substantive at min_cjk Han characters.
     """
-    text = re.sub(r"\[\d{1,3}\]", " ", answer_md)          # citation markers
-    text = re.sub(r"^\s*(?:#{1,6}|[-*>]|\d+[.)])\s*", " ", text, flags=re.MULTILINE)
-    sentences = re.split(r"(?<=[.!?])\s+|\n{2,}", text)
-    return [s.strip() for s in sentences if len(s.split()) >= min_words]
+    # Remove [1] / [1, 3] together with the space before it, so "alone [2]."
+    # becomes "alone." rather than "alone  ." - stray spacing before the
+    # full stop is not text the NLI models were trained on.
+    text = re.sub(r"[ \t]*\[\d{1,3}(?:\s*,\s*\d{1,3})*\]", "", answer_md)
+    text = re.sub(r"^\s*(?:#{1,6}|[-*>]|\d+[.)、])\s*", " ", text, flags=re.MULTILINE)
+    sentences = re.split(r"(?<=[.!?])\s+|(?<=[。！？])\s*|\n{2,}", text)
+    out = []
+    for s in sentences:
+        s = s.strip()
+        if len(_CJK_RE.findall(s)) >= min_cjk or len(s.split()) >= min_words:
+            out.append(s)
+    return out
 
 
 def grounded_score(
@@ -267,17 +353,30 @@ def grounded_score(
     Each sentence is scored against its best-matching chunk (max), because
     a claim only needs ONE source to support it; needing every chunk to
     entail every sentence would fail every real answer.
+
+    Each chunk is offered as a premise three ways: whole, sentence by
+    sentence, and as short overlapping windows of a few sentences. NLI models are trained on
+    one- or two-sentence premises; given a whole ~400-word chunk the English
+    model scored a sentence copied almost word for word from it at 0.003,
+    while the same model scored the same pair at 0.994 with a short
+    premise. A window is still the source's own words, so taking the max
+    over windows adds no support the source does not give.
     """
     sentences = _substantive_sentences(answer_md)
     if not sentences or not chunks:
         return 0.0
 
+    chunk_premises: list[str] = []
+    for chunk in chunks:
+        chunk_premises.append(chunk.text)
+        chunk_premises.extend(premise_windows(chunk.text))
+    per = len(chunk_premises)
+
     premises: list[str] = []
     hypotheses: list[str] = []
     for sentence in sentences:
-        for chunk in chunks:
-            premises.append(chunk.text)
-            hypotheses.append(sentence)
+        premises.extend(chunk_premises)
+        hypotheses.extend([sentence] * per)
 
     scores = entail_fn(premises, hypotheses)
     if len(scores) != len(premises):
@@ -286,10 +385,30 @@ def grounded_score(
             "refusing to guess which score belongs to which claim"
         )
 
-    per_sentence = [
-        max(scores[i * len(chunks) : (i + 1) * len(chunks)]) for i in range(len(sentences))
-    ]
+    per_sentence = [max(scores[i * per : (i + 1) * per]) for i in range(len(sentences))]
     return min(per_sentence)
+
+
+def premise_windows(text: str, size: int = 3, stride: int = 2) -> list[str]:
+    """Short premises cut from one chunk: every single sentence, plus
+    overlapping runs of `size` sentences (for claims that need two or three
+    sentences together). Empty for a one-sentence chunk, since the whole
+    chunk already is that sentence.
+
+    Single sentences are needed, not just runs. Measured on a real chunk:
+    the English model scored a near-copied claim 0.995 against the one
+    source sentence it came from, but 0.089 against that same sentence plus
+    the two that followed it. A single source sentence is still the source's
+    own words, so this adds no support the source does not give.
+    """
+    parts = [p.strip() for p in re.split(r"(?<=[.!?。！？])\s+|\n+", text) if p.strip()]
+    if len(parts) <= 1:
+        return []
+    out = list(parts)
+    if len(parts) > size:
+        out += [" ".join(parts[i : i + size])
+                for i in range(0, len(parts) - size + stride, stride) if parts[i : i + size]]
+    return out
 
 
 def verify(
@@ -331,7 +450,7 @@ def verify(
 
     # 2. Safe - highest harm, so it outranks the citation check even though
     #    both are cheap.
-    if find_unsafe_instruction(answer_md) is not None:
+    if find_unsafe_instruction_multilingual(answer_md) is not None:
         return fail("unsafe")
 
     # 3. Cited - every marker must resolve to a real chunk on an approved
