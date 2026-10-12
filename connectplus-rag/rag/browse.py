@@ -54,6 +54,9 @@ DocRow = Mapping[str, str | None]
 HtmlFunction = Callable[[str, str], str | None]
 
 _TAG_RE = re.compile(r"<[^>]+>")
+# Script and style bodies are not what a visitor sees. Real case: Be Connected's
+# JSON-LD course list orders a topic's courses differently from the page itself.
+_HIDDEN_RE = re.compile(r"<(script|style)\b.*?</\1\s*>", re.IGNORECASE | re.DOTALL)
 
 
 @lru_cache(maxsize=1)
@@ -106,7 +109,7 @@ def site_order(landing_html: str, docs: list[DocRow]) -> list[DocRow]:
     on real data. Unnumbered titles go by first appearance (myGov's link
     lists); titles not on the page keep URL order, last.
     """
-    text = _words(_TAG_RE.sub(" ", landing_html))
+    text = _words(_TAG_RE.sub(" ", _HIDDEN_RE.sub(" ", landing_html)))
 
     def position(doc: DocRow) -> tuple[int, int]:
         words = _words(_title(doc, page_key(doc))).split()
@@ -153,6 +156,41 @@ def cached_page_html(cache_dir: Path, fetch_missing: bool = False) -> HtmlFuncti
     return read
 
 
+def _in_site_order(
+    parent_key: str,
+    parent: DocRow | None,
+    below: list[tuple[str, DocRow]],
+    page_html: HtmlFunction | None,
+) -> list[DocRow]:
+    """Every page below `parent_key`, depth first: each child in the order the
+    parent's own page lists it, then that child's pages in the order ITS page
+    lists them - so a whole topic reads course 1, its lessons, course 2, ...
+    Children with no indexed page of their own keep URL order, last."""
+    branches: dict[str, list[tuple[str, DocRow]]] = {}
+    for key, doc in below:
+        branches.setdefault(key[len(parent_key) + 1 :].split("/")[0], []).append((key, doc))
+    heads = {
+        seg: next((doc for key, doc in items if key == f"{parent_key}/{seg}"), None)
+        for seg, items in branches.items()
+    }
+    listed = [head for head in heads.values() if head is not None]
+    parent_html = None
+    if parent and page_html and len(listed) > 1:
+        parent_html = page_html(str(parent["url"]), str(parent["domain"]))
+    if parent_html:
+        listed = site_order(parent_html, listed)
+    order = [page_key(head).rsplit("/", 1)[-1] for head in listed]
+    order += [seg for seg, head in heads.items() if head is None]
+
+    pages: list[DocRow] = []
+    for seg in order:
+        child_key = f"{parent_key}/{seg}"
+        head = heads[seg]
+        rest = [(key, doc) for key, doc in branches[seg] if key != child_key]
+        pages += ([head] if head else []) + _in_site_order(child_key, head, rest, page_html)
+    return pages
+
+
 def resources_for(
     sub: BrowseSubcategory,
     docs: Iterable[DocRow],
@@ -184,13 +222,8 @@ def resources_for(
     resources = []
     for group, pages in groups.items():
         landing = next((doc for key, doc in pages if key == group), None)
-        steps = [doc for key, doc in pages if key != group]
-        landing_html = None
-        if landing and page_html and len(steps) > 1:
-            landing_html = page_html(str(landing["url"]), str(landing["domain"]))
-        if landing_html:
-            steps = site_order(landing_html, steps)
-        ordered = ([landing] if landing else []) + steps
+        below = [(key, doc) for key, doc in pages if key != group]
+        ordered = ([landing] if landing else []) + _in_site_order(group, landing, below, page_html)
         resources.append(
             Resource(
                 id=group,

@@ -210,3 +210,44 @@ def test_a_numbered_entry_worded_slightly_differently_still_matches_on_its_first
     assert [p["title"] for p in site_order(landing, pages)] == [
         "A new kind of control: voice assistants", "How a voice assistant works",
     ]
+
+
+def test_nested_lessons_follow_their_own_course_page() -> None:
+    topic = "https://beconnected.esafety.gov.au/topic-library/useful-cloud"
+    pages = [
+        _page(topic, "Cloud apps"),
+        _page(f"{topic}/b-icloud", "Apple iCloud apps"),
+        _page(f"{topic}/b-icloud/z-what", "What is iCloud?"),
+        _page(f"{topic}/b-icloud/a-using", "Using iCloud apps"),
+        _page(f"{topic}/a-google", "Google cloud apps"),
+        _page(f"{topic}/a-google/only", "Using Google apps"),
+    ]
+    html = {
+        topic: "<li>1 Apple iCloud apps</li><li>2 Google cloud apps</li>",
+        f"{topic}/b-icloud": "<li>1 What is iCloud? 4 min</li><li>2 Using iCloud apps 5 min</li>",
+    }
+
+    [resource] = resources_for(
+        _sub("beconnected.esafety.gov.au/topic-library/useful-cloud"), pages, APPROVED,
+        lambda url, _domain: html.get(url),
+    )
+
+    assert [p.title for p in resource.pages] == [
+        "Cloud apps", "Apple iCloud apps", "What is iCloud?", "Using iCloud apps",
+        "Google cloud apps", "Using Google apps",
+    ]
+
+
+def test_script_contents_do_not_count_as_the_page_order() -> None:
+    pages = [
+        _page("https://x.gov.au/a/qld", "Queensland government websites"),
+        _page("https://x.gov.au/a/nsw", "Service NSW"),
+    ]
+    landing = (
+        '<script type="application/ld+json">{"name": "Queensland government websites"}</script>'
+        "<a>Service NSW</a><a>Queensland government websites</a>"
+    )
+
+    assert [p["title"] for p in site_order(landing, pages)] == [
+        "Service NSW", "Queensland government websites",
+    ]
