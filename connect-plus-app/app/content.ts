@@ -2,8 +2,8 @@
 // Device first at the top, tasks underneath, never more than seven to a level.
 //
 // The real tree comes from connectplus-rag: `python -m rag.main browse
-// --build` snapshots it into Supabase's browse_resources table (public,
-// read-only), built only from pages of approved sites already in the index.
+// --build` snapshots it into the browse_resources table in its Supabase
+// database, built only from pages of approved sites already in the index.
 // Each resource is a section of one of those sites, and its pages are the
 // steps. With no Supabase configured, the sample lessons below stand in.
 //
@@ -168,26 +168,42 @@ export function topicOf(cats: Topic[], id: string) {
 
 // ---- from connectplus-rag ----------------------------------------------
 
-const SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL;
-// The anon key: public by design. browse_resources is select-only to it.
-const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// The same Supabase database connectplus-rag indexes into. Server-side only:
+// this module never reaches the browser, and neither does the URL.
+const DB = process.env.DATABASE_URL;
+const TTL = 10 * 60_000; // the table only changes when rag re-indexes
+
+// globalThis so dev-mode reloads reuse one pool and one cached copy
+const g = globalThis as unknown as {
+  browsePool?: import("pg").Pool;
+  browseCache?: { at: number; data: Catalogue };
+};
 
 export async function catalogue(): Promise<Catalogue> {
-  if (!SUPABASE || !KEY) return { categories: CATEGORIES, resources: RESOURCES };
+  if (!DB) return { categories: CATEGORIES, resources: RESOURCES };
+  if (g.browseCache && Date.now() - g.browseCache.at < TTL) return g.browseCache.data;
 
-  const res = await fetch(
-    `${SUPABASE.replace(/\/$/, "")}/rest/v1/browse_resources?select=*` +
-      "&order=category_pos,subcategory_pos,resource_pos",
-    {
-      headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
-      // the table only changes when rag re-indexes; refetch every 10 minutes
-      next: { revalidate: 600 },
-      signal: AbortSignal.timeout(15_000),
-    },
+  if (!g.browsePool) {
+    const { Pool } = await import("pg");
+    g.browsePool = new Pool({
+      connectionString: DB,
+      max: 2,
+      connectionTimeoutMillis: 15_000,
+      // ponytail: encrypted but not verified — Supabase signs with its own
+      // CA, which Node does not trust. Same as rag's psycopg2 default
+      // (sslmode=prefer). To verify, download the CA from Supabase ->
+      // Database -> SSL and pass it as ssl: { ca }.
+      ssl: { rejectUnauthorized: false },
+    });
+  }
+  // Read-only by statement; a failed read throws to the error screen, not
+  // an empty menu — "nothing here" would be untrue.
+  const { rows } = await g.browsePool.query<Row>(
+    "select * from browse_resources order by category_pos, subcategory_pos, resource_pos",
   );
-  // an error screen, not an empty menu: "nothing here" would be untrue
-  if (!res.ok) throw new Error(`browse_resources answered ${res.status}`);
-  return fromRows(await res.json());
+  const data = fromRows(rows);
+  g.browseCache = { at: Date.now(), data };
+  return data;
 }
 
 export async function getResource(id: string) {
