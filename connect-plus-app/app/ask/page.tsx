@@ -260,10 +260,14 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
           </div>
         )}
 
-        {/* lined up with the answer column, not the panel beside it */}
+        {/* Pinned to the bottom of the screen like a chat box, so asking again
+            never means scrolling to find it; on desktop it lines up with the
+            answer column, not the panel beside it */}
         <form
           action="/ask"
-          className={`mt-auto flex gap-3 pt-8 ${a.refused ? "" : "lg:max-w-[calc(100%-25rem)]"}`}
+          className={`sticky bottom-0 mt-auto flex gap-3 bg-bg pt-4 pb-4 shadow-[0_-1px_0_var(--color-line)] ${
+            a.refused ? "" : "lg:max-w-[calc(100%-25rem)]"
+          }`}
         >
           <label htmlFor="again" className="sr-only">
             Ask something else
