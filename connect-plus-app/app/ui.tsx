@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { toggleTextSize } from "./actions";
 
-// Shared chrome for screens 1 and 1b. Sizes are the mockup's (48px controls,
+// Shared chrome for every senior screen. Sizes are the mockup's (48px controls,
 // 60px actions, 10px radius) expressed in rem so they grow with the A+ setting.
 
 const FOCUS =
@@ -80,3 +80,22 @@ export function HeaderControls({
 
 export const HEADER =
   "flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10";
+
+// The big, worded Back for screens a senior can get lost in. The breadcrumb
+// says where you are; this is the 56px target that gets you out — breadcrumb
+// text alone is too small to tap.
+export function BackButton({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className={
+        "flex min-h-[2.8rem] items-center gap-2.5 self-start rounded-[0.5rem] border-2 " +
+        "border-line pr-4 pl-3 text-body font-medium text-ink transition-colors " +
+        `hover:border-accent hover:text-accent ${FOCUS}`
+      }
+    >
+      <span aria-hidden="true">←</span>
+      {children}
+    </Link>
+  );
+}

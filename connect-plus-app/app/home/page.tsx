@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { CTRL, HEADER, HeaderControls, Screen } from "../ui";
+import { AppHeader } from "../header";
+import { Screen } from "../ui";
 import { getUser, greeting } from "../session";
 import { endSession } from "../actions";
 
@@ -18,21 +19,11 @@ const ICON =
 
 export default async function Home() {
   const [user, jar] = await Promise.all([getUser(), cookies()]);
-  const lang = jar.get("lang")?.value ?? "en";
-  const big = jar.get("text-size")?.value === "lg";
   const last = jar.get("last-topic")?.value;
 
   return (
     <Screen>
-      <header className={HEADER}>
-        <HeaderControls lang={lang} big={big} back="/home" />
-        {/* a helper is reachable from every screen, at a quieter weight than
-            the two things we want tried first */}
-        <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body`}>
-          <span aria-hidden="true">🤝</span>
-          I need help
-        </Link>
-      </header>
+      <AppHeader back="/home" />
 
       <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
         <p className="text-body text-muted">
