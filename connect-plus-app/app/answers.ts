@@ -20,10 +20,35 @@ export type Answer =
 // straight to the service.
 const API = process.env.LLM_API_URL;
 
-export async function ask(q: string, lang: string): Promise<Answer> {
-  if (!API) return local(q);
+// A real answer costs about a minute of CPU in rag. The same question asked
+// again — or the page reloaded by "Was this helpful?" — reuses the first
+// answer instead. The promise is stored, so two people asking at once share
+// one run. Failures are dropped at once so the next try really retries.
+//
+// ponytail: in-process, lost on restart, capped at 200 entries. Move it next
+// to the service if there is ever more than one app server.
+const TTL = 60 * 60_000;
+const g = globalThis as unknown as {
+  answers?: Map<string, { at: number; answer: Promise<Answer> }>;
+};
+const answers = (g.answers ??= new Map());
 
-  const res = await fetch(`${API.replace(/\/$/, "")}/api/ask`, {
+export function ask(q: string, lang: string): Promise<Answer> {
+  if (!API) return Promise.resolve(local(q));
+
+  const key = `${lang}\n${q.trim().replace(/\s+/g, " ").toLowerCase()}`;
+  const hit = answers.get(key);
+  if (hit && Date.now() - hit.at < TTL) return hit.answer;
+
+  const answer = fetchAnswer(API, q, lang);
+  answers.set(key, { at: Date.now(), answer });
+  answer.catch(() => answers.delete(key));
+  if (answers.size > 200) answers.delete(answers.keys().next().value!);
+  return answer;
+}
+
+async function fetchAnswer(api: string, q: string, lang: string): Promise<Answer> {
+  const res = await fetch(`${api.replace(/\/$/, "")}/api/ask`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ query: q.slice(0, 500), lang }),
