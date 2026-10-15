@@ -88,6 +88,13 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
 
   const a = await ask(q, lang);
   const unsupported = a.refused && a.reason === "unsupported language";
+  // rag often cites several passages of one page: show the page once, with
+  // every number that points at it, rather than the same card three times
+  const sources = a.refused
+    ? []
+    : Object.values(
+        Object.groupBy(a.citations, (c) => c.url) as Record<string, typeof a.citations>,
+      ).map((cs) => ({ ...cs[0], ns: cs.map((c) => c.n) }));
 
   return (
     // an answer opens into two columns on a laptop; a refusal stays one
@@ -178,23 +185,23 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
               )}
             </div>
 
-            <aside className="mt-6 flex flex-col lg:mt-0 lg:border-l lg:border-line lg:pl-10">
+            <aside className="mt-6 flex flex-col lg:sticky lg:top-6 lg:mt-0 lg:self-start lg:border-l lg:border-line lg:pl-10">
               {/* provenance is visible, always: the source cards are the trust
                   mechanism, numbered to match the markers in the answer */}
               <section aria-labelledby="sources" className="flex flex-col gap-3">
                 <h2 id="sources" className="text-latin text-muted">
                   Where this came from
                 </h2>
-                {a.citations.map((c) => (
+                {sources.map((c) => (
                   <div
-                    key={c.n}
+                    key={c.url}
                     className="flex items-center gap-4 rounded-[0.6rem] border border-line bg-surface p-4"
                   >
                     <span
                       aria-hidden="true"
-                      className="grid h-[2.6rem] w-[2.6rem] flex-none place-items-center rounded-[0.5rem] bg-panel text-body font-semibold text-accent"
+                      className="grid h-[2.6rem] min-w-[2.6rem] flex-none place-items-center rounded-[0.5rem] bg-panel px-2 text-body font-semibold text-accent"
                     >
-                      {c.n}
+                      {c.ns.join(", ")}
                     </span>
                     <div className="flex min-w-0 flex-col">
                       <span className="text-body font-medium">{c.title}</span>
@@ -206,7 +213,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                         className="text-latin text-link underline underline-offset-4"
                       >
                         Read the original page
-                        <span className="sr-only"> (source {c.n}, opens in a new tab)</span>
+                        <span className="sr-only"> (source {c.ns.join(", ")}, opens in a new tab)</span>
                       </a>
                     </div>
                   </div>
@@ -253,7 +260,11 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
           </div>
         )}
 
-        <form action="/ask" className="mt-auto flex gap-3 pt-8 lg:max-w-3xl">
+        {/* lined up with the answer column, not the panel beside it */}
+        <form
+          action="/ask"
+          className={`mt-auto flex gap-3 pt-8 ${a.refused ? "" : "lg:max-w-[calc(100%-25rem)]"}`}
+        >
           <label htmlFor="again" className="sr-only">
             Ask something else
           </label>
