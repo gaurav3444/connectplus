@@ -35,11 +35,24 @@ export function BackLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-export function Screen({ children }: { children: React.ReactNode }) {
+// Phones get one column. From 1024px (lg) the header becomes a full-width
+// bar and the screen's content is centred: `wide` screens (Home, Browse, an
+// answer, a lesson) open up to 72rem for two columns, single-task screens
+// (sign in, settings, help) stay a comfortable reading column.
+//
+// Written as child selectors so every page keeps its header + main shape:
+// the header's padding lines its contents up with the wide content edge.
+export function Screen({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="flex min-h-dvh justify-center bg-bg">
-      {/* same growth rule as screen 0: a phone column is the floor, not the cap */}
-      <div className="flex w-full max-w-2xl flex-col">{children}</div>
+    <div
+      className={
+        "flex min-h-dvh flex-col bg-bg " +
+        "[&>header]:px-6 sm:[&>header]:px-10 lg:[&>header]:px-[max(2.5rem,calc(50%-33.5rem))] " +
+        "[&>*:not(header)]:mx-auto [&>*:not(header)]:w-full [&>*:not(header)]:max-w-2xl " +
+        (wide ? "lg:[&>*:not(header)]:max-w-6xl" : "")
+      }
+    >
+      {children}
     </div>
   );
 }
@@ -60,7 +73,10 @@ export function HeaderControls({
     <>
       <Link href="/" className={`${CTRL} text-body`}>
         <span aria-hidden="true">🌐</span>
-        <span className="uppercase">{lang}</span>
+        <span className="uppercase lg:hidden">{lang}</span>
+        <span lang={lang} className="hidden lg:inline">
+          {LANG_LABEL[lang] ?? lang}
+        </span>
         <span className="sr-only">Change language</span>
       </Link>
       <form action={toggleTextSize}>
@@ -79,7 +95,10 @@ export function HeaderControls({
 }
 
 export const HEADER =
-  "flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10";
+  "flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10 lg:gap-3";
+
+// The language button says the language in full where there is room.
+const LANG_LABEL: Record<string, string> = { zh: "中文", vi: "Tiếng Việt", en: "English" };
 
 // The big, worded Back for screens a senior can get lost in. The breadcrumb
 // says where you are; this is the 56px target that gets you out — breadcrumb

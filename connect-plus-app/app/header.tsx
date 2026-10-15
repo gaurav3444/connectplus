@@ -12,13 +12,26 @@ export async function AppHeader({ back, help = true }: { back: string; help?: bo
   const jar = await cookies();
   return (
     <header className={HEADER}>
+      {/* desktop only: on a phone the space goes to the controls */}
+      <Link
+        href="/home"
+        className="mr-auto hidden min-h-[2.4rem] content-center text-body font-semibold tracking-tight lg:block"
+      >
+        CONNECT Plus
+      </Link>
       <HeaderControls
         lang={jar.get("lang")?.value ?? "en"}
         big={["lg", "xl"].includes(jar.get("text-size")?.value ?? "")}
         back={back}
       />
+      {/* Settings sits in the header where there is room; on a phone it is a
+          quiet link at the bottom of Home */}
+      <Link href="/settings" className={`${CTRL} hidden text-body lg:flex`}>
+        <span aria-hidden="true">⚙</span>
+        Settings
+      </Link>
       {help && (
-        <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body`}>
+        <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body lg:ml-0`}>
           <span aria-hidden="true">🤝</span>
           I need help
         </Link>

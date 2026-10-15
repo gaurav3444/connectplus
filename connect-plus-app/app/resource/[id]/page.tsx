@@ -53,19 +53,29 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
   const step = r.steps[n - 1];
   const here = `/resource/${id}?step=${n}`;
   const offer = Boolean(sp.offer);
+  // a step with something to look at gets two columns on a laptop: the words
+  // on the left, the picture or practice phone beside them
+  const visual = Boolean(step.picture || step.practice);
+  // while the offer is open the step stays visible but steps back
+  const dim = offer ? "opacity-50" : "";
 
   return (
-    <Screen>
+    <Screen wide={visual}>
       <AppHeader back={here} />
 
-      <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
-        <p className="text-latin text-muted">
+      {/* Phones read top to bottom in this order. On a laptop the grid lifts
+          the visual into a right-hand column beside everything else. */}
+      <main
+        className={`flex flex-1 flex-col px-6 py-6 sm:px-10 ${
+          visual ? "lg:grid lg:grid-cols-2 lg:content-start lg:gap-x-14 lg:py-10" : ""
+        }`}
+      >
+        <p className="text-latin text-muted lg:col-start-1">
           {step.practice ? "Practice · " : ""}
           {r.title}
         </p>
 
-        {/* while the offer is open the step stays visible but steps back */}
-        <div className={`flex flex-col ${offer ? "opacity-50" : ""}`}>
+        <div className={`flex flex-col lg:col-start-1 ${dim}`}>
           {/* progress is a word first; the bar only repeats it */}
           <div className="mt-3 flex items-center gap-3">
             <span className="flex-none text-latin font-medium text-dim">
@@ -108,22 +118,29 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
               </a>
             </div>
           )}
+        </div>
 
-          {step.picture && (
-            // ponytail: a labelled placeholder until real screenshots exist; the
-            // alt text is already the finished one
-            <div
-              role="img"
-              aria-label={step.picture}
-              className="mt-5 grid min-h-[9rem] place-items-center rounded-[0.6rem] border border-line bg-[repeating-linear-gradient(45deg,var(--color-line),var(--color-line)_4px,var(--color-panel)_4px,var(--color-panel)_8px)] p-4 text-center"
-            >
-              <span aria-hidden="true" className="rounded bg-bg/80 px-2 text-latin text-faint">
-                {step.picture}
-              </span>
-            </div>
-          )}
+        {visual && (
+          <div className={`lg:col-start-2 lg:row-span-4 lg:row-start-1 ${dim}`}>
+            {step.picture && (
+              // ponytail: a labelled placeholder until real screenshots exist; the
+              // alt text is already the finished one
+              <div
+                role="img"
+                aria-label={step.picture}
+                className="mt-5 grid min-h-[9rem] place-items-center rounded-[0.6rem] lg:mt-0 lg:min-h-[18rem] border border-line bg-[repeating-linear-gradient(45deg,var(--color-line),var(--color-line)_4px,var(--color-panel)_4px,var(--color-panel)_8px)] p-4 text-center"
+              >
+                <span aria-hidden="true" className="rounded bg-bg/80 px-2 text-latin text-faint">
+                  {step.picture}
+                </span>
+              </div>
+            )}
 
-          {step.practice && <PracticePhone id={id} step={n} offer={offer} />}
+            {step.practice && <PracticePhone id={id} step={n} offer={offer} />}
+          </div>
+        )}
+
+        <div className={`flex flex-col lg:col-start-1 ${dim}`}>
           {step.practice && sp.got && (
             <p role="status" className="mt-4 text-body text-link">
               <span aria-hidden="true">✓ </span>Well done. That is the pencil. On a real phone
@@ -147,7 +164,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
         {offer ? (
           <section
             aria-labelledby="offer"
-            className="mt-6 rounded-[0.8rem] border-2 border-accent bg-[#262a60] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.65)]"
+            className="mt-6 rounded-[0.8rem] lg:col-start-1 border-2 border-accent bg-[#262a60] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.65)]"
           >
             <span
               aria-hidden="true"
@@ -171,7 +188,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
             </Link>
           </section>
         ) : (
-          <div className="mt-auto pt-8">
+          <div className="mt-auto pt-8 lg:col-start-1">
             <form action={go} className="flex gap-4">
               <input type="hidden" name="id" value={id} />
               {n === 1 ? (
@@ -220,7 +237,7 @@ function PracticePhone({ id, step, offer }: { id: string; step: number; offer: b
     <form
       action={practise}
       aria-label="Practice phone"
-      className="mx-auto mt-5 w-full max-w-[17rem] rounded-[1.4rem] border-2 border-line bg-bg p-3"
+      className="mx-auto mt-5 w-full max-w-[17rem] rounded-[1.4rem] border-2 border-line bg-bg p-3 lg:mt-0 lg:max-w-[22rem]"
     >
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="step" value={step} />

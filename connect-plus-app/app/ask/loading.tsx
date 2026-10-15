@@ -10,7 +10,7 @@ export default function Loading() {
           ⌕
         </span>
         <h1 className="mt-3 text-heading font-medium leading-tight">Finding an answer…</h1>
-        <p className="mt-2 text-body text-dim">This takes a few seconds. Please wait.</p>
+        <p className="mt-2 text-body text-dim">This can take up to a minute. Please wait.</p>
       </main>
     </Screen>
   );

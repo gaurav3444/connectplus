@@ -58,7 +58,7 @@ const RESOURCES: Record<string, Resource> = {
       },
       {
         title: "Now you try it",
-        body: "On the practice phone below, tap the pencil in the top right corner. Nothing here can be sent or broken.",
+        body: "On the practice phone, tap the pencil in the top right corner. Nothing here can be sent or broken.",
         practice: true,
       },
       {

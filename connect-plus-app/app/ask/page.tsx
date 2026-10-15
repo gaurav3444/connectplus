@@ -90,7 +90,8 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
   const unsupported = a.refused && a.reason === "unsupported language";
 
   return (
-    <Screen>
+    // an answer opens into two columns on a laptop; a refusal stays one
+    <Screen wide={!a.refused}>
       <AppHeader back={`/ask?q=${encodeURIComponent(q)}`} />
       <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
         <BackButton href="/ask">Back to Ask a question</BackButton>
@@ -147,9 +148,11 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
             </p>
           </div>
         ) : (
-          <>
+          // the mockup's desktop answer: the answer on the left, where it came
+          // from and what to do next beside it
+          <div className="mt-5 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
             <h1 className="sr-only">Answer</h1>
-            <div className="mt-5 flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
               {blocks(a.md).map((blk, i) =>
                 blk.kind === "p" ? (
                   <p key={i} className="text-body leading-relaxed">
@@ -175,69 +178,82 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
               )}
             </div>
 
-            {/* provenance is visible, always: the source cards are the trust
-                mechanism, numbered to match the markers in the answer */}
-            <section aria-labelledby="sources" className="mt-6 flex flex-col gap-3">
-              <h2 id="sources" className="text-latin text-muted">
-                Where this came from
-              </h2>
-              {a.citations.map((c) => (
-                <div
-                  key={c.n}
-                  className="flex items-center gap-4 rounded-[0.6rem] border border-line bg-surface p-4"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="grid h-[2.6rem] w-[2.6rem] flex-none place-items-center rounded-[0.5rem] bg-panel text-body font-semibold text-accent"
+            <aside className="mt-6 flex flex-col lg:mt-0 lg:border-l lg:border-line lg:pl-10">
+              {/* provenance is visible, always: the source cards are the trust
+                  mechanism, numbered to match the markers in the answer */}
+              <section aria-labelledby="sources" className="flex flex-col gap-3">
+                <h2 id="sources" className="text-latin text-muted">
+                  Where this came from
+                </h2>
+                {a.citations.map((c) => (
+                  <div
+                    key={c.n}
+                    className="flex items-center gap-4 rounded-[0.6rem] border border-line bg-surface p-4"
                   >
-                    {c.n}
-                  </span>
-                  <div className="flex min-w-0 flex-col">
-                    <span className="text-body font-medium">{c.title}</span>
-                    <span className="text-latin text-muted">{c.domain}</span>
-                    <a
-                      href={c.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-latin text-link underline underline-offset-4"
+                    <span
+                      aria-hidden="true"
+                      className="grid h-[2.6rem] w-[2.6rem] flex-none place-items-center rounded-[0.5rem] bg-panel text-body font-semibold text-accent"
                     >
-                      Read the original page
-                      <span className="sr-only"> (source {c.n}, opens in a new tab)</span>
-                    </a>
+                      {c.n}
+                    </span>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-body font-medium">{c.title}</span>
+                      <span className="text-latin text-muted">{c.domain}</span>
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-latin text-link underline underline-offset-4"
+                      >
+                        Read the original page
+                        <span className="sr-only"> (source {c.n}, opens in a new tab)</span>
+                      </a>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </section>
+                ))}
+              </section>
 
-            <h2 className="mt-6 text-body font-medium">Was this helpful?</h2>
-            {helpful === "yes" ? (
-              <p role="status" className="mt-2 text-body text-dim">
-                ✓ Thank you. We are glad it helped.
-              </p>
-            ) : helpful === "no" ? (
-              <div role="status" className="mt-2 flex flex-col">
-                <p className="text-body text-dim">
-                  Sorry it did not help. A real person can go through it with you.
+              <h2 className="mt-6 text-body font-medium">Was this helpful?</h2>
+              {helpful === "yes" ? (
+                <p role="status" className="mt-2 text-body text-dim">
+                  ✓ Thank you. We are glad it helped.
                 </p>
-                <Link href={`/help?q=${encodeURIComponent(q)}`} className={`${BTN_PRIMARY} mt-3 text-body`}>
+              ) : helpful === "no" ? (
+                <div role="status" className="mt-2 flex flex-col">
+                  <p className="text-body text-dim">
+                    Sorry it did not help. A real person can go through it with you.
+                  </p>
+                  <Link href={`/help?q=${encodeURIComponent(q)}`} className={`${BTN_PRIMARY} mt-3 text-body`}>
+                    Ask a person
+                  </Link>
+                </div>
+              ) : (
+                <form action="/ask" className="mt-3 flex gap-4">
+                  <input type="hidden" name="q" value={q} />
+                  <button type="submit" name="helpful" value="yes" className={`${BTN_SECONDARY} flex-1 text-body`}>
+                    <span aria-hidden="true">👍</span>Yes
+                  </button>
+                  <button type="submit" name="helpful" value="no" className={`${BTN_SECONDARY} flex-1 text-body`}>
+                    <span aria-hidden="true">👎</span>No
+                  </button>
+                </form>
+              )}
+
+              {/* the mockup's desktop panel ends with a quiet way to a person */}
+              <p className="mt-6 hidden rounded-[0.6rem] bg-panel p-4 text-latin text-dim lg:block">
+                Still unsure?{" "}
+                <Link
+                  href={`/help?q=${encodeURIComponent(q)}`}
+                  className="font-medium text-link underline underline-offset-4"
+                >
                   Ask a person
                 </Link>
-              </div>
-            ) : (
-              <form action="/ask" className="mt-3 flex gap-4">
-                <input type="hidden" name="q" value={q} />
-                <button type="submit" name="helpful" value="yes" className={`${BTN_SECONDARY} flex-1 text-body`}>
-                  <span aria-hidden="true">👍</span>Yes
-                </button>
-                <button type="submit" name="helpful" value="no" className={`${BTN_SECONDARY} flex-1 text-body`}>
-                  <span aria-hidden="true">👎</span>No
-                </button>
-              </form>
-            )}
-          </>
+              </p>
+            </aside>
+          </div>
         )}
 
-        <form action="/ask" className="mt-auto flex gap-3 pt-8">
+        <form action="/ask" className="mt-auto flex gap-3 pt-8 lg:max-w-3xl">
           <label htmlFor="again" className="sr-only">
             Ask something else
           </label>

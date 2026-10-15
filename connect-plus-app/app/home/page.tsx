@@ -8,22 +8,26 @@ import { getProgress } from "../progress";
 // rather than as a third equal card, so it is always one tap away without
 // inviting someone to skip the learning.
 
+// On a laptop the cards stack their icon above the words, as in the mockup's
+// desktop Home: two big targets side by side, nothing else added.
 const CARD =
   "flex min-h-[6.6rem] items-center gap-4 rounded-[0.7rem] border-2 bg-surface p-4 " +
   "text-left text-ink transition-colors focus-visible:outline-3 " +
-  "focus-visible:outline-offset-3 focus-visible:outline-accent sm:min-h-[7.5rem] sm:gap-5 sm:p-5";
+  "focus-visible:outline-offset-3 focus-visible:outline-accent sm:min-h-[7.5rem] sm:gap-5 sm:p-5 " +
+  "lg:min-h-[13rem] lg:flex-col lg:items-start lg:justify-center lg:gap-4 lg:p-8";
 
 const ICON =
-  "grid h-[3.2rem] w-[3.2rem] flex-none place-items-center rounded-[0.6rem] text-[1.5rem]";
+  "grid h-[3.2rem] w-[3.2rem] flex-none place-items-center rounded-[0.6rem] text-[1.5rem] " +
+  "lg:h-[4rem] lg:w-[4rem] lg:text-[1.9rem]";
 
 export default async function Home() {
   const [user, last] = await Promise.all([getUser(), getProgress()]);
 
   return (
-    <Screen>
+    <Screen wide>
       <AppHeader back="/home" />
 
-      <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
+      <main className="flex flex-1 flex-col px-6 py-8 sm:px-10 lg:py-14">
         <p className="text-body text-muted">
           {greeting()}
           {user ? `, ${user.name}` : ""}
@@ -34,15 +38,15 @@ export default async function Home() {
 
         {/* two columns is the maximum, and only from 640px: the same content in
             the same order, nothing extra revealed by a wider screen */}
-        <div className="mt-7 grid gap-5 sm:grid-cols-2">
+        <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:mt-10 lg:gap-8">
           {/* one primary action per screen — Browse carries the accent border */}
           <Link href="/browse" className={`${CARD} border-accent hover:bg-[#2b2741]`}>
             <span aria-hidden="true" className={`${ICON} bg-fill text-on-fill`}>
               ▦
             </span>
             <span className="flex flex-col gap-1">
-              <span className="text-body font-medium">Browse topics</span>
-              <span className="text-latin text-dim">Pick what you want to learn</span>
+              <span className="text-body font-medium lg:text-[1.5rem]">Browse topics</span>
+              <span className="text-latin text-dim lg:text-body">Pick what you want to learn</span>
             </span>
           </Link>
 
@@ -51,8 +55,8 @@ export default async function Home() {
               💬
             </span>
             <span className="flex flex-col gap-1">
-              <span className="text-body font-medium">Ask a question</span>
-              <span className="text-latin text-dim">Type it or say it out loud</span>
+              <span className="text-body font-medium lg:text-[1.5rem]">Ask a question</span>
+              <span className="text-latin text-dim lg:text-body">Type it or say it out loud</span>
             </span>
           </Link>
         </div>
@@ -61,7 +65,7 @@ export default async function Home() {
             learning cards is a trap for a mis-tap. Sign out lives in there. */}
         <Link
           href="/settings"
-          className="mt-8 flex min-h-[2.8rem] items-center gap-2 self-start text-latin text-muted underline-offset-4 hover:text-accent hover:underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
+          className="mt-8 flex min-h-[2.8rem] items-center gap-2 self-start text-latin lg:hidden text-muted underline-offset-4 hover:text-accent hover:underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
         >
           <span aria-hidden="true">⚙</span>
           Settings

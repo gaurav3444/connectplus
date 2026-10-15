@@ -15,7 +15,7 @@ const FOCUS =
 
 const TILE =
   "flex min-h-[3.6rem] items-center gap-4 rounded-[0.6rem] border-2 border-line bg-surface " +
-  `px-4 py-3 text-ink transition-colors hover:border-accent ${FOCUS}`;
+  `px-4 py-3 text-ink transition-colors hover:border-accent lg:min-h-[4.4rem] lg:px-6 ${FOCUS}`;
 
 const CARD =
   "flex flex-col items-start gap-2 rounded-[0.6rem] border-2 bg-surface p-4 text-ink " +
@@ -53,35 +53,38 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
   const next = resources?.find((r) => !read.has(r.id));
 
   return (
-    <Screen>
+    <Screen wide>
       <AppHeader back={trail[trail.length - 1].href} />
 
       <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
-        <BackButton href={up.href}>Back to {up.label}</BackButton>
+        {/* side by side where there is room, as in the mockup's desktop Browse */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
+          <BackButton href={up.href}>Back to {up.label}</BackButton>
 
-        <nav aria-label="Breadcrumb" className="mt-4 text-latin text-muted">
-          <ol className="flex flex-wrap gap-x-2">
-            {trail.map((t, i) => {
-              const last = i === trail.length - 1;
-              return (
-                <li key={t.href} className="flex gap-2">
-                  {last ? (
-                    <span aria-current="page">{t.label}</span>
-                  ) : (
-                    <>
-                      <Link href={t.href} className="hover:text-accent hover:underline">
-                        {t.label}
-                      </Link>
-                      <span aria-hidden="true">›</span>
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </nav>
+          <nav aria-label="Breadcrumb" className="text-latin text-muted">
+            <ol className="flex flex-wrap gap-x-2">
+              {trail.map((t, i) => {
+                const last = i === trail.length - 1;
+                return (
+                  <li key={t.href} className="flex gap-2">
+                    {last ? (
+                      <span aria-current="page">{t.label}</span>
+                    ) : (
+                      <>
+                        <Link href={t.href} className="hover:text-accent hover:underline">
+                          {t.label}
+                        </Link>
+                        <span aria-hidden="true">›</span>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+        </div>
 
-        <h1 className="mt-2 text-heading font-medium leading-tight">{title}</h1>
+        <h1 className="mt-2 text-heading font-medium leading-tight lg:mt-6">{title}</h1>
         {cat && !sub && !empty && (
           <p className="mt-1 text-body text-dim">What would you like to learn about?</p>
         )}
@@ -96,7 +99,7 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
           </div>
         ) : topics ? (
           // one per row on a phone, two at most on a wide screen
-          <ul className="mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4">
+          <ul className="mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-5">
             {topics.map((t) => (
               <li key={t.slug}>
                 <TopicTile
@@ -108,7 +111,7 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
             ))}
           </ul>
         ) : (
-          <ul className="mt-6 flex flex-col gap-4">
+          <ul className="mt-6 grid gap-4 lg:grid-cols-2 lg:gap-5">
             {resources!.map((r) => {
               const done = read.has(r.id);
               const start = r === next;
