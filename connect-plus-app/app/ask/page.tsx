@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { answer, SUGGESTIONS } from "../answers";
+import { ask, blocks, SUGGESTIONS, type Inline } from "../answers";
 import { AppHeader } from "../header";
 import { BackButton, BTN_PRIMARY, BTN_SECONDARY, Screen } from "../ui";
 import Speak from "./speak";
@@ -86,7 +86,8 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
     );
   }
 
-  const a = answer(q);
+  const a = await ask(q, lang);
+  const unsupported = a.refused && a.reason === "unsupported language";
 
   return (
     <Screen>
@@ -109,13 +110,18 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
             <h1 className="mt-4 text-heading font-medium leading-tight">
               We don’t have a trusted answer for this
             </h1>
+            {/* the service's own sentence is in the senior's language */}
             <p className="mt-3 text-body text-dim">
-              We would rather say nothing than guess. Money and scam questions are too
-              important to get wrong.
+              {a.message ??
+                "We would rather say nothing than guess. Money and scam questions are too important to get wrong."}
             </p>
-            <p className="mt-2 text-body text-muted">
-              A real person can look at it with you.
-            </p>
+            {unsupported ? (
+              <Link href="/" className={`${BTN_SECONDARY} mt-4 text-body`}>
+                <span aria-hidden="true">🌐</span>Choose your language
+              </Link>
+            ) : (
+              <p className="mt-2 text-body text-muted">A real person can look at it with you.</p>
+            )}
 
             {/* the mentor offer is the one primary action on this screen */}
             <div className="mt-6 rounded-[0.6rem] border-2 border-accent bg-surface p-4">
@@ -142,45 +148,65 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
           </div>
         ) : (
           <>
-            <h1 className="mt-5 text-body leading-relaxed">{a.intro}</h1>
-            <ol className="mt-4 flex flex-col gap-3">
-              {a.steps.map((s, i) => (
-                <li key={s} className="flex gap-3">
+            <h1 className="sr-only">Answer</h1>
+            <div className="mt-5 flex flex-col gap-4">
+              {blocks(a.md).map((blk, i) =>
+                blk.kind === "p" ? (
+                  <p key={i} className="text-body leading-relaxed">
+                    <Parts parts={blk.parts} />
+                  </p>
+                ) : (
+                  <blk.kind key={i} className="flex flex-col gap-3">
+                    {blk.items.map((item, j) => (
+                      <li key={j} className="flex gap-3">
+                        <span
+                          aria-hidden="true"
+                          className="grid h-[1.7rem] w-[1.7rem] flex-none place-items-center rounded-full bg-fill text-latin font-medium text-on-fill"
+                        >
+                          {blk.kind === "ol" ? j + 1 : "•"}
+                        </span>
+                        <span className="text-body text-dim">
+                          <Parts parts={item} />
+                        </span>
+                      </li>
+                    ))}
+                  </blk.kind>
+                ),
+              )}
+            </div>
+
+            {/* provenance is visible, always: the source cards are the trust
+                mechanism, numbered to match the markers in the answer */}
+            <section aria-labelledby="sources" className="mt-6 flex flex-col gap-3">
+              <h2 id="sources" className="text-latin text-muted">
+                Where this came from
+              </h2>
+              {a.citations.map((c) => (
+                <div
+                  key={c.n}
+                  className="flex items-center gap-4 rounded-[0.6rem] border border-line bg-surface p-4"
+                >
                   <span
                     aria-hidden="true"
-                    className="grid h-[1.7rem] w-[1.7rem] flex-none place-items-center rounded-full bg-fill text-latin font-medium text-on-fill"
+                    className="grid h-[2.6rem] w-[2.6rem] flex-none place-items-center rounded-[0.5rem] bg-panel text-body font-semibold text-accent"
                   >
-                    {i + 1}
+                    {c.n}
                   </span>
-                  <span className="text-body text-dim">{s}</span>
-                </li>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="text-body font-medium">{c.title}</span>
+                    <span className="text-latin text-muted">{c.domain}</span>
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-latin text-link underline underline-offset-4"
+                    >
+                      Read the original page
+                      <span className="sr-only"> (source {c.n}, opens in a new tab)</span>
+                    </a>
+                  </div>
+                </div>
               ))}
-            </ol>
-
-            {/* provenance is visible, always: the source card is the trust mechanism */}
-            <section
-              aria-label="Where this came from"
-              className="mt-6 flex items-center gap-4 rounded-[0.6rem] border border-line bg-surface p-4"
-            >
-              <span
-                aria-hidden="true"
-                className="grid h-[2.6rem] w-[2.6rem] flex-none place-items-center rounded-[0.5rem] bg-panel text-body font-semibold uppercase text-accent"
-              >
-                {a.source.domain[0]}
-              </span>
-              <div className="flex flex-col">
-                <span className="text-latin text-muted">Where this came from</span>
-                <span className="text-body font-medium">{a.source.title}</span>
-                <a
-                  href={a.source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-latin text-link underline underline-offset-4"
-                >
-                  Read the original page
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              </div>
             </section>
 
             <h2 className="mt-6 text-body font-medium">Was this helpful?</h2>
@@ -230,5 +256,27 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
         </form>
       </main>
     </Screen>
+  );
+}
+
+// One line of answer text. Citation markers become small numbered badges that
+// match the source cards — read aloud as "source 1", never as "[1]".
+function Parts({ parts }: { parts: Inline[] }) {
+  return parts.map((p, i) =>
+    "bold" in p ? (
+      <strong key={i} className="font-semibold text-ink">
+        {p.bold}
+      </strong>
+    ) : "cite" in p ? (
+      <span
+        key={i}
+        className="ml-1 inline-grid h-[1.2rem] min-w-[1.2rem] place-items-center rounded-full bg-panel px-1 align-middle text-[0.9rem] font-medium text-link"
+      >
+        <span className="sr-only">source </span>
+        {p.cite}
+      </span>
+    ) : (
+      p.text
+    ),
   );
 }
