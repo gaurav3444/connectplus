@@ -55,3 +55,22 @@ body {
     animation: none !important;
   }
 }
+
+/* Settings → "Stronger contrast": black background, white writing. Same token
+   names, so every screen follows without knowing about it. */
+html[data-contrast="high"] {
+  --color-bg: #000;
+  --color-shell: #000;
+  --color-surface: #000;
+  --color-panel: #111;
+  --color-line: #fff;
+  --color-accent: #fff;
+  --color-ink: #fff;
+  --color-dim: #fff;
+  --color-muted: #fff;
+  --color-faint: #e6e6e6;
+  --color-fill: #fff;
+  --color-fill-hover: #e6e6e6;
+  --color-on-fill: #000;
+  --color-link: #ffff66; /* links stand out as yellow, plus their underline */
+}

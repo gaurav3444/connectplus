@@ -38,7 +38,7 @@ async function sendLink(formData: FormData) {
 export default async function SignIn({ searchParams }: PageProps<"/signin">) {
   const [{ error }, jar] = await Promise.all([searchParams, cookies()]);
   const lang = jar.get("lang")?.value ?? "en";
-  const big = jar.get("text-size")?.value === "lg";
+  const big = ["lg", "xl"].includes(jar.get("text-size")?.value ?? "");
 
   return (
     <Screen>

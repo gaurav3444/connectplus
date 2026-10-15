@@ -11,10 +11,25 @@ const YEAR = { maxAge: 60 * 60 * 24 * 365, path: "/", sameSite: "lax" } as const
 // the app is sized in rem so nothing has to know about it.
 export async function toggleTextSize(formData: FormData) {
   const jar = await cookies();
-  const big = jar.get("text-size")?.value === "lg";
-  jar.set("text-size", big ? "md" : "lg", YEAR);
+  // any step up goes back to normal; normal goes up one
+  const up = ["lg", "xl"].includes(jar.get("text-size")?.value ?? "");
+  jar.set("text-size", up ? "md" : "lg", YEAR);
   // back: the screen the control was pressed on, so it stays put.
   redirect(String(formData.get("back") ?? "/"));
+}
+
+// Settings: the size of the writing, picked directly.
+export async function setTextSize(formData: FormData) {
+  const size = String(formData.get("size"));
+  (await cookies()).set("text-size", ["md", "lg", "xl"].includes(size) ? size : "md", YEAR);
+  redirect("/settings");
+}
+
+// Settings: black background, white writing.
+export async function toggleContrast() {
+  const jar = await cookies();
+  jar.set("contrast", jar.get("contrast")?.value === "high" ? "normal" : "high", YEAR);
+  redirect("/settings");
 }
 
 // Sign out. Free-standing so any screen's header can post to it.

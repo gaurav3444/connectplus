@@ -14,7 +14,7 @@ export async function AppHeader({ back, help = true }: { back: string; help?: bo
     <header className={HEADER}>
       <HeaderControls
         lang={jar.get("lang")?.value ?? "en"}
-        big={jar.get("text-size")?.value === "lg"}
+        big={["lg", "xl"].includes(jar.get("text-size")?.value ?? "")}
         back={back}
       />
       {help && (

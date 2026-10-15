@@ -2,7 +2,6 @@ import Link from "next/link";
 import { AppHeader } from "../header";
 import { Screen } from "../ui";
 import { getUser, greeting } from "../session";
-import { endSession } from "../actions";
 import { RESOURCES } from "../content";
 import { getProgress } from "../progress";
 
@@ -59,18 +58,15 @@ export default async function Home() {
           </Link>
         </div>
 
-        {user && (
-          <form action={endSession} className="mt-8">
-            {/* quiet on purpose: signing out is rare, and a prominent one next
-                to two learning cards is a trap for a mis-tap */}
-            <button
-              type="submit"
-              className="min-h-[2.8rem] text-latin text-muted underline-offset-4 hover:text-accent hover:underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
-            >
-              Sign out ({user.email})
-            </button>
-          </form>
-        )}
+        {/* quiet on purpose: settings are rare, and a loud link next to the two
+            learning cards is a trap for a mis-tap. Sign out lives in there. */}
+        <Link
+          href="/settings"
+          className="mt-8 flex min-h-[2.8rem] items-center gap-2 self-start text-latin text-muted underline-offset-4 hover:text-accent hover:underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
+        >
+          <span aria-hidden="true">⚙</span>
+          Settings
+        </Link>
 
         {/* only shown when there is something to resume — an empty "carry on
             where you left off" panel is worse than no panel */}
