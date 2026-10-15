@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { AppHeader } from "../header";
 import { Screen } from "../ui";
 import { getUser, greeting } from "../session";
 import { endSession } from "../actions";
+import { RESOURCES } from "../content";
+import { getProgress } from "../progress";
 
 // Screen 2. Two paths, not three: mentor help lives in the header at all times
 // rather than as a third equal card, so it is always one tap away without
@@ -18,8 +19,7 @@ const ICON =
   "grid h-[3.2rem] w-[3.2rem] flex-none place-items-center rounded-[0.6rem] text-[1.5rem]";
 
 export default async function Home() {
-  const [user, jar] = await Promise.all([getUser(), cookies()]);
-  const last = jar.get("last-topic")?.value;
+  const [user, last] = await Promise.all([getUser(), getProgress()]);
 
   return (
     <Screen>
@@ -75,14 +75,20 @@ export default async function Home() {
         {/* only shown when there is something to resume — an empty "carry on
             where you left off" panel is worse than no panel */}
         {last && (
-          <div className="mt-auto flex items-center gap-3 rounded-[0.6rem] bg-panel p-4">
+          // the whole panel is the target — an inline link is too small to tap
+          <Link
+            href={`/resource/${last.id}?step=${last.step}`}
+            className="mt-auto flex min-h-[2.8rem] items-center gap-3 rounded-[0.6rem] bg-panel p-4 transition-colors hover:bg-line focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
+          >
             <span aria-hidden="true" className="text-body text-accent">
               ↺
             </span>
-            <p className="text-latin text-dim">
-              Last time you were learning <span className="text-ink">{last}</span>.
-            </p>
-          </div>
+            <span className="flex-1 text-latin text-dim">
+              Last time you were learning{" "}
+              <span className="text-ink">{RESOURCES[last.id].title}</span>. Carry on
+              from step {last.step}.
+            </span>
+          </Link>
         )}
       </main>
     </Screen>

@@ -120,7 +120,8 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
                   >
                     <span className="text-body font-medium">{r.title}</span>
                     <span className="text-latin text-dim">
-                      {r.steps} steps{r.practice ? ", with practice" : ""}
+                      {r.steps.length} steps
+                      {r.steps.some((st) => st.practice) ? ", with practice" : ""}
                     </span>
                     {/* a word and a mark, never colour alone */}
                     {start && (
