@@ -1,0 +1,2 @@
+# connectplus-llm writes one line per model call here (TRACE_FILE)
+traces.jsonl
