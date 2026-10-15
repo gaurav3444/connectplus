@@ -1,0 +1,11 @@
+{
+  "name": "connectplus",
+  "private": true,
+  "description": "Runs connect-plus-app and connectplus-llm (with connectplus-rag) together",
+  "scripts": {
+    "start": "node start.mjs"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
