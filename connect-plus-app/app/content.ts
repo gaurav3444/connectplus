@@ -1,15 +1,22 @@
-// The lesson tree for screen 3a: category → subcategory → resource. Device
-// first at the top, tasks underneath, never more than seven to a level.
+// The lesson tree for screens 3a and 3c: category → subcategory → resource.
+// Device first at the top, tasks underneath, never more than seven to a level.
 //
-// ponytail: hard-coded until there is a content backend. Resources live in one
-// map keyed by id so the same lesson can sit under two topics without being
-// written twice.
+// The real tree comes from connectplus-rag: `python -m rag.main browse
+// --build` snapshots it into Supabase's browse_resources table (public,
+// read-only), built only from pages of approved sites already in the index.
+// Each resource is a section of one of those sites, and its pages are the
+// steps. With no Supabase configured, the sample lessons below stand in.
+//
+// Resources live in one map keyed by id, so the same lesson can sit under two
+// topics without being written twice.
 
 // One screen each. `picture` is the alt text for the screenshot that will sit
 // there — it describes where the button is, never just "screenshot".
 export type Step = {
   title: string;
+  // empty for a step that is a page on an approved site: `url` is the content
   body: string;
+  url?: string;
   picture?: string;
   // the hands-on step: the senior does it on a simulated screen
   practice?: boolean;
@@ -18,19 +25,23 @@ export type Step = {
 export type Resource = {
   id: string;
   title: string;
+  // the approved site the steps live on, for steps that are its pages
+  domain?: string;
   steps: Step[];
 };
+
+export type Catalogue = { categories: Topic[]; resources: Record<string, Resource> };
 
 export type Topic = {
   slug: string;
   title: string;
-  icon: string;
+  icon?: string;
   // a category holds topics, a subcategory holds resource ids
   topics?: Topic[];
   resources?: string[];
 };
 
-export const RESOURCES: Record<string, Resource> = {
+const RESOURCES: Record<string, Resource> = {
   "send-text": {
     id: "send-text",
     title: "Sending a text message",
@@ -107,7 +118,7 @@ export const RESOURCES: Record<string, Resource> = {
   },
 };
 
-export const CATEGORIES: Topic[] = [
+const CATEGORIES: Topic[] = [
   {
     slug: "phone",
     title: "Phone & Tablet",
@@ -148,9 +159,99 @@ export function resourceIds(t: Topic): string[] {
 }
 
 // The first subcategory holding a lesson, for its Back button and breadcrumb.
-export function topicOf(id: string) {
-  for (const c of CATEGORIES)
+export function topicOf(cats: Topic[], id: string) {
+  for (const c of cats)
     for (const t of c.topics ?? [])
       if (t.resources?.includes(id)) return { href: `/browse/${c.slug}/${t.slug}`, title: t.title };
   return { href: "/browse", title: "Browse topics" };
+}
+
+// ---- from connectplus-rag ----------------------------------------------
+
+const SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL;
+// The anon key: public by design. browse_resources is select-only to it.
+const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+export async function catalogue(): Promise<Catalogue> {
+  if (!SUPABASE || !KEY) return { categories: CATEGORIES, resources: RESOURCES };
+
+  const res = await fetch(
+    `${SUPABASE.replace(/\/$/, "")}/rest/v1/browse_resources?select=*` +
+      "&order=category_pos,subcategory_pos,resource_pos",
+    {
+      headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
+      // the table only changes when rag re-indexes; refetch every 10 minutes
+      next: { revalidate: 600 },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  // an error screen, not an empty menu: "nothing here" would be untrue
+  if (!res.ok) throw new Error(`browse_resources answered ${res.status}`);
+  return fromRows(await res.json());
+}
+
+export async function getResource(id: string) {
+  return (await catalogue()).resources[id];
+}
+
+// One row per resource, as `browse --build` writes it (rag/config/schema.sql).
+export type Row = {
+  category_id: string;
+  category_title: string;
+  category_pos: number;
+  subcategory_id: string;
+  subcategory_title: string;
+  subcategory_pos: number;
+  resource_pos: number;
+  resource_id: string; // 'domain/path' of the site section
+  url: string;
+  domain: string;
+  title: string;
+  pages: { doc_id: string; url: string; title: string }[]; // landing page first
+};
+
+// rag's category ids, given the icons the design puts beside them
+const ICONS: Record<string, string> = {
+  "phone-tablet": "📱",
+  computer: "💻",
+  "staying-safe": "🛡",
+  "government-health": "🏥",
+  "talking-to-family": "👪",
+  "money-shopping": "👛",
+  "ai-new-tech": "✨",
+};
+
+// A subcategory with no resources has no rows, so it does not appear: the
+// tree is only ever what the index can actually teach.
+export function fromRows(rows: Row[]): Catalogue {
+  const categories: Topic[] = [];
+  const resources: Record<string, Resource> = {};
+  const sorted = [...rows].sort(
+    (a, b) =>
+      a.category_pos - b.category_pos ||
+      a.subcategory_pos - b.subcategory_pos ||
+      a.resource_pos - b.resource_pos,
+  );
+  for (const r of sorted) {
+    let cat = categories.find((c) => c.slug === r.category_id);
+    if (!cat) {
+      cat = { slug: r.category_id, title: r.category_title, icon: ICONS[r.category_id], topics: [] };
+      categories.push(cat);
+    }
+    let sub = cat.topics!.find((t) => t.slug === r.subcategory_id);
+    if (!sub) {
+      sub = { slug: r.subcategory_id, title: r.subcategory_title, resources: [] };
+      cat.topics!.push(sub);
+    }
+    // 'domain/path' has slashes; base64url makes it one URL segment
+    const id = Buffer.from(r.resource_id).toString("base64url");
+    if (!sub.resources!.includes(id)) sub.resources!.push(id);
+    resources[id] ??= {
+      id,
+      title: r.title,
+      domain: r.domain,
+      steps: r.pages.map((p) => ({ title: p.title, body: "", url: p.url })),
+    };
+  }
+  return { categories, resources };
 }

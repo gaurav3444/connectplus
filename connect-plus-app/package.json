@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check": "node --experimental-strip-types scripts/check-seal.ts && node --experimental-strip-types scripts/check-answers.ts"
+    "check": "node --experimental-strip-types scripts/check-seal.ts && node --experimental-strip-types scripts/check-answers.ts && node --experimental-strip-types scripts/check-browse.ts"
   },
   "dependencies": {
     "next": "16.3.4",

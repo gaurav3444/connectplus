@@ -2,7 +2,6 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Speak from "../../ask/speak";
-import { RESOURCES } from "../../content";
 import { AppHeader } from "../../header";
 import { backTo, getRequest, helperAvailable, minutes } from "../../helpdesk";
 import Poll from "../../poll";
@@ -110,7 +109,6 @@ export default async function HelpSession() {
     );
   }
 
-  const step = r.lesson && RESOURCES[r.lesson.id].steps[r.lesson.step - 1];
 
   return (
     <Screen>
@@ -133,10 +131,10 @@ export default async function HelpSession() {
         </form>
       </header>
 
-      {step && (
+      {r.lesson && (
         <div className="flex items-center gap-3 bg-panel px-6 py-3 sm:px-10">
           <span className="flex-1 text-latin text-dim">
-            Your step: <span className="text-ink">{step.title}</span>
+            Your step: <span className="text-ink">{r.lesson.stepTitle}</span>
           </span>
           <Link href={back} className="min-h-[2.4rem] content-center text-latin font-medium text-link underline underline-offset-4">
             View

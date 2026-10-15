@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { RESOURCES, topicOf } from "./content";
 
 // Help requests and their chat: what a senior shares on screen 3d, what a
 // helper sees in the queue and session (screen 4).
@@ -14,8 +13,16 @@ export type HelpRequest = {
   id: string;
   senior: string;
   lang: string;
-  // what the senior agreed to share, captured at the moment they asked
-  lesson?: { id: string; step: number };
+  // what the senior agreed to share, captured at the moment they asked —
+  // titles included, so the helper screens never look the lesson up again
+  lesson?: {
+    id: string;
+    step: number;
+    total: number;
+    title: string;
+    stepTitle: string;
+    topic: string;
+  };
   tries: number;
   asked?: string;
   created: number;
@@ -98,7 +105,7 @@ export const helperAvailable = () => Date.now() - store.helperSeen < 2 * 60_000;
 
 // Where "go back" leads after asking for help: the exact step, or the
 // question, or Home.
-export function backTo(r: Pick<HelpRequest, "lesson" | "asked"> | undefined) {
+export function backTo(r?: { lesson?: { id: string; step: number }; asked?: string }) {
   if (r?.lesson) return `/resource/${r.lesson.id}?step=${r.lesson.step}`;
   if (r?.asked) return `/ask?q=${encodeURIComponent(r.asked)}`;
   return "/home";
@@ -113,9 +120,8 @@ export function minutes(since: number, now = Date.now()) {
 // tried — the queue's Topic and Tried columns.
 export function describe(r: HelpRequest) {
   if (r.lesson) {
-    const res = RESOURCES[r.lesson.id];
     return {
-      topic: `${topicOf(r.lesson.id).title} › ${res.title}`,
+      topic: `${r.lesson.topic} › ${r.lesson.title}`,
       tried: r.tries === 0 ? "Not yet" : `${r.tries} ${r.tries === 1 ? "attempt" : "attempts"}`,
     };
   }

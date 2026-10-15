@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { RESOURCES, topicOf } from "../../content";
+import { catalogue, topicOf } from "../../content";
 import { AppHeader } from "../../header";
 import { BTN_PRIMARY, BTN_SECONDARY, Screen } from "../../ui";
 import { finish, go, practise, stuck } from "./actions";
@@ -19,9 +19,10 @@ const QUIET =
 
 export default async function Lesson({ params, searchParams }: PageProps<"/resource/[id]">) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
-  const r = RESOURCES[id];
+  const { categories, resources } = await catalogue();
+  const r = resources[id];
   if (!r) notFound();
-  const topic = topicOf(id);
+  const topic = topicOf(categories, id);
   const total = r.steps.length;
 
   if (sp.finished) {
@@ -86,7 +87,27 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
             </span>
           )}
           <h1 className="mt-4 text-heading font-medium leading-tight">{step.title}</h1>
-          <p className="mt-3 text-body text-dim">{step.body}</p>
+          {step.body && <p className="mt-3 text-body text-dim">{step.body}</p>}
+          {step.url && (
+            // a page on an approved site: the content is there, not copied
+            // here, so the senior reads the original and comes back for Next
+            <div className="mt-4 flex flex-col gap-3">
+              <p className="text-body text-dim">
+                This step is a page on{" "}
+                <span className="text-ink">{r.domain ?? new URL(step.url).hostname}</span>, a
+                trusted website. Open it, read it, then come back here and tap Next.
+              </p>
+              <a
+                href={step.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${BTN_SECONDARY} text-body`}
+              >
+                <span aria-hidden="true">↗</span>Open this step
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </div>
+          )}
 
           {step.picture && (
             // ponytail: a labelled placeholder until real screenshots exist; the

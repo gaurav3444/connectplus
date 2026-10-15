@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { CATEGORIES, RESOURCES, resourceIds, type Topic } from "../../content";
+import { catalogue, resourceIds, type Topic } from "../../content";
 import { AppHeader } from "../../header";
 import { BackButton, BTN_SECONDARY, Screen } from "../../ui";
 
@@ -22,10 +22,14 @@ const CARD =
   `transition-colors ${FOCUS}`;
 
 export default async function Browse({ params }: PageProps<"/browse/[[...path]]">) {
-  const [{ path = [] }, jar] = await Promise.all([params, cookies()]);
+  const [{ path = [] }, jar, { categories, resources: all }] = await Promise.all([
+    params,
+    cookies(),
+    catalogue(),
+  ]);
   if (path.length > 2) notFound();
 
-  const cat = path[0] ? CATEGORIES.find((c) => c.slug === path[0]) : undefined;
+  const cat = path[0] ? categories.find((c) => c.slug === path[0]) : undefined;
   const sub = path[1] ? cat?.topics?.find((t) => t.slug === path[1]) : undefined;
   if ((path[0] && !cat) || (path[1] && !sub)) notFound();
 
@@ -42,8 +46,8 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
   ];
   const up = trail[trail.length - 2];
 
-  const topics = sub ? undefined : (cat?.topics ?? CATEGORIES);
-  const resources = sub?.resources?.map((id) => RESOURCES[id]);
+  const topics = sub ? undefined : (cat?.topics ?? categories);
+  const resources = sub?.resources?.map((id) => all[id]);
   const empty = topics ? topics.length === 0 : !resources?.length;
   // the first lesson not yet read is the one obvious next step
   const next = resources?.find((r) => !read.has(r.id));
@@ -119,8 +123,11 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
                     }`}
                   >
                     <span className="text-body font-medium">{r.title}</span>
+                    {/* which approved site it comes from — provenance on the
+                        menu too, not only on answers */}
+                    {r.domain && <span className="text-latin text-muted">From {r.domain}</span>}
                     <span className="text-latin text-dim">
-                      {r.steps.length} steps
+                      {r.steps.length} {r.steps.length === 1 ? "step" : "steps"}
                       {r.steps.some((st) => st.practice) ? ", with practice" : ""}
                     </span>
                     {/* a word and a mark, never colour alone */}
@@ -148,9 +155,11 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
 function TopicTile({ topic, href, visited }: { topic: Topic; href: string; visited: boolean }) {
   return (
     <Link href={href} className={TILE}>
-      <span aria-hidden="true" className="w-[1.6rem] flex-none text-center text-[1.4rem] text-accent">
-        {topic.icon}
-      </span>
+      {topic.icon && (
+        <span aria-hidden="true" className="w-[1.6rem] flex-none text-center text-[1.4rem] text-accent">
+          {topic.icon}
+        </span>
+      )}
       <span className="flex-1 text-body font-medium">{topic.title}</span>
       {visited ? (
         <span className="flex flex-none items-center gap-1 text-latin font-medium text-link">

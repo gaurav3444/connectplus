@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { RESOURCES } from "../content";
 import { AppHeader } from "../header";
 import { backTo, getRequest, LANG_NAMES } from "../helpdesk";
 import { getProgress } from "../progress";
@@ -56,7 +55,7 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
     lesson && {
       icon: "📖",
       label: "What you are learning",
-      value: `${RESOURCES[lesson.id].title}, step ${lesson.step}`,
+      value: `${lesson.resource.title}, step ${lesson.step}`,
     },
     lesson && {
       icon: "👣",

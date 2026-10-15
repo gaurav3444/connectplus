@@ -2,7 +2,6 @@ import Link from "next/link";
 import { AppHeader } from "../header";
 import { Screen } from "../ui";
 import { getUser, greeting } from "../session";
-import { RESOURCES } from "../content";
 import { getProgress } from "../progress";
 
 // Screen 2. Two paths, not three: mentor help lives in the header at all times
@@ -81,7 +80,7 @@ export default async function Home() {
             </span>
             <span className="flex-1 text-latin text-dim">
               Last time you were learning{" "}
-              <span className="text-ink">{RESOURCES[last.id].title}</span>. Carry on
+              <span className="text-ink">{last.resource.title}</span>. Carry on
               from step {last.step}.
             </span>
           </Link>

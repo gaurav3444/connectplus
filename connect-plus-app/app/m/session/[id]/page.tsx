@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { RESOURCES } from "../../../content";
 import { describe, getRequest, HELPER, LANG_NAMES, minutes } from "../../../helpdesk";
 import Poll from "../../../poll";
 import { finishSession, reply } from "../../actions";
@@ -36,8 +35,6 @@ export default async function HelperSession({ params }: PageProps<"/m/session/[i
     );
   }
 
-  const res = r.lesson && RESOURCES[r.lesson.id];
-  const step = r.lesson && res?.steps[r.lesson.step - 1];
   const d = describe(r);
 
   return (
@@ -107,11 +104,11 @@ export default async function HelperSession({ params }: PageProps<"/m/session/[i
             <h2 className="text-[0.65rem] font-medium uppercase tracking-wider text-muted">
               Where {r.senior} is
             </h2>
-            {res && step ? (
+            {r.lesson ? (
               <>
-                <p className="mt-2 font-medium">{res.title}</p>
+                <p className="mt-2 font-medium">{r.lesson.title}</p>
                 <p className="mt-1 text-[0.7rem] text-dim">
-                  Step {r.lesson!.step} of {res.steps.length} · “{step.title}”
+                  Step {r.lesson.step} of {r.lesson.total} · “{r.lesson.stepTitle}”
                 </p>
               </>
             ) : (

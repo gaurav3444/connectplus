@@ -11,6 +11,7 @@ import {
   send,
   setNotify,
 } from "../helpdesk";
+import { catalogue, topicOf } from "../content";
 import { getProgress } from "../progress";
 import { getUser } from "../session";
 
@@ -36,7 +37,16 @@ export async function askForHelp(formData: FormData) {
   const req = createRequest({
     senior: user.name,
     lang: jar.get("lang")?.value ?? "en",
-    lesson: p ? { id: p.id, step: p.step } : undefined,
+    lesson: p
+      ? {
+          id: p.id,
+          step: p.step,
+          total: p.resource.steps.length,
+          title: p.resource.title,
+          stepTitle: p.resource.steps[p.step - 1].title,
+          topic: topicOf((await catalogue()).categories, p.id).title,
+        }
+      : undefined,
     tries: p?.tries ?? 0,
     asked,
   });
