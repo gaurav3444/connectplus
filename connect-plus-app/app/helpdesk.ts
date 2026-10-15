@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { RESOURCES, topicOf } from "./content";
 
 // Help requests and their chat: what a senior shares on screen 3d, what a
 // helper sees in the queue and session (screen 4).
@@ -30,6 +31,10 @@ type Store = { requests: Map<string, HelpRequest>; helperSeen: number };
 // globalThis so dev-mode reloads keep the same store
 const g = globalThis as unknown as { helpdesk?: Store };
 const store = (g.helpdesk ??= { requests: new Map(), helperSeen: 0 });
+
+// ponytail: one demo helper and no helper sign-in. /m/* is open to anyone
+// who knows the URL; put it behind helper accounts before real seniors use it.
+export const HELPER = { name: "Amira", langs: ["en", "zh"] };
 
 export const LANG_NAMES: Record<string, string> = {
   zh: "中文 · Chinese",
@@ -79,6 +84,9 @@ export const waiting = () =>
     .filter((r) => !r.helper && !r.ended)
     .sort((a, b) => a.created - b.created);
 
+export const sessionsOf = (helper: string) =>
+  [...store.requests.values()].filter((r) => r.helper === helper && !r.ended);
+
 // A helper counts as available while their queue screen is open — it polls,
 // and each poll marks them seen.
 // ponytail: one global "someone is there" flag; per-helper presence with
@@ -99,4 +107,18 @@ export function backTo(r: Pick<HelpRequest, "lesson" | "asked"> | undefined) {
 export function minutes(since: number, now = Date.now()) {
   const m = Math.floor((now - since) / 60_000);
   return m < 1 ? "less than a minute" : m === 1 ? "1 minute" : `${m} minutes`;
+}
+
+// One line each for the helper: what the senior is doing and what they have
+// tried — the queue's Topic and Tried columns.
+export function describe(r: HelpRequest) {
+  if (r.lesson) {
+    const res = RESOURCES[r.lesson.id];
+    return {
+      topic: `${topicOf(r.lesson.id).title} › ${res.title}`,
+      tried: r.tries === 0 ? "Not yet" : `${r.tries} ${r.tries === 1 ? "attempt" : "attempts"}`,
+    };
+  }
+  if (r.asked) return { topic: `Asked: “${r.asked}”`, tried: "No answer found" };
+  return { topic: "General help", tried: "Not yet" };
 }
