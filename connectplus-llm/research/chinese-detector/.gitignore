@@ -1,0 +1,9 @@
+tvsub/
+__pycache__/
+*.pyc
+
+# 3.28M rows, ~122MB -- exceeds GitHub's 100MB file limit, and is fully
+# regenerable via `python data/build_dataset.py` from the TVsub clone
+# (see README). eval_set.csv and test_set.csv are small and kept.
+data/dataset.csv
+chinese_detector.egg-info/

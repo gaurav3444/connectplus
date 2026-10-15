@@ -1,0 +1,73 @@
+[
+  {
+    "id": "en_01",
+    "raw_query": "my phone keeps asking for a code",
+    "expect_concepts": ["two-factor authentication", "verification code"]
+  },
+  {
+    "id": "en_02",
+    "raw_query": "the writing is too small on my screen",
+    "expect_concepts": ["text size", "accessibility", "display settings"]
+  },
+  {
+    "id": "en_03",
+    "raw_query": "someone rang me about my tax",
+    "expect_concepts": ["tax scam", "phone call", "impersonation", "ATO"]
+  },
+  {
+    "id": "en_04",
+    "raw_query": "is this text message a scam",
+    "expect_concepts": ["scam text", "smishing", "phishing"]
+  },
+  {
+    "id": "en_05",
+    "raw_query": "I want to video call my grandson",
+    "expect_concepts": ["video call", "app"]
+  },
+  {
+    "id": "zh_01",
+    "raw_query": "我的手机一直要我输入验证码",
+    "expect_concepts": ["two-factor authentication", "verification code"]
+  },
+  {
+    "id": "zh_02",
+    "raw_query": "银行发短信说我账户有问题叫我点链接是真的吗",
+    "expect_concepts": ["bank scam", "phishing link", "text message"]
+  },
+  {
+    "id": "zh_03",
+    "raw_query": "myGov账户密码忘记了怎么办",
+    "expect_concepts": ["myGov", "forgot password", "reset"]
+  },
+  {
+    "id": "zh_04",
+    "raw_query": "我孙女教我用微信视频通话但是我忘了怎么打开摄像头",
+    "expect_concepts": ["video call", "camera", "app settings"]
+  },
+  {
+    "id": "zh_05",
+    "raw_query": "有人打电话说我中奖了要我先付钱这个可信吗",
+    "expect_concepts": ["prize scam", "phone call", "advance fee"]
+  },
+  {
+    "id": "vi_01",
+    "raw_query": "điện thoại của tôi cứ hỏi mã xác minh",
+    "expect_concepts": ["two-factor authentication", "verification code"]
+  },
+  {
+    "id": "vi_02",
+    "raw_query": "có người gọi điện nói tôi trúng thưởng và phải trả tiền trước",
+    "expect_concepts": ["prize scam", "phone call", "advance fee"]
+  },
+  {
+    "id": "vi_03",
+    "raw_query": "chữ trên màn hình quá nhỏ",
+    "expect_concepts": ["text size", "accessibility", "display settings"]
+  },
+  {
+    "id": "unsupported_01",
+    "raw_query": "이 문자 메시지가 사기인가요",
+    "expect_concepts": [],
+    "note": "Korean -- out of scope. Must be refused, not translated."
+  }
+]

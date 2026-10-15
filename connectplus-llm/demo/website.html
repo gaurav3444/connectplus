@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CONNECT Plus</title>
+<meta name="description" content="Learn to use digital services safely, in your own language.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* ==========================================================================
+   CONNECT Plus — demo website
+
+   A working site, not a mockup: real hash routes, so the browser Back
+   button works. Getting lost with no way back is the most common failure
+   for this cohort, and the browser's own back button is the one control
+   every user already knows.
+
+   Typeface: Atkinson Hyperlegible, designed by the Braille Institute for
+   readers with low vision. Chosen for the cohort, not for style.
+
+   Every number below comes from the UI plan: 20px base, nothing under
+   18px, 56px touch targets 16px apart, 7:1 contrast, single column on
+   mobile and at most two on desktop, no horizontal scroll at 320px,
+   legible at 200% zoom.
+   ========================================================================== */
+
+:root {
+  --surface:#ffffff;
+  --surface-2:#f1f5f4;
+  --ground:#e9efed;
+  --ink:#14201c;        /* 15.8:1 on white */
+  --ink-2:#3a4a45;      /*  8.9:1 — never light grey on white */
+  --line:#c3d2cd;
+  --primary:#0e5a55;    /*  7.4:1 */
+  --primary-ink:#ffffff;
+  --primary-soft:#dcebe8;
+  --primary-line:#7fb3ad;
+  /* The second hue is warm, not blue or purple: ageing eyes discriminate
+     blue from purple poorly, so the two hues are pulled far apart. */
+  --help:#8a4510;       /*  7.2:1 */
+  --help-soft:#fbeade;
+  --help-line:#d9a877;
+  --alert:#96301d;      /*  7.5:1 */
+  --alert-soft:#fbe4df;
+
+  --ui:"Atkinson Hyperlegible","PingFang SC","Microsoft YaHei","Noto Sans SC",
+       -apple-system,"Segoe UI",Roboto,sans-serif;
+
+  --scale:1;            /* driven by the text-size control */
+  --r:14px;
+  --tap:56px;           /* minimum touch target */
+  --gap:16px;           /* minimum gap between adjacent targets */
+  --page:620px;         /* reading column */
+}
+
+/* High contrast, required by the plan. Pure black, heavier rules, every
+   affordance gets a visible border. */
+html[data-contrast="high"] {
+  --surface:#fff; --surface-2:#fff; --ground:#fff;
+  --ink:#000; --ink-2:#000; --line:#000;
+  --primary:#00332f; --primary-soft:#fff; --primary-line:#000;
+  --help:#5a2a00; --help-soft:#fff; --help-line:#000;
+  --alert:#6b1f10; --alert-soft:#fff;
+}
+
+*,*::before,*::after { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
+body {
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--ui); font-size:calc(20px * var(--scale)); line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+img { max-width:100%; }
+
+.skip {
+  position:absolute; left:-9999px; top:0; z-index:100;
+  background:var(--primary); color:#fff; padding:14px 20px;
+  font-weight:700; border-radius:0 0 var(--r) 0;
+}
+.skip:focus { left:0; }
+
+:focus-visible { outline:3px solid var(--primary); outline-offset:3px; border-radius:4px; }
+html[data-contrast="high"] :focus-visible { outline:4px solid #000; }
+
+/* ============================ shell ============================ */
+.site { min-height:100dvh; display:flex; flex-direction:column; background:var(--surface); }
+@media (min-width:760px) {
+  .site {
+    max-width:900px; margin:0 auto; min-height:100dvh;
+    border-left:1px solid var(--line); border-right:1px solid var(--line);
+  }
+}
+
+header.top {
+  position:sticky; top:0; z-index:30; flex:none;
+  background:var(--surface); border-bottom:1px solid var(--line);
+}
+.toprow { display:flex; align-items:center; gap:10px; padding:10px 14px; min-height:68px; }
+.brand { font-size:calc(17px * var(--scale)); font-weight:700; letter-spacing:-.01em; }
+.toprow .grow { flex:1; min-width:0; }
+.ttl {
+  font-size:calc(17px * var(--scale)); font-weight:700;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+.iconbtn {
+  min-height:48px; min-width:48px; padding:8px 12px; border-radius:11px;
+  border:2px solid var(--line); background:var(--surface); color:var(--ink);
+  font-family:var(--ui); font-size:calc(15px * var(--scale)); font-weight:700;
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+}
+.iconbtn:hover { border-color:var(--primary); }
+.iconbtn.help { border-color:var(--help-line); background:var(--help-soft); color:var(--help); }
+.iconbtn.back { font-size:calc(19px * var(--scale)); }
+
+/* the settings panel that drops out of the header — language, text size and
+   contrast are reachable in one tap from every screen, as the plan requires */
+.panel {
+  border-top:1px solid var(--line); background:var(--surface-2);
+  padding:16px 14px 20px; display:none;
+}
+.panel.open { display:block; }
+.panel h2 {
+  font-size:calc(15px * var(--scale)); text-transform:uppercase; letter-spacing:.07em;
+  color:var(--ink-2); margin:0 0 10px;
+}
+.panel h2:not(:first-child) { margin-top:22px; }
+.seg { display:flex; gap:10px; flex-wrap:wrap; }
+.seg button {
+  min-height:52px; min-width:64px; padding:8px 16px;
+  border:2px solid var(--line); background:var(--surface); color:var(--ink);
+  border-radius:11px; font-family:var(--ui); font-weight:700; cursor:pointer;
+}
+.seg button[aria-pressed="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+/* ============================ page ============================ */
+main { flex:1; }
+.page { display:none; padding:24px 18px 40px; }
+.page.on { display:block; }
+.wrap { max-width:var(--page); margin:0 auto; }
+
+h1 {
+  font-size:calc(32px * var(--scale)); line-height:1.2; margin:0 0 10px;
+  letter-spacing:-.022em; text-wrap:balance; font-weight:700;
+}
+h2.sec { font-size:calc(24px * var(--scale)); margin:32px 0 12px; line-height:1.3; }
+p { margin:0 0 18px; max-width:38ch; }
+p.lead { font-size:calc(22px * var(--scale)); }
+p.quiet { color:var(--ink-2); font-size:calc(18px * var(--scale)); }
+.label {
+  font-size:calc(16px * var(--scale)); font-weight:700; color:var(--ink-2);
+  text-transform:uppercase; letter-spacing:.06em; margin:28px 0 10px;
+}
+.label:first-child { margin-top:0; }
+
+/* ---------------- buttons ---------------- */
+.btn {
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  width:100%; min-height:var(--tap); padding:14px 20px;
+  font-family:var(--ui); font-size:calc(20px * var(--scale)); font-weight:700;
+  border-radius:var(--r); border:2px solid transparent; cursor:pointer;
+  text-align:center; line-height:1.3; text-decoration:none;
+}
+.btn + .btn { margin-top:var(--gap); }
+.btn.primary { background:var(--primary); color:var(--primary-ink); border-color:var(--primary); }
+.btn.secondary { background:var(--surface); color:var(--primary); border-color:var(--primary); }
+.btn.helper { background:var(--help); color:#fff; border-color:var(--help); }
+.btn.ghost { background:var(--surface-2); color:var(--ink); border-color:var(--line); }
+.btn:hover { filter:brightness(1.07); }
+.btnrow { display:flex; gap:var(--gap); }
+.btnrow .btn { margin-top:0; }
+
+/* ---------------- language tiles ---------------- */
+.tiles { display:grid; grid-template-columns:1fr 1fr; gap:var(--gap); }
+@media (min-width:560px) { .tiles { grid-template-columns:repeat(4,1fr); } }
+.tile {
+  min-height:140px; border:2px solid var(--line); border-radius:18px;
+  background:var(--surface); cursor:pointer; padding:18px 12px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  font-family:var(--ui); color:var(--ink);
+}
+.tile .native { font-size:calc(30px * var(--scale)); font-weight:700; line-height:1.15; }
+.tile .latin { font-size:calc(16px * var(--scale)); color:var(--ink-2); }
+.tile[aria-pressed="true"] { border-width:4px; border-color:var(--primary); background:var(--primary-soft); }
+
+/* ---------------- cards ---------------- */
+.cards { display:grid; gap:var(--gap); }
+@media (min-width:640px) { .cards.two { grid-template-columns:1fr 1fr; } }
+.card {
+  display:flex; align-items:center; gap:14px; width:100%;
+  min-height:var(--tap); padding:18px 16px;
+  border:2px solid var(--line); border-radius:var(--r);
+  background:var(--surface); cursor:pointer; text-align:left;
+  font-family:var(--ui); color:var(--ink); font-size:calc(20px * var(--scale));
+}
+.card:hover { border-color:var(--primary); background:var(--primary-soft); }
+.card .ico {
+  flex:none; width:54px; height:54px; border-radius:13px; background:var(--primary-soft);
+  border:1px solid var(--primary-line); display:grid; place-items:center;
+  font-size:calc(26px * var(--scale));
+}
+.card .txt { flex:1; min-width:0; }
+.card .lab { display:block; font-weight:700; line-height:1.3; }
+.card .sub { display:block; font-size:calc(16px * var(--scale)); color:var(--ink-2); margin-top:4px; line-height:1.4; }
+.card .chev { flex:none; color:var(--primary); font-weight:700; font-size:calc(24px * var(--scale)); }
+/* progress is never colour alone: a tick glyph AND a word */
+.card .done {
+  flex:none; display:flex; align-items:center; gap:5px; white-space:nowrap;
+  font-size:calc(15px * var(--scale)); font-weight:700; color:var(--primary);
+}
+.card.tall { min-height:116px; }
+.card.tall .ico { width:64px; height:64px; font-size:calc(32px * var(--scale)); }
+
+/* ---------------- breadcrumb & progress ---------------- */
+.crumb {
+  font-size:calc(16px * var(--scale)); color:var(--ink-2);
+  margin:0 0 16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+}
+.crumb b { color:var(--ink); }
+.crumb button {
+  background:none; border:0; padding:0; color:var(--primary); cursor:pointer;
+  font:inherit; text-decoration:underline; text-underline-offset:3px;
+}
+.steps { display:flex; gap:8px; margin:0 0 20px; }
+.steps span {
+  flex:1; height:8px; border-radius:999px; background:var(--surface-2);
+  border:1px solid var(--line);
+}
+.steps span.done { background:var(--primary); border-color:var(--primary); }
+
+/* ---------------- input ---------------- */
+.field {
+  width:100%; min-height:140px; padding:16px; border:2px solid var(--line);
+  border-radius:var(--r); font-family:var(--ui);
+  font-size:calc(20px * var(--scale)); line-height:1.5; color:var(--ink);
+  background:var(--surface); resize:vertical;
+}
+.field.short { min-height:64px; }
+.field::placeholder { color:var(--ink-2); }
+.chips { display:grid; gap:12px; }
+.chip {
+  min-height:var(--tap); text-align:left; padding:14px 18px;
+  border:2px solid var(--line); border-radius:var(--r); background:var(--surface-2);
+  font-family:var(--ui); font-size:calc(18px * var(--scale)); color:var(--ink);
+  cursor:pointer; line-height:1.4;
+}
+.chip:hover { border-color:var(--primary); background:var(--primary-soft); }
+
+/* ---------------- answer & sources ---------------- */
+.quote {
+  border-left:4px solid var(--line); padding:2px 0 2px 14px;
+  color:var(--ink-2); font-size:calc(18px * var(--scale)); margin:0 0 22px;
+}
+ol.steps-list { margin:0 0 6px; padding-left:1.5em; }
+ol.steps-list li { margin-bottom:18px; line-height:1.55; }
+.source {
+  display:flex; gap:14px; align-items:flex-start; padding:16px;
+  border:2px solid var(--primary-line); border-radius:var(--r);
+  background:var(--primary-soft); margin-bottom:12px; text-decoration:none; color:var(--ink);
+}
+.source:hover { filter:brightness(.97); }
+.source .badge {
+  flex:none; width:44px; height:44px; border-radius:10px; background:var(--surface);
+  border:1px solid var(--primary-line); display:grid; place-items:center;
+  font-weight:700; color:var(--primary); font-size:calc(15px * var(--scale));
+}
+.source .who { display:block; font-weight:700; font-size:calc(18px * var(--scale)); line-height:1.35; }
+.source .url { display:block; font-size:calc(15px * var(--scale)); color:var(--ink-2); word-break:break-all; margin-top:2px; }
+
+/* ---------------- callouts ---------------- */
+.box {
+  border:2px solid var(--primary-line); background:var(--primary-soft);
+  border-radius:var(--r); padding:18px; margin:24px 0;
+}
+.box .h {
+  display:flex; align-items:center; gap:10px; font-weight:700;
+  font-size:calc(20px * var(--scale)); color:var(--primary); margin-bottom:10px;
+}
+.box p { margin:0 0 16px; font-size:calc(18px * var(--scale)); max-width:none; }
+.box p:last-child { margin-bottom:0; }
+.box.warm { border-color:var(--help-line); background:var(--help-soft); }
+.box.warm .h { color:var(--help); }
+.box.bad { border-color:var(--alert); background:var(--alert-soft); }
+.box.bad .h { color:var(--alert); }
+.box.loud { border-width:4px; }
+
+.consent { list-style:none; margin:0 0 8px; padding:0; }
+.consent li {
+  display:flex; gap:12px; align-items:flex-start; padding:14px 0;
+  border-bottom:1px solid var(--line); font-size:calc(19px * var(--scale));
+}
+.consent li:last-child { border-bottom:0; }
+.consent .k { flex:none; color:var(--primary); font-weight:700; }
+
+.mock {
+  border:2px solid var(--line); border-radius:var(--r);
+  padding:18px; background:var(--surface-2); margin-bottom:24px;
+}
+.mock .from { font-size:calc(16px * var(--scale)); color:var(--ink-2); font-weight:700; margin-bottom:10px; }
+
+/* ---------------- chat ---------------- */
+.chat { display:flex; flex-direction:column; gap:16px; margin-bottom:24px; }
+.bub { max-width:86%; padding:14px 17px; border-radius:18px; font-size:calc(19px * var(--scale)); line-height:1.5; }
+.bub.them { background:var(--surface-2); border:2px solid var(--line); align-self:flex-start; border-bottom-left-radius:6px; }
+.bub.me { background:var(--primary); color:#fff; align-self:flex-end; border-bottom-right-radius:6px; }
+.bub .who { display:block; font-size:calc(15px * var(--scale)); font-weight:700; color:var(--ink-2); margin-bottom:4px; }
+.ctx {
+  background:var(--primary-soft); border:2px solid var(--primary-line);
+  border-radius:var(--r); padding:14px 16px; margin-bottom:22px; font-size:calc(18px * var(--scale));
+}
+.ctx b { display:block; font-size:calc(15px * var(--scale)); color:var(--primary);
+  text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
+
+/* ---------------- centred states ---------------- */
+.center { text-align:center; padding:40px 0; }
+.center p { margin-left:auto; margin-right:auto; }
+.glyph { font-size:calc(58px * var(--scale)); line-height:1; margin-bottom:14px; }
+.spinner {
+  width:52px; height:52px; margin:0 auto 22px;
+  border:6px solid var(--primary-soft); border-top-color:var(--primary);
+  border-radius:50%; animation:spin 1.1s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) {
+  .spinner { animation:none; border-top-color:var(--primary-line); }
+  * { transition:none !important; }
+}
+
+/* ---------------- volunteer view: different user, denser is correct ------- */
+.vol { font-size:16px; line-height:1.5; }
+.vol h1 { font-size:24px; }
+.vol p { font-size:16px; max-width:60ch; }
+.vrow {
+  display:flex; gap:14px; align-items:center; padding:16px;
+  border:1px solid var(--line); border-radius:12px; background:var(--surface);
+  cursor:pointer; text-align:left; width:100%; font-family:var(--ui);
+  color:var(--ink); margin-bottom:12px;
+}
+.vrow:hover { background:var(--surface-2); }
+.vrow .av {
+  flex:none; width:44px; height:44px; border-radius:50%; background:var(--primary-soft);
+  border:1px solid var(--primary-line); display:grid; place-items:center;
+  font-weight:700; color:var(--primary);
+}
+.vrow .m { flex:1; min-width:0; }
+.vrow .nm { font-weight:700; font-size:16px; }
+.vrow .dt { font-size:14px; color:var(--ink-2); }
+.pills { display:flex; gap:7px; flex-wrap:wrap; }
+.pill { font-size:13px; font-weight:700; padding:4px 10px; border-radius:999px; border:1px solid var(--line); white-space:nowrap; }
+.pill.lang { background:var(--primary-soft); color:var(--primary); border-color:var(--primary-line); }
+.pill.wait { background:var(--help-soft); color:var(--help); border-color:var(--help-line); }
+.vpanel { border:1px solid var(--line); border-radius:12px; padding:16px; background:var(--surface-2); margin-bottom:14px; }
+.vpanel h3 { margin:0 0 10px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2); }
+.vpanel ol, .vpanel ul { margin:0; padding-left:1.3em; }
+.vpanel li { margin-bottom:6px; }
+
+/* ---------------- footer ---------------- */
+footer.foot {
+  flex:none; border-top:1px solid var(--line); background:var(--surface-2);
+  padding:20px 18px 30px; font-size:calc(16px * var(--scale)); color:var(--ink-2);
+}
+footer.foot .wrap { display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
+footer.foot button {
+  background:none; border:0; padding:6px 0; color:var(--primary); cursor:pointer;
+  font:inherit; font-weight:700; text-decoration:underline; text-underline-offset:3px;
+  min-height:44px;
+}
+
+/* nothing may scroll sideways, at any width */
+@media (max-width:360px) { :root { --page:100%; } .page { padding:20px 14px 36px; } }
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to the main content</a>
+
+<div class="site">
+
+  <!-- ===================== persistent header ===================== -->
+  <header class="top" id="top" hidden>
+    <div class="toprow">
+      <button class="iconbtn back" id="backbtn" aria-label="Go back">←</button>
+      <span class="grow"><span class="ttl" id="pagetitle">CONNECT Plus</span></span>
+      <button class="iconbtn" id="prefsbtn" aria-expanded="false" aria-controls="prefs">
+        文<span aria-hidden="true">A</span><span class="sr" hidden>Language and text size</span>
+      </button>
+      <button class="iconbtn help" data-go="help" data-en="Help" data-zh="帮助">Help</button>
+    </div>
+
+    <div class="panel" id="prefs">
+      <h2 data-en="Language" data-zh="语言">Language</h2>
+      <div class="seg" role="group">
+        <button type="button" data-lang="en" aria-pressed="true">English</button>
+        <button type="button" data-lang="zh" aria-pressed="false">中文</button>
+      </div>
+      <h2 data-en="Text size" data-zh="字体大小">Text size</h2>
+      <div class="seg" role="group">
+        <button type="button" data-scale="1" aria-pressed="true" style="font-size:16px">A</button>
+        <button type="button" data-scale="1.15" aria-pressed="false" style="font-size:21px">A</button>
+        <button type="button" data-scale="1.32" aria-pressed="false" style="font-size:26px">A</button>
+      </div>
+      <h2 data-en="Stronger contrast" data-zh="更高对比度">Stronger contrast</h2>
+      <div class="seg" role="group">
+        <button type="button" data-contrast="normal" aria-pressed="true" data-en="Normal" data-zh="普通">Normal</button>
+        <button type="button" data-contrast="high" aria-pressed="false" data-en="Stronger" data-zh="更强">Stronger</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ===================== 0. LANGUAGE ===================== -->
+    <section class="page on" id="p-language" aria-labelledby="h-language">
+      <div class="wrap">
+        <div style="text-align:center;margin-bottom:26px">
+          <h1 id="h-language" data-en="Choose your language" data-zh="选择您的语言">Choose your language</h1>
+          <p class="quiet" style="max-width:none;margin:0">請選擇語言 · Chọn ngôn ngữ · اختر لغتك</p>
+        </div>
+        <div class="tiles">
+          <button class="tile" aria-pressed="false" data-pick="zh"><span class="native">中文</span><span class="latin">Chinese</span></button>
+          <button class="tile" aria-pressed="false" data-pick="vi"><span class="native">Tiếng Việt</span><span class="latin">Vietnamese</span></button>
+          <button class="tile" aria-pressed="true"  data-pick="en"><span class="native">English</span><span class="latin">English</span></button>
+          <button class="tile" aria-pressed="false" data-pick="ar"><span class="native">العربية</span><span class="latin">Arabic</span></button>
+        </div>
+        <button class="btn primary" style="margin-top:28px" data-go="signin" data-en="Continue" data-zh="继续">Continue</button>
+      </div>
+    </section>
+
+    <!-- ===================== 1. SIGN IN ===================== -->
+    <section class="page" id="p-signin" aria-labelledby="h-signin">
+      <div class="wrap">
+        <h1 id="h-signin" data-en="Sign in" data-zh="登录">Sign in</h1>
+        <p data-en="We will send a code to your email. There is no password to remember."
+           data-zh="我们会把一个号码发到您的邮箱。不用记密码。">We will send a code to your email. There is no password to remember.</p>
+        <label class="label" for="email" data-en="Your email address" data-zh="您的邮箱地址">Your email address</label>
+        <input class="field short" id="email" type="email" autocomplete="email" placeholder="name@example.com"
+               style="min-height:64px" data-ph-en="name@example.com" data-ph-zh="name@example.com">
+        <button class="btn primary" style="margin-top:22px" data-go="home"
+                data-en="Send me a code" data-zh="给我发号码">Send me a code</button>
+        <p class="label" style="text-align:center;margin-top:34px" data-en="Or" data-zh="或者">Or</p>
+        <button class="btn secondary" data-go="home" data-en="Look around first" data-zh="先随便看看">Look around first</button>
+        <p class="quiet" style="text-align:center;margin:18px auto 0"
+           data-en="You only need an account to save your place or talk to a helper."
+           data-zh="只有要保存进度或找人帮忙时，才需要账户。">You only need an account to save your place or talk to a helper.</p>
+      </div>
+    </section>
+
+    <!-- ===================== 2. HOME ===================== -->
+    <section class="page" id="p-home" aria-labelledby="h-home">
+      <div class="wrap">
+        <h1 id="h-home" data-en="Good morning, Mei" data-zh="早上好，美英">Good morning, Mei</h1>
+        <p class="lead" data-en="What would you like to do?" data-zh="您今天想做什么？">What would you like to do?</p>
+        <div class="cards two">
+          <button class="card tall" data-go="browse">
+            <span class="ico" aria-hidden="true">📚</span>
+            <span class="txt">
+              <span class="lab" data-en="Browse topics" data-zh="浏览主题">Browse topics</span>
+              <span class="sub" data-en="Pick what you want to learn" data-zh="挑一个您想学的">Pick what you want to learn</span>
+            </span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+          <button class="card tall" data-go="ask">
+            <span class="ico" aria-hidden="true">💬</span>
+            <span class="txt">
+              <span class="lab" data-en="Ask a question" data-zh="问一个问题">Ask a question</span>
+              <span class="sub" data-en="Type it or say it out loud" data-zh="可以打字，也可以说出来">Type it or say it out loud</span>
+            </span>
+            <span class="chev" aria-hidden="true">›</span>
+          </button>
+        </div>
+        <div class="box" style="margin-top:28px">
+          <div class="h">↩ <span data-en="Carry on where you stopped" data-zh="接着上次继续">Carry on where you stopped</span></div>
+          <p data-en="Spotting scam messages — step 2 of 5" data-zh="看出诈骗短信 — 第 2 步，共 5 步">Spotting scam messages — step 2 of 5</p>
+          <button class="btn secondary" data-go="step" data-en="Continue" data-zh="继续">Continue</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3a. CATEGORIES ===================== -->
+    <section class="page" id="p-browse" aria-labelledby="h-browse">
+      <div class="wrap">
+        <h1 id="h-browse" data-en="What would you like to learn?" data-zh="您想学什么？">What would you like to learn?</h1>
+        <div class="cards two" style="margin-top:22px">
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">📱</span>
+            <span class="txt"><span class="lab" data-en="Phone &amp; tablet" data-zh="手机和平板">Phone &amp; tablet</span></span>
+            <span class="done">✓&nbsp;<span data-en="2 done" data-zh="做过 2 个">2 done</span></span></button>
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">🛡️</span>
+            <span class="txt"><span class="lab" data-en="Staying safe online" data-zh="上网安全">Staying safe online</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">🏛️</span>
+            <span class="txt"><span class="lab" data-en="Government &amp; health" data-zh="政府和医疗">Government &amp; health</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">👨‍👩‍👧</span>
+            <span class="txt"><span class="lab" data-en="Talking to family" data-zh="和家人联系">Talking to family</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">💳</span>
+            <span class="txt"><span class="lab" data-en="Money &amp; shopping" data-zh="钱和购物">Money &amp; shopping</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">💻</span>
+            <span class="txt"><span class="lab" data-en="Computer" data-zh="电脑">Computer</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="topic"><span class="ico" aria-hidden="true">🤖</span>
+            <span class="txt"><span class="lab" data-en="AI &amp; new technology" data-zh="人工智能和新科技">AI &amp; new technology</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3a-2. SUBCATEGORIES ===================== -->
+    <section class="page" id="p-topic" aria-labelledby="h-topic">
+      <div class="wrap">
+        <nav class="crumb" aria-label="Breadcrumb">
+          <button data-go="browse" data-en="Topics" data-zh="主题">Topics</button> ›
+          <b data-en="Staying safe online" data-zh="上网安全">Staying safe online</b>
+        </nav>
+        <h1 id="h-topic" data-en="Staying safe online" data-zh="上网安全">Staying safe online</h1>
+        <div class="cards" style="margin-top:22px">
+          <button class="card" data-go="step"><span class="ico" aria-hidden="true">✉️</span>
+            <span class="txt"><span class="lab" data-en="Spotting scam messages" data-zh="看出诈骗短信">Spotting scam messages</span>
+            <span class="sub" data-en="5 steps · about 6 minutes" data-zh="5 步 · 大约 6 分钟">5 steps · about 6 minutes</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="step"><span class="ico" aria-hidden="true">🔑</span>
+            <span class="txt"><span class="lab" data-en="Strong passwords" data-zh="安全的密码">Strong passwords</span>
+            <span class="sub" data-en="4 steps · about 5 minutes" data-zh="4 步 · 大约 5 分钟">4 steps · about 5 minutes</span></span>
+            <span class="done">✓&nbsp;<span data-en="Done" data-zh="做过了">Done</span></span></button>
+          <button class="card" data-go="step"><span class="ico" aria-hidden="true">📞</span>
+            <span class="txt"><span class="lab" data-en="Suspicious phone calls" data-zh="可疑的电话">Suspicious phone calls</span>
+            <span class="sub" data-en="4 steps · about 5 minutes" data-zh="4 步 · 大约 5 分钟">4 steps · about 5 minutes</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+          <button class="card" data-go="step"><span class="ico" aria-hidden="true">🔒</span>
+            <span class="txt"><span class="lab" data-en="Keeping things private" data-zh="保护个人信息">Keeping things private</span>
+            <span class="sub" data-en="6 steps · about 8 minutes" data-zh="6 步 · 大约 8 分钟">6 steps · about 8 minutes</span></span>
+            <span class="chev" aria-hidden="true">›</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3c. RESOURCE STEP ===================== -->
+    <section class="page" id="p-step" aria-labelledby="h-step">
+      <div class="wrap">
+        <nav class="crumb" aria-label="Breadcrumb">
+          <button data-go="browse" data-en="Topics" data-zh="主题">Topics</button> ›
+          <button data-go="topic" data-en="Staying safe" data-zh="上网安全">Staying safe</button> ›
+          <b data-en="Spotting scam messages" data-zh="看出诈骗短信">Spotting scam messages</b>
+        </nav>
+        <div class="steps" role="img" aria-label="Step 2 of 5">
+          <span class="done"></span><span class="done"></span><span></span><span></span><span></span>
+        </div>
+        <p class="quiet" style="margin-bottom:8px" data-en="Step 2 of 5" data-zh="第 2 步，共 5 步">Step 2 of 5</p>
+        <h1 id="h-step" data-en="Look at who sent it" data-zh="先看是谁发来的">Look at who sent it</h1>
+        <p class="lead" data-en="A real bank writes to you from the same number every time. A scammer uses a number you have never seen."
+           data-zh="真正的银行每次都用同一个号码发给您。骗子用的是您没见过的号码。">A real bank writes to you from the same number every time. A scammer uses a number you have never seen.</p>
+        <div class="box">
+          <div class="h">👀 <span data-en="What to look for" data-zh="要看什么">What to look for</span></div>
+          <p data-en="The sender's name is spelled almost right, with one letter changed. That one letter is the whole trick."
+             data-zh="发信人的名字看起来差不多对，但有一个字母被换掉了。骗术就在那一个字母上。">The sender's name is spelled almost right, with one letter changed. That one letter is the whole trick.</p>
+        </div>
+        <p class="label" data-en="Where this comes from" data-zh="资料来源">Where this comes from</p>
+        <a class="source" href="https://www.scamwatch.gov.au/types-of-scams" target="_blank" rel="noopener">
+          <span class="badge" aria-hidden="true">SW</span>
+          <span><span class="who">Scamwatch — <span data-en="Text message scams" data-zh="短信诈骗">Text message scams</span></span>
+          <span class="url">scamwatch.gov.au/types-of-scams</span></span>
+        </a>
+        <div class="btnrow" style="margin-top:30px">
+          <button class="btn ghost" style="flex:1" data-go="topic" data-en="Back" data-zh="上一步">Back</button>
+          <button class="btn primary" style="flex:2" data-go="practice" data-en="Next step" data-zh="下一步">Next step</button>
+        </div>
+        <button class="btn ghost" style="margin-top:var(--gap)" data-stuck data-en="I'm stuck" data-zh="我卡住了">I'm stuck</button>
+      </div>
+    </section>
+
+    <!-- ===================== 3c-2. PRACTICE ===================== -->
+    <section class="page" id="p-practice" aria-labelledby="h-practice">
+      <div class="wrap">
+        <div class="steps" role="img" aria-label="Step 3 of 5">
+          <span class="done"></span><span class="done"></span><span class="done"></span><span></span><span></span>
+        </div>
+        <p class="quiet" style="margin-bottom:8px" data-en="Step 3 of 5 · Practice" data-zh="第 3 步，共 5 步 · 练习">Step 3 of 5 · Practice</p>
+        <h1 id="h-practice" data-en="Your turn" data-zh="现在您来试试">Your turn</h1>
+        <p class="lead" data-en="Here is a real message. Is it safe, or is it a scam?"
+           data-zh="这是一条真实的短信。它是安全的，还是诈骗？">Here is a real message. Is it safe, or is it a scam?</p>
+
+        <!-- the proactive offer appears here after repeated attempts -->
+        <div class="box warm loud" id="offer" hidden>
+          <div class="h">🤝 <span data-en="Would you like a hand?" data-zh="需要人帮忙吗？">Would you like a hand?</span></div>
+          <p data-en="This step can be tricky. One of our helpers speaks your language and can walk through it with you."
+             data-zh="这一步不太容易。我们有会说中文的辅导员，可以陪您一起做。">This step can be tricky. One of our helpers speaks your language and can walk through it with you.</p>
+          <button class="btn helper" data-go="help" data-en="Yes, please" data-zh="好的，麻烦了">Yes, please</button>
+          <button class="btn ghost" style="margin-top:var(--gap)" id="dismiss-offer"
+                  data-en="No thanks, I'll keep trying" data-zh="不用，我再试试">No thanks, I'll keep trying</button>
+        </div>
+
+        <div class="mock">
+          <div class="from">+61 4XX XXX 918</div>
+          <div data-en="myGov: your payment is on hold. Confirm your details now at my-gov-au.secure-check.net"
+               data-zh="myGov：您的补助已被暂停。请立即到 my-gov-au.secure-check.net 确认您的信息">myGov: your payment is on hold. Confirm your details now at my-gov-au.secure-check.net</div>
+        </div>
+
+        <div id="practice-result" hidden></div>
+
+        <div id="practice-buttons">
+          <button class="btn secondary" data-answer="wrong" data-en="It looks safe" data-zh="看起来是安全的">It looks safe</button>
+          <button class="btn primary" data-answer="right" data-en="It is a scam" data-zh="这是诈骗">It is a scam</button>
+          <button class="btn ghost" data-stuck data-en="I'm not sure" data-zh="我不确定">I'm not sure</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3b. ASK ===================== -->
+    <section class="page" id="p-ask" aria-labelledby="h-ask">
+      <div class="wrap">
+        <h1 id="h-ask" data-en="Ask a question" data-zh="问一个问题">Ask a question</h1>
+        <label class="label" for="q" data-en="Type your question" data-zh="打字问您的问题">Type your question</label>
+        <textarea class="field" id="q"
+          placeholder="For example: how do I know if a text message is a scam?"
+          data-ph-en="For example: how do I know if a text message is a scam?"
+          data-ph-zh="例如：我怎么知道一条短信是不是诈骗？"></textarea>
+        <button class="btn secondary" style="margin-top:var(--gap)" data-go="loading">🎙 <span
+          data-en="Say it out loud instead" data-zh="不打字，说出来">Say it out loud instead</span></button>
+        <button class="btn primary" data-go="loading" data-en="Get an answer" data-zh="查找答案">Get an answer</button>
+        <p class="label" data-en="Or try one of these" data-zh="或者试试这些">Or try one of these</p>
+        <div class="chips">
+          <button class="chip" data-go="answer" data-en="I got a strange text about my account"
+            data-zh="我收到一条奇怪的短信说我账户有问题">I got a strange text about my account</button>
+          <button class="chip" data-go="answer" data-en="My phone keeps asking me for a code"
+            data-zh="我的手机一直要我输入验证码">My phone keeps asking me for a code</button>
+          <button class="chip" data-go="answer" data-en="How do I make the writing bigger?"
+            data-zh="手机上的字太小，怎么调大？">How do I make the writing bigger?</button>
+          <button class="chip" data-go="noanswer" data-en="What medicine should I take for chest pain?"
+            data-zh="我胸口痛应该吃什么药？">What medicine should I take for chest pain?</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== LOADING ===================== -->
+    <section class="page" id="p-loading" aria-labelledby="h-loading">
+      <div class="wrap center">
+        <div class="spinner" role="status" aria-label="Looking for an answer"></div>
+        <h1 id="h-loading" data-en="Looking this up for you" data-zh="正在为您查找">Looking this up for you</h1>
+        <p data-en="We are checking trusted sources. This takes a few seconds."
+           data-zh="我们正在查可靠的资料。大概要几秒钟。">We are checking trusted sources. This takes a few seconds.</p>
+      </div>
+    </section>
+
+    <!-- ===================== 3b-2. ANSWER ===================== -->
+    <section class="page" id="p-answer" aria-labelledby="h-answer">
+      <div class="wrap">
+        <p class="quote" data-en="“I got a strange text about my account”"
+           data-zh="「我收到一条奇怪的短信说我账户有问题」">“I got a strange text about my account”</p>
+        <h1 id="h-answer" data-en="Here is what you can do" data-zh="您可以这样做">Here is what you can do</h1>
+        <ol class="steps-list">
+          <li data-en="Do not tap the link in the message." data-zh="不要点短信里的链接。">Do not tap the link in the message.</li>
+          <li data-en="Look at the sender. A scam number is one you have never seen before."
+              data-zh="看一下发信的号码。骗子用的是您没见过的号码。">Look at the sender. A scam number is one you have never seen before.</li>
+          <li data-en="If you are worried, ring your bank on the number printed on your card."
+              data-zh="如果不放心，请按银行卡背面印的号码打电话给银行。">If you are worried, ring your bank on the number printed on your card.</li>
+          <li data-en="You can report the message to Scamwatch." data-zh="您可以把这条短信举报给 Scamwatch。">You can report the message to Scamwatch.</li>
+        </ol>
+        <p class="label" data-en="Where this comes from" data-zh="资料来源">Where this comes from</p>
+        <a class="source" href="https://www.scamwatch.gov.au/types-of-scams" target="_blank" rel="noopener">
+          <span class="badge" aria-hidden="true">SW</span>
+          <span><span class="who">Scamwatch — <span data-en="Text message scams" data-zh="短信诈骗">Text message scams</span></span>
+          <span class="url">scamwatch.gov.au/types-of-scams</span></span>
+        </a>
+        <a class="source" href="https://www.esafety.gov.au/seniors" target="_blank" rel="noopener">
+          <span class="badge" aria-hidden="true">eS</span>
+          <span><span class="who">eSafety — <span data-en="Checking a message is genuine" data-zh="怎么确认信息是真的">Checking a message is genuine</span></span>
+          <span class="url">esafety.gov.au/seniors</span></span>
+        </a>
+        <p class="label" data-en="Was this helpful?" data-zh="这个回答有帮助吗？">Was this helpful?</p>
+        <div class="btnrow">
+          <button class="btn secondary" style="flex:1" id="helpful-yes" data-en="Yes" data-zh="有帮助">Yes</button>
+          <button class="btn ghost" style="flex:1" data-go="help" data-en="No" data-zh="没有">No</button>
+        </div>
+        <p id="thanks" class="quiet" hidden style="margin-top:18px"
+           data-en="Thank you. That helps us make the next answer better."
+           data-zh="谢谢您。这能帮我们把下一个答案做得更好。">Thank you. That helps us make the next answer better.</p>
+        <button class="btn ghost" style="margin-top:28px" data-go="ask"
+                data-en="Ask something else" data-zh="再问一个问题">Ask something else</button>
+      </div>
+    </section>
+
+    <!-- ===================== 3b-3. NO TRUSTED ANSWER ===================== -->
+    <section class="page" id="p-noanswer" aria-labelledby="h-noanswer">
+      <div class="wrap">
+        <p class="quote" data-en="“What medicine should I take for chest pain?”"
+           data-zh="「我胸口痛应该吃什么药？」">“What medicine should I take for chest pain?”</p>
+        <div class="box bad">
+          <div class="h">⚠ <span data-en="We cannot answer this one" data-zh="这个问题我们回答不了">We cannot answer this one</span></div>
+          <p data-en="We do not have trusted information about health or medicine, so we will not guess. Please speak to your doctor, or ring 000 if it is an emergency."
+             data-zh="关于健康和药物，我们没有可靠的资料，所以我们不会乱猜。请您找医生，紧急情况请打 000。">We do not have trusted information about health or medicine, so we will not guess. Please speak to your doctor, or ring 000 if it is an emergency.</p>
+        </div>
+        <h1 id="h-noanswer" class="sr-only" style="position:absolute;left:-9999px"
+            data-en="No trusted answer" data-zh="没有可靠的答案">No trusted answer</h1>
+        <div class="box warm">
+          <div class="h">🤝 <span data-en="A person can help" data-zh="有人可以帮您">A person can help</span></div>
+          <p data-en="We can connect you with a helper who speaks your language."
+             data-zh="我们可以帮您联系一位会说中文的辅导员。">We can connect you with a helper who speaks your language.</p>
+          <button class="btn helper" data-go="help" data-en="Talk to a person" data-zh="找人帮忙">Talk to a person</button>
+        </div>
+        <p class="quiet" data-en="We only answer from trusted Australian government and community sources. When they do not cover something, we say so."
+           data-zh="我们只根据可靠的澳大利亚政府和社区资料来回答。资料里没有的，我们会直说。">We only answer from trusted Australian government and community sources. When they do not cover something, we say so.</p>
+        <button class="btn ghost" data-go="ask" data-en="Ask something else" data-zh="再问一个问题">Ask something else</button>
+      </div>
+    </section>
+
+    <!-- ===================== 3d. CONSENT ===================== -->
+    <section class="page" id="p-help" aria-labelledby="h-help">
+      <div class="wrap">
+        <h1 id="h-help" data-en="We'll ask a helper to join you" data-zh="我们会请一位辅导员来帮您">We'll ask a helper to join you</h1>
+        <p data-en="So they can help quickly, they will see:" data-zh="为了能快点帮到您，他们会看到：">So they can help quickly, they will see:</p>
+        <ul class="consent">
+          <li><span class="k">✓</span><span data-en="Your first name only" data-zh="只有您的名字">Your first name only</span></li>
+          <li><span class="k">✓</span><span data-en="The language you chose" data-zh="您选的语言">The language you chose</span></li>
+          <li><span class="k">✓</span><span data-en="What you were doing: “Spotting scam messages, step 3”"
+            data-zh="您正在做的事：「看出诈骗短信，第 3 步」">What you were doing: “Spotting scam messages, step 3”</span></li>
+          <li><span class="k">✓</span><span data-en="What you have already tried" data-zh="您已经试过的方法">What you have already tried</span></li>
+        </ul>
+        <div class="box bad">
+          <div class="h">🔒 <span data-en="They will never see" data-zh="他们绝对看不到">They will never see</span></div>
+          <p data-en="Your password, your bank details, or any code sent to your phone. A real helper will never ask you for these."
+             data-zh="您的密码、银行信息，或者手机收到的任何验证码。真正的辅导员绝对不会问您这些。">Your password, your bank details, or any code sent to your phone. A real helper will never ask you for these.</p>
+        </div>
+        <div class="btnrow">
+          <button class="btn ghost" style="flex:1" data-go="home" data-en="Cancel" data-zh="取消">Cancel</button>
+          <button class="btn helper" style="flex:2" data-go="waiting" data-en="Yes, ask a helper" data-zh="好，请辅导员">Yes, ask a helper</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3d-2. WAITING ===================== -->
+    <section class="page" id="p-waiting" aria-labelledby="h-waiting">
+      <div class="wrap center">
+        <div class="spinner" role="status" aria-label="Finding a helper"></div>
+        <h1 id="h-waiting" data-en="Looking for a helper who speaks your language"
+            data-zh="正在找会说您的语言的辅导员">Looking for a helper who speaks your language</h1>
+        <p data-en="This usually takes about 3 minutes. You can keep learning while you wait — we will tell you when they arrive."
+           data-zh="一般大约 3 分钟。您可以先继续学习，人来了我们会告诉您。">This usually takes about 3 minutes. You can keep learning while you wait — we will tell you when they arrive.</p>
+        <div style="max-width:var(--page);margin:0 auto;text-align:left">
+          <button class="btn secondary" data-go="session" data-en="Wait here" data-zh="在这里等">Wait here</button>
+          <button class="btn ghost" data-go="step" data-en="Keep learning while I wait" data-zh="我一边等一边继续学">Keep learning while I wait</button>
+          <button class="btn ghost" data-go="unavailable" data-en="(Demo: nobody is free)" data-zh="（演示：没有人有空）">(Demo: nobody is free)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3d-3. SESSION ===================== -->
+    <section class="page" id="p-session" aria-labelledby="h-session">
+      <div class="wrap">
+        <h1 id="h-session" data-en="Helper — Ling" data-zh="辅导员 — 阿玲">Helper — Ling</h1>
+        <div class="ctx">
+          <b data-en="You are on" data-zh="您正在做">You are on</b>
+          <span data-en="Spotting scam messages · step 3 of 5" data-zh="看出诈骗短信 · 第 3 步，共 5 步">Spotting scam messages · step 3 of 5</span>
+        </div>
+        <div class="chat">
+          <div class="bub them"><span class="who">Ling</span>
+            <span data-en="Hello Mei, I'm Ling. I can see you're looking at a message about myGov. Shall we look at it together?"
+                  data-zh="美英您好，我是阿玲。我看到您在看一条关于 myGov 的短信。我们一起看看好吗？">Hello Mei, I'm Ling. I can see you're looking at a message about myGov. Shall we look at it together?</span></div>
+          <div class="bub me"><span data-en="Yes please. I don't know if it's real."
+            data-zh="好的，麻烦了。我不知道是不是真的。">Yes please. I don't know if it's real.</span></div>
+          <div class="bub them"><span class="who">Ling</span>
+            <span data-en="That's exactly the right question. Look at the web address in it — does it end in .gov.au?"
+                  data-zh="您问得非常对。看一下里面的网址 — 它是不是 .gov.au 结尾的？">That's exactly the right question. Look at the web address in it — does it end in .gov.au?</span></div>
+        </div>
+        <label class="label" for="msg" data-en="Write a message" data-zh="写一条信息">Write a message</label>
+        <textarea class="field short" id="msg" placeholder="Write a message…"
+          data-ph-en="Write a message…" data-ph-zh="写一条信息…"></textarea>
+        <div class="btnrow" style="margin-top:var(--gap)">
+          <button class="btn ghost" style="flex:1">🎙</button>
+          <button class="btn primary" style="flex:3" data-en="Send" data-zh="发送">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== STATES ===================== -->
+    <section class="page" id="p-unavailable" aria-labelledby="h-unavailable">
+      <div class="wrap center">
+        <div class="glyph" aria-hidden="true">🕗</div>
+        <h1 id="h-unavailable" data-en="No helper is free right now" data-zh="现在没有辅导员有空">No helper is free right now</h1>
+        <p data-en="Helpers who speak your language are usually here between 9am and 5pm on weekdays."
+           data-zh="会说您的语言的辅导员一般在周一到周五、早上 9 点到下午 5 点。">Helpers who speak your language are usually here between 9am and 5pm on weekdays.</p>
+        <div style="max-width:var(--page);margin:0 auto;text-align:left">
+          <button class="btn helper" data-go="home" data-en="Ask them to call me back" data-zh="请他们回头联系我">Ask them to call me back</button>
+          <button class="btn ghost" data-go="step" data-en="Keep learning on my own" data-zh="我自己继续学">Keep learning on my own</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="p-offline" aria-labelledby="h-offline">
+      <div class="wrap center">
+        <div class="glyph" aria-hidden="true">📡</div>
+        <h1 id="h-offline" data-en="Your device is not connected" data-zh="您的设备没有连上网">Your device is not connected</h1>
+        <p data-en="Check your Wi-Fi, then try again. The steps you have already opened still work."
+           data-zh="请检查一下 Wi-Fi，然后再试一次。您已经打开过的步骤还可以看。">Check your Wi-Fi, then try again. The steps you have already opened still work.</p>
+        <div style="max-width:var(--page);margin:0 auto;text-align:left">
+          <button class="btn primary" data-go="home" data-en="Try again" data-zh="再试一次">Try again</button>
+          <button class="btn ghost" data-go="step" data-en="See saved steps" data-zh="看已保存的步骤">See saved steps</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 4. VOLUNTEER ===================== -->
+    <section class="page vol" id="p-volunteer" aria-labelledby="h-volunteer">
+      <div class="wrap">
+        <p class="quiet" style="font-size:14px;margin-bottom:6px">CONNECT Plus · Volunteer view</p>
+        <h1 id="h-volunteer">Waiting for help</h1>
+        <p>A different user with different constraints: young volunteers, on phones, working fast.
+           Denser and more conventional is correct here.</p>
+        <button class="vrow" data-go="volunteer-session">
+          <span class="av">M</span>
+          <span class="m"><span class="nm">Mei · Spotting scam messages</span>
+          <span class="dt">step 3 of 5 · 3 attempts · asked for help</span></span>
+          <span class="pills"><span class="pill lang">中文</span><span class="pill wait">4 min</span></span>
+        </button>
+        <button class="vrow" data-go="volunteer-session">
+          <span class="av">T</span>
+          <span class="m"><span class="nm">Tuan · myGov sign in</span>
+          <span class="dt">step 2 of 4 · 5 attempts · offered automatically</span></span>
+          <span class="pills"><span class="pill lang">Tiếng Việt</span><span class="pill wait">2 min</span></span>
+        </button>
+        <button class="vrow" data-go="volunteer-session">
+          <span class="av">H</span>
+          <span class="m"><span class="nm">Hong · No trusted answer found</span>
+          <span class="dt">asked “what medicine for chest pain” · offered after refusal</span></span>
+          <span class="pills"><span class="pill lang">中文</span><span class="pill wait">1 min</span></span>
+        </button>
+        <button class="vrow" data-go="volunteer-session">
+          <span class="av">A</span>
+          <span class="m"><span class="nm">Amira · Video calling family</span>
+          <span class="dt">step 1 of 6 · 2 attempts</span></span>
+          <span class="pills"><span class="pill lang">العربية</span><span class="pill wait">just now</span></span>
+        </button>
+      </div>
+    </section>
+
+    <section class="page vol" id="p-volunteer-session" aria-labelledby="h-vs">
+      <div class="wrap">
+        <nav class="crumb" aria-label="Breadcrumb">
+          <button data-go="volunteer">Queue</button> › <b>Mei · 中文</b>
+        </nav>
+        <h1 id="h-vs">Session with Mei</h1>
+        <div class="box bad" style="margin-top:0">
+          <div class="h" style="font-size:16px">⚠ Before you start</div>
+          <ul style="margin:0;padding-left:1.2em;font-size:15px">
+            <li style="margin-bottom:7px"><b>Never ask for a password, a PIN, or a code sent to their phone.</b>
+              Nobody legitimate ever needs these.</li>
+            <li style="margin-bottom:7px">Ask what they can see on their screen. Do not assume.</li>
+            <li style="margin-bottom:7px">One instruction at a time, then wait.</li>
+            <li>If they get it wrong, say what to try next — not what went wrong.</li>
+          </ul>
+        </div>
+        <div class="vpanel">
+          <h3>What they are doing</h3>
+          <div style="font-weight:700;margin-bottom:5px">Spotting scam messages — step 3 of 5</div>
+          <div style="color:var(--ink-2)">Practice: deciding whether a myGov message is genuine</div>
+        </div>
+        <div class="vpanel">
+          <h3>Already tried · 3 attempts</h3>
+          <ol>
+            <li>Answered “It looks safe” — incorrect</li>
+            <li>Re-read step 2</li>
+            <li>Tapped “I'm not sure”</li>
+          </ol>
+        </div>
+        <div class="vpanel">
+          <h3>Chat</h3>
+          <div style="color:var(--ink-2)">Mei: “Yes please. I don't know if it's real.”</div>
+        </div>
+        <button class="btn primary" style="min-height:48px;font-size:16px">Send a message</button>
+      </div>
+    </section>
+
+  <!-- settings is a page too, reached from the footer -->
+  <section class="page" id="p-settings" aria-labelledby="h-settings" style="padding:24px 18px 40px">
+    <div class="wrap">
+      <h1 id="h-settings" data-en="Settings" data-zh="设置">Settings</h1>
+      <p data-en="Everything here can also be changed from the button at the top of any screen."
+         data-zh="这里的设置，在任何页面顶部的按钮里也能改。">Everything here can also be changed from the button at the top of any screen.</p>
+      <p class="label" data-en="Language" data-zh="语言">Language</p>
+      <div class="seg"><button type="button" data-lang="en" aria-pressed="true">English</button>
+        <button type="button" data-lang="zh" aria-pressed="false">中文</button></div>
+      <p class="label" data-en="Text size" data-zh="字体大小">Text size</p>
+      <div class="seg"><button type="button" data-scale="1" aria-pressed="true" style="font-size:16px">A</button>
+        <button type="button" data-scale="1.15" aria-pressed="false" style="font-size:21px">A</button>
+        <button type="button" data-scale="1.32" aria-pressed="false" style="font-size:26px">A</button></div>
+      <p class="label" data-en="Stronger contrast" data-zh="更高对比度">Stronger contrast</p>
+      <div class="seg"><button type="button" data-contrast="normal" aria-pressed="true" data-en="Normal" data-zh="普通">Normal</button>
+        <button type="button" data-contrast="high" aria-pressed="false" data-en="Stronger" data-zh="更强">Stronger</button></div>
+      <button class="btn ghost" style="margin-top:34px" data-go="language" data-en="Sign out" data-zh="退出登录">Sign out</button>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="foot" id="foot" hidden>
+    <div class="wrap">
+      <button data-go="settings" data-en="Settings" data-zh="设置">Settings</button>
+      <button data-go="volunteer" data-en="Volunteer view" data-zh="辅导员界面">Volunteer view</button>
+      <button data-go="offline" data-en="Offline state" data-zh="离线状态">Offline state</button>
+      <button data-go="language" data-en="Change language" data-zh="换语言">Change language</button>
+    </div>
+  </footer>
+
+
+</div>
+
+<div aria-live="polite" class="sr" id="live" style="position:absolute;left:-9999px"></div>
+
+<script>
+"use strict";
+
+/* Titles drive both the header and document.title, so browser history and
+   the tab strip both read sensibly. */
+const PAGES = {
+  language:   { en:"Choose your language",       zh:"选择您的语言",       chrome:false },
+  signin:     { en:"Sign in",                    zh:"登录",               chrome:true },
+  home:       { en:"Home",                       zh:"主页",               chrome:true },
+  browse:     { en:"Browse topics",              zh:"浏览主题",           chrome:true },
+  topic:      { en:"Staying safe online",        zh:"上网安全",           chrome:true },
+  step:       { en:"Spotting scam messages",     zh:"看出诈骗短信",       chrome:true },
+  practice:   { en:"Practice",                   zh:"练习",               chrome:true },
+  ask:        { en:"Ask a question",             zh:"问一个问题",         chrome:true },
+  loading:    { en:"Finding an answer",          zh:"正在查找",           chrome:true },
+  answer:     { en:"Your answer",                zh:"您的答案",           chrome:true },
+  noanswer:   { en:"Your answer",                zh:"您的答案",           chrome:true },
+  help:       { en:"Talk to a person",           zh:"找人帮忙",           chrome:true },
+  waiting:    { en:"Finding a helper",           zh:"正在找辅导员",       chrome:true },
+  session:    { en:"Helper — Ling",              zh:"辅导员 — 阿玲",      chrome:true },
+  unavailable:{ en:"No helper is free",          zh:"没有辅导员有空",     chrome:true },
+  offline:    { en:"No internet",                zh:"没有网络",           chrome:true },
+  settings:   { en:"Settings",                   zh:"设置",               chrome:true },
+  volunteer:  { en:"Volunteer — queue",          zh:"辅导员 — 队列",      chrome:true },
+  "volunteer-session":{ en:"Volunteer — session", zh:"辅导员 — 会话",     chrome:true }
+};
+
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+let LANG = "en";
+let stuckCount = 0;
+
+/* ---------------- routing (real hash routes, so Back works) ---------------- */
+function route() {
+  const name = (location.hash.replace(/^#\/?/, "") || "language");
+  const page = $("#p-" + name);
+  if (!page) { location.replace("#/language"); return; }
+
+  $$(".page").forEach((p) => p.classList.toggle("on", p === page));
+
+  const meta = PAGES[name] || { en:"CONNECT Plus", zh:"CONNECT Plus", chrome:true };
+  $("#top").hidden = !meta.chrome;
+  $("#foot").hidden = !meta.chrome;
+  $("#pagetitle").textContent = meta[LANG] || meta.en;
+  document.title = (meta[LANG] || meta.en) + " · CONNECT Plus";
+  $("#live").textContent = meta[LANG] || meta.en;
+
+  $("#prefs").classList.remove("open");
+  $("#prefsbtn").setAttribute("aria-expanded", "false");
+  window.scrollTo(0, 0);
+
+  /* move focus to the new page's heading, so a screen reader and a keyboard
+     user both land in the right place after navigating */
+  const h = page.querySelector("h1");
+  if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll:true }); }
+
+  /* the loading state is a real pause, not a screen you sit on */
+  if (name === "loading") {
+    setTimeout(() => { if (location.hash.includes("loading")) go("answer", true); }, 1500);
+  }
+  /* reset the practice attempt state each time you arrive fresh */
+  if (name === "practice") resetPractice();
+}
+
+function go(name, replace) {
+  if (replace) location.replace("#/" + name);
+  else location.hash = "#/" + name;
+}
+
+window.addEventListener("hashchange", route);
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-go]");
+  if (t) { e.preventDefault(); go(t.dataset.go); }
+});
+
+$("#backbtn").addEventListener("click", () => history.back());
+
+/* ---------------- header preferences panel ---------------- */
+$("#prefsbtn").addEventListener("click", () => {
+  const open = $("#prefs").classList.toggle("open");
+  $("#prefsbtn").setAttribute("aria-expanded", String(open));
+});
+
+/* ---------------- language ---------------- */
+function setLang(code) {
+  LANG = code;
+  document.documentElement.lang = code === "zh" ? "zh-Hans" : "en";
+  $$("[data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === code)));
+  $$("[data-en]").forEach((el) => {
+    const v = el.getAttribute("data-" + code);
+    if (v) el.textContent = v;
+  });
+  $$("[data-ph-en]").forEach((el) => {
+    const v = el.getAttribute("data-ph-" + code);
+    if (v) el.placeholder = v;
+  });
+  const name = location.hash.replace(/^#\/?/, "") || "language";
+  const meta = PAGES[name];
+  if (meta) { $("#pagetitle").textContent = meta[code] || meta.en; document.title = (meta[code] || meta.en) + " · CONNECT Plus"; }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-lang]");
+  if (b) setLang(b.dataset.lang);
+});
+
+/* choosing a tile on screen 0 sets the whole site's language */
+$$("[data-pick]").forEach((t) => t.addEventListener("click", () => {
+  $$("[data-pick]").forEach((o) => o.setAttribute("aria-pressed", "false"));
+  t.setAttribute("aria-pressed", "true");
+  const code = t.dataset.pick;
+  if (code === "zh" || code === "en") setLang(code);
+}));
+
+/* ---------------- text size ---------------- */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-scale]");
+  if (!b) return;
+  document.documentElement.style.setProperty("--scale", b.dataset.scale);
+  $$("[data-scale]").forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.scale === b.dataset.scale)));
+});
+
+/* ---------------- contrast ---------------- */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-contrast]");
+  if (!b) return;
+  document.documentElement.setAttribute("data-contrast", b.dataset.contrast);
+  $$("[data-contrast]").forEach((o) => o.setAttribute("aria-pressed", String(o.dataset.contrast === b.dataset.contrast)));
+});
+
+/* ---------------- the attempt counter ----------------
+   The plan says the mentor offer appears after several unsuccessful
+   attempts, not immediately. This is that rule, working: two wrong or
+   unsure answers and the offer appears. Declining hides it and leaves
+   the reader exactly where they were. Nothing auto-dismisses. */
+const RESULT = {
+  wrong: {
+    en:["Not quite — and this is exactly the kind that catches people.",
+        "The web address is the giveaway: a real myGov address ends in <b>.gov.au</b>. This one does not."],
+    zh:["还不对 — 而且这一种正是最容易骗到人的。",
+        "关键在网址：真正的 myGov 网址是 <b>.gov.au</b> 结尾的。这个不是。"]
+  },
+  right: {
+    en:["That's right. Well spotted.",
+        "The web address is the giveaway: a real myGov address ends in <b>.gov.au</b>. This one does not."],
+    zh:["答对了，看得很准。",
+        "关键在网址：真正的 myGov 网址是 <b>.gov.au</b> 结尾的。这个不是。"]
+  }
+};
+
+function resetPractice() {
+  $("#offer").hidden = true;
+  $("#practice-result").hidden = true;
+  $("#practice-result").innerHTML = "";
+  $("#practice-buttons").hidden = false;
+}
+
+function showResult(kind) {
+  const copy = RESULT[kind][LANG] || RESULT[kind].en;
+  const box = $("#practice-result");
+  box.innerHTML =
+    `<div class="box ${kind === "right" ? "" : "warm"}">
+       <div class="h">${kind === "right" ? "✓" : "↻"} ${copy[0]}</div>
+       <p>${copy[1]}</p>
+       <button class="btn ${kind === "right" ? "primary" : "ghost"}" data-go="step">
+         ${LANG === "zh" ? (kind === "right" ? "下一步" : "再看一次") : (kind === "right" ? "Next step" : "Read that step again")}
+       </button>
+     </div>`;
+  box.hidden = false;
+}
+
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-answer]");
+  if (a) {
+    showResult(a.dataset.answer);
+    if (a.dataset.answer === "wrong" && ++stuckCount >= 2) $("#offer").hidden = false;
+    return;
+  }
+  if (e.target.closest("[data-stuck]")) {
+    if (++stuckCount >= 2) {
+      $("#offer").hidden = false;
+      if (!location.hash.includes("practice")) go("practice");
+      setTimeout(() => $("#offer").scrollIntoView({ block:"center" }), 60);
+    } else {
+      go("help");
+    }
+  }
+});
+
+$("#dismiss-offer").addEventListener("click", () => {
+  $("#offer").hidden = true;
+  stuckCount = 0;
+});
+
+$("#helpful-yes").addEventListener("click", () => { $("#thanks").hidden = false; });
+
+/* ---------------- start ---------------- */
+if (!location.hash) location.replace("#/language");
+route();
+</script>
+</body>
+</html>

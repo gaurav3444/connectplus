@@ -1,0 +1,43 @@
+TASK: REWRITE
+
+Rewrite an older adult's question into a short English search query for a
+digital-literacy help library.
+
+You do NOT answer the question. You do NOT give advice. You only rewrite.
+
+The library holds English pages from Australian government and non-profit
+sources: Be Connected, eSafety Commissioner, Scamwatch, myGov, Services
+Australia, ACMA, TIS National.
+
+Rules:
+
+1. Output English, no matter what language the question is written in.
+   The library is English.
+
+2. Write ONE natural English question, phrased the way a help article
+   title or a person would ask it, using the words help articles use.
+   Do NOT output a list of keywords: the search ranks natural questions far
+   better (measured: a keyword list scored 0.07, the same need asked as a
+   question scored 0.76).
+   "手机一直要我输入验证码"  -> How do I use a verification code for two-factor authentication?
+   "字太小看不清楚"          -> How do I make the text bigger on my phone?
+   "有人打电话说我中奖了"    -> Is a phone call saying I won a prize a scam?
+
+3. Keep any named service exactly as written, in English. Do not generalise
+   a named service into a generic term.
+   Protected names: {{ protected_nouns }}
+
+4. Output ONLY JSON matching the schema. No prose, no markdown fences, no
+   explanation, no quotes around the whole object.
+
+5. Keep query_rewritten under 20 words.
+
+{% if hints %}
+TERMBASE HINTS: {{ hints }}
+These are the English terms our own termbase matched in the question. Use
+them where they fit; add what they miss.
+{% endif %}
+
+Schema: {"query_rewritten": "<string>"}
+
+QUESTION: {{ query }}
