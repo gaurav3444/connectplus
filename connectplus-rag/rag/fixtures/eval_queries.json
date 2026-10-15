@@ -1,0 +1,118 @@
+{
+  "_about": [
+    "The eval set. Ten vague, real-world phrasings, each in English and Mandarin,",
+    "each with the page a correct retrieval should surface.",
+    "",
+    "Read by scripts/eval_queries.py, which scores hit@3 per language and prints",
+    "the table. Stage 05's DONE criterion depends on this file:",
+    "  stage 05 (retrieval): hit@3 over the eval set, in Mandarin as well as English,",
+    "                        measured before and after the reranker.",
+    "",
+    "All 10 expectations are set. 4 were confirmed against f01_pages.json up front;",
+    "the other 6 were filled after the first live run (2026-09-28) by checking which",
+    "pages exist in the index, never by copying what retrieval happened to return.",
+    "",
+    "A bare hostname ('scamwatch.gov.au') is never a valid expectation - it scores ANY",
+    "page on that domain as a hit, so the number looks great and measures nothing.",
+    "",
+    "expect_url_contains is a SUBSTRING, not a full URL: it survives a trailing slash,",
+    "an http/https difference and a query string, and several Scamwatch pages exist",
+    "under both schemes (see stage 02's deduplication note). Use a distinctive path",
+    "segment, never a bare hostname.",
+    "",
+    "The phrasings are deliberately how a senior would actually ask - vague, using the",
+    "wrong word, describing a symptom rather than naming the thing. A query set written",
+    "in the corpus's own vocabulary measures nothing: it would pass without query understanding",
+    "existing at all.",
+    "",
+    "The Mandarin is the same question, not a translation of the English rewrite -",
+    "translating the ANSWER into the query is how a cross-language eval accidentally",
+    "proves nothing."
+  ],
+  "queries": [
+    {
+      "id": "q01-scam-text",
+      "en": "how do I know if a text message is a scam",
+      "zh": "我怎么知道一条短信是不是诈骗",
+      "expect_url_contains": "text-or-sms-scam",
+      "note": "Confirmed present in f01_pages.json. Both domains have a page for this."
+    },
+    {
+      "id": "q02-mygov",
+      "en": "what is that government website for medicare and centrelink",
+      "zh": "那个办理医保和福利的政府网站是什么",
+      "expect_url_contains": "what-is-mygov",
+      "note": "Vague on purpose - the senior does not know the word 'myGov'. Confirmed present in f01_pages.json."
+    },
+    {
+      "id": "q03-two-factor",
+      "en": "my phone keeps asking for a code when I log in",
+      "zh": "我登录的时候手机一直要求输入验证码",
+      "expect_url_contains": "using-the-cloud-safely-and-securely",
+      "note": "No page in the index is about two-factor authentication itself. This one has the most chunks mentioning it (4 of 5,332), found by searching chunk text, not by what retrieval returned."
+    },
+    {
+      "id": "q04-ato-impersonation",
+      "en": "someone rang saying they were from the tax office and wanted money",
+      "zh": "有人打电话说他们是税务局的要我付钱",
+      "expect_url_contains": "impersonation-scams",
+      "note": "Confirmed present in f01_pages.json (ATO and myGov impersonation alert)."
+    },
+    {
+      "id": "q05-already-scammed",
+      "en": "I think I already gave them my bank details what do I do now",
+      "zh": "我想我已经把银行信息给他们了现在该怎么办",
+      "expect_url_contains": "what-to-do-if-youve-been-scammed",
+      "note": "Scamwatch's own page for exactly this situation."
+    },
+    {
+      "id": "q06-ai-scams",
+      "en": "can computers pretend to be a real person now",
+      "zh": "现在电脑可以假装成真人吗",
+      "expect_url_contains": "artificial-intelligence",
+      "note": "Confirmed present in f01_pages.json. This is the query whose ranking the reranker fixed - see stage 05's notes."
+    },
+    {
+      "id": "q07-strong-password",
+      "en": "how do I make a password nobody can guess",
+      "zh": "怎样设置一个别人猜不到的密码",
+      "expect_url_contains": "strong-and-secure-passwords",
+      "note": "Be Connected, advanced-online-security/managing-passwords."
+    },
+    {
+      "id": "q08-report-scam",
+      "en": "who do I tell about this scam",
+      "zh": "我应该向谁举报这个诈骗",
+      "expect_url_contains": "report-a-scam",
+      "note": "Scamwatch's canonical reporting page. Be Connected's per-scam 'report-...' pages would also be fair answers but do not count here."
+    },
+    {
+      "id": "q09-romance-scam",
+      "en": "I met someone online and now they are asking me for money",
+      "zh": "我在网上认识了一个人现在他们向我要钱",
+      "expect_url_contains": "romance",
+      "note": "Deliberately broad: any of the 7 romance-scam pages across both domains answers this."
+    },
+    {
+      "id": "q10-suspicious-email-link",
+      "en": "is it safe to click the link in an email from my bank",
+      "zh": "点击银行邮件里的链接安全吗",
+      "expect_url_contains": "phishing",
+      "note": "Any of the 7 phishing pages answers this; none is specifically about bank emails."
+    }
+  ],
+  "refusal_queries": [
+    {
+      "id": "r01-nonsense",
+      "en": "purple elephant quantum banana recipe",
+      "zh": "紫色大象量子香蕉食谱",
+      "note": "Nothing in the corpus covers this. Correct behaviour is low confidence, and downstream a refusal plus a mentor offer - not a plausible invention. This is the query that exposed the double-sigmoid bug (all five results scoring exactly 0.500)."
+    },
+    {
+      "id": "r02-out-of-scope",
+      "en": "what is the weather in Melbourne tomorrow",
+      "zh": "明天墨尔本天气怎么样",
+      "note": "A reasonable question the knowledge base has no business answering. Low confidence expected."
+    }
+  ]
+}
