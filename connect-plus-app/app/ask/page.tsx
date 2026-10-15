@@ -125,7 +125,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
               <p className="mt-1 text-latin text-dim">
                 A trained volunteer, usually within a few minutes.
               </p>
-              <Link href="/help" className={`${BTN_PRIMARY} mt-4 text-body`}>
+              <Link href={`/help?q=${encodeURIComponent(q)}`} className={`${BTN_PRIMARY} mt-4 text-body`}>
                 Ask for help
               </Link>
             </div>
@@ -193,7 +193,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                 <p className="text-body text-dim">
                   Sorry it did not help. A real person can go through it with you.
                 </p>
-                <Link href="/help" className={`${BTN_PRIMARY} mt-3 text-body`}>
+                <Link href={`/help?q=${encodeURIComponent(q)}`} className={`${BTN_PRIMARY} mt-3 text-body`}>
                   Ask a person
                 </Link>
               </div>

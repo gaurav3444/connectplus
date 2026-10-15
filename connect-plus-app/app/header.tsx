@@ -8,7 +8,7 @@ import { CTRL, HEADER, HeaderControls } from "./ui";
 // The senior-facing header from Home onwards: language, text size, and a
 // helper always one tap away — at a quieter weight than the screen's own
 // primary action.
-export async function AppHeader({ back }: { back: string }) {
+export async function AppHeader({ back, help = true }: { back: string; help?: boolean }) {
   const jar = await cookies();
   return (
     <header className={HEADER}>
@@ -17,10 +17,12 @@ export async function AppHeader({ back }: { back: string }) {
         big={jar.get("text-size")?.value === "lg"}
         back={back}
       />
-      <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body`}>
-        <span aria-hidden="true">🤝</span>
-        I need help
-      </Link>
+      {help && (
+        <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body`}>
+          <span aria-hidden="true">🤝</span>
+          I need help
+        </Link>
+      )}
     </header>
   );
 }
