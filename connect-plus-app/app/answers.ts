@@ -28,9 +28,10 @@ export async function ask(q: string, lang: string): Promise<Answer> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ query: q.slice(0, 500), lang }),
     cache: "no-store",
-    // first call loads rag's verification model; past this, show the error
-    // screen rather than a spinner with no end
-    signal: AbortSignal.timeout(90_000),
+    // rag's reranker and grounding check run on the CPU: a warm answer took
+    // ~90s on a laptop. Past 3 minutes, show the error screen rather than a
+    // spinner with no end.
+    signal: AbortSignal.timeout(180_000),
   });
   // a broken service is an error, never a refusal: "we have no trusted
   // answer" would be a lie when the fault is ours
