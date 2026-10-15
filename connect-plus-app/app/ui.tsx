@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { toggleTextSize } from "./actions";
+import { LANG_LABEL, type Dict } from "./i18n";
 
 // Shared chrome for every senior screen. Sizes are the mockup's (48px controls,
 // 60px actions, 10px radius) expressed in rem so they grow with the A+ setting.
@@ -64,10 +65,12 @@ export function HeaderControls({
   lang,
   big,
   back,
+  t,
 }: {
   lang: string;
   big: boolean;
   back: string;
+  t: Dict;
 }) {
   return (
     <>
@@ -77,7 +80,7 @@ export function HeaderControls({
         <span lang={lang} className="hidden lg:inline">
           {LANG_LABEL[lang] ?? lang}
         </span>
-        <span className="sr-only">Change language</span>
+        <span className="sr-only">{t.changeLang}</span>
       </Link>
       <form action={toggleTextSize}>
         <input type="hidden" name="back" value={back} />
@@ -86,7 +89,7 @@ export function HeaderControls({
             A<sup className="text-[0.6em]">+</sup>
           </span>
           <span className="sr-only">
-            {big ? "Use normal text size" : "Make the text bigger"}
+            {big ? t.textNormal : t.textBigger}
           </span>
         </button>
       </form>
@@ -96,9 +99,6 @@ export function HeaderControls({
 
 export const HEADER =
   "flex items-center gap-2 px-6 py-4 shadow-[0_1px_0_var(--color-line)] sm:px-10 lg:gap-3";
-
-// The language button says the language in full where there is room.
-const LANG_LABEL: Record<string, string> = { zh: "中文", vi: "Tiếng Việt", en: "English" };
 
 // The big, worded Back for screens a senior can get lost in. The breadcrumb
 // says where you are; this is the 56px target that gets you out — breadcrumb

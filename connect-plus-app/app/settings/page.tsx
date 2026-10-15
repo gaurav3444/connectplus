@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { endSession, setTextSize, toggleContrast } from "../actions";
-import { LANG_NAMES } from "../helpdesk";
+import { dict, LANG_LABEL } from "../i18n";
 import { getUser } from "../session";
 import { BackButton, BTN_SECONDARY, HEADER, Screen } from "../ui";
 
@@ -13,35 +13,38 @@ const FOCUS =
   "focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent";
 
 const SIZES = [
-  { value: "md", label: "Normal", scale: "text-[1rem]" },
-  { value: "lg", label: "Bigger", scale: "text-[1.35rem]" },
-  { value: "xl", label: "Biggest", scale: "text-[1.7rem]" },
-];
+  { value: "md", label: "sizeNormal", scale: "text-[1rem]" },
+  { value: "lg", label: "sizeBigger", scale: "text-[1.35rem]" },
+  { value: "xl", label: "sizeBiggest", scale: "text-[1.7rem]" },
+] as const;
 
 export default async function Settings() {
   const [jar, user] = await Promise.all([cookies(), getUser()]);
   const lang = jar.get("lang")?.value ?? "en";
+  const t = dict(lang);
   const size = jar.get("text-size")?.value ?? "md";
   const high = jar.get("contrast")?.value === "high";
 
   return (
     <Screen>
       <header className={HEADER}>
-        <BackButton href="/home">Back to Home</BackButton>
+        <BackButton href="/home">{t.backTo(t.home)}</BackButton>
       </header>
 
       <main className="flex flex-1 flex-col gap-7 px-6 py-6 sm:px-10">
-        <h1 className="text-heading font-medium leading-tight">Settings</h1>
+        <h1 className="text-heading font-medium leading-tight">{t.settings}</h1>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-body font-medium">Language</h2>
+          <h2 className="text-body font-medium">{t.language}</h2>
           <Link
             href="/"
             className={`flex min-h-[3rem] items-center gap-3 rounded-[0.6rem] border-2 border-line bg-surface px-4 text-body hover:border-accent ${FOCUS}`}
           >
             <span aria-hidden="true">🌐</span>
-            <span className="flex-1">{LANG_NAMES[lang] ?? lang}</span>
-            <span className="sr-only">Change language</span>
+            <span lang={lang} className="flex-1">
+              {LANG_LABEL[lang] ?? lang}
+            </span>
+            <span className="sr-only">{t.changeLang}</span>
             <span aria-hidden="true" className="text-faint">
               ›
             </span>
@@ -50,7 +53,7 @@ export default async function Settings() {
 
         <section className="flex flex-col gap-3">
           <h2 id="size" className="text-body font-medium">
-            Size of the writing
+            {t.textSize}
           </h2>
           <form action={setTextSize} role="group" aria-labelledby="size" className="flex gap-3">
             {SIZES.map((s) => {
@@ -72,7 +75,7 @@ export default async function Settings() {
                   {/* the word says which is chosen; the border only repeats it */}
                   <span className="mt-1 text-latin text-dim">
                     {on && <span aria-hidden="true">✓ </span>}
-                    {s.label}
+                    {t[s.label]}
                   </span>
                 </button>
               );
@@ -89,10 +92,10 @@ export default async function Settings() {
               className={`flex min-h-[3rem] w-full items-center gap-4 rounded-[0.6rem] border-2 border-line bg-surface px-4 py-3 text-left hover:border-accent ${FOCUS}`}
             >
               <span className="flex flex-1 flex-col">
-                <span className="text-body font-medium">Stronger contrast</span>
-                <span className="text-latin text-dim">Black background, white writing</span>
+                <span className="text-body font-medium">{t.contrast}</span>
+                <span className="text-latin text-dim">{t.contrastSub}</span>
               </span>
-              <span className="text-body font-medium">{high ? "On" : "Off"}</span>
+              <span className="text-body font-medium">{high ? t.on : t.off}</span>
               <span
                 aria-hidden="true"
                 className={`flex h-[1.7rem] w-[3rem] flex-none items-center rounded-full border p-[0.15rem] ${
@@ -109,9 +112,9 @@ export default async function Settings() {
           <form action={endSession} className="mt-auto">
             <button type="submit" className={`${BTN_SECONDARY} text-body`}>
               <span aria-hidden="true">↪</span>
-              Sign out
+              {t.signOut}
             </button>
-            <p className="mt-2 text-center text-latin text-muted">Signed in as {user.email}</p>
+            <p className="mt-2 text-center text-latin text-muted">{t.signedInAs(user.email)}</p>
           </form>
         )}
       </main>

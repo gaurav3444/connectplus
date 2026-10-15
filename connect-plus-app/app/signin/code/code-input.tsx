@@ -14,7 +14,7 @@ const BOX =
   "flex h-[3.8rem] flex-1 items-center justify-center rounded-[0.5rem] " +
   "border-2 bg-surface text-[1.7rem] font-medium";
 
-export default function CodeInput({ invalid }: { invalid?: boolean }) {
+export default function CodeInput({ invalid, label }: { invalid?: boolean; label: string }) {
   const id = useId();
   const [code, setCode] = useState("");
   const [focused, setFocused] = useState(false);
@@ -30,7 +30,7 @@ export default function CodeInput({ invalid }: { invalid?: boolean }) {
         htmlFor={id}
         className={live ? "sr-only" : "mb-2 block text-body font-medium text-dim"}
       >
-        The six numbers we sent you
+        {label}
       </label>
       <div className="relative">
         <input

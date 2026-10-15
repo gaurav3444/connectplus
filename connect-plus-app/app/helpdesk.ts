@@ -111,6 +111,11 @@ export function backTo(r?: { lesson?: { id: string; step: number }; asked?: stri
   return "/home";
 }
 
+// Whole minutes since a moment, for the senior's translated "Waiting …".
+export function elapsed(since: number, now = Date.now()) {
+  return Math.floor((now - since) / 60_000);
+}
+
 export function minutes(since: number, now = Date.now()) {
   const m = Math.floor((now - since) / 60_000);
   return m < 1 ? "less than a minute" : m === 1 ? "1 minute" : `${m} minutes`;

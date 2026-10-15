@@ -2,7 +2,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppHeader } from "../header";
-import { backTo, getRequest, LANG_NAMES } from "../helpdesk";
+import { backTo, getRequest } from "../helpdesk";
+import { dict, LANG_LABEL } from "../i18n";
 import { getProgress } from "../progress";
 import { getUser } from "../session";
 import { BackButton, BTN_PRIMARY, BTN_SECONDARY, Screen } from "../ui";
@@ -26,25 +27,21 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
   const lesson = !asked && p ? p : undefined;
   const back = backTo({ lesson, asked: asked || undefined });
   const lang = jar.get("lang")?.value ?? "en";
+  const t = dict(lang);
 
   if (!user) {
     return (
       <Screen>
         <AppHeader back="/help" help={false} />
         <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
-          <BackButton href={back}>Go back</BackButton>
-          <h1 className="mt-5 text-heading font-medium leading-tight">
-            Sign in to talk to a helper
-          </h1>
-          <p className="mt-3 text-body text-dim">
-            Helpers are real people, so we need to know who they are talking to. Signing in
-            takes a minute, and there is no password.
-          </p>
+          <BackButton href={back}>{t.back}</BackButton>
+          <h1 className="mt-5 text-heading font-medium leading-tight">{t.helpSignInTitle}</h1>
+          <p className="mt-3 text-body text-dim">{t.helpSignInBody}</p>
           <Link href="/signin" className={`${BTN_PRIMARY} mt-7 text-body`}>
-            Sign in
+            {t.signIn}
           </Link>
           <Link href={back} className={`${BTN_SECONDARY} mt-4 text-body`}>
-            Not now
+            {t.notNow}
           </Link>
         </main>
       </Screen>
@@ -54,32 +51,25 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
   const shared = [
     lesson && {
       icon: "📖",
-      label: "What you are learning",
-      value: `${lesson.resource.title}, step ${lesson.step}`,
+      label: t.learning,
+      value: t.learningValue(lesson.resource.title, lesson.step),
     },
     lesson && {
       icon: "👣",
-      label: "What you have already tried",
-      value:
-        lesson.tries === 0
-          ? "Nothing yet on this step"
-          : `${lesson.tries} ${lesson.tries === 1 ? "attempt" : "attempts"} on this step`,
+      label: t.tried,
+      value: lesson.tries === 0 ? t.triedNone : t.tries(lesson.tries),
     },
-    asked && { icon: "💬", label: "What you asked", value: asked },
-    { icon: "🌐", label: "Your language", value: LANG_NAMES[lang] ?? lang },
+    asked && { icon: "💬", label: t.whatAsked, value: asked },
+    { icon: "🌐", label: t.yourLanguage, value: LANG_LABEL[lang] ?? lang },
   ].filter((x) => !!x);
 
   return (
     <Screen>
       <AppHeader back="/help" help={false} />
       <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
-        <BackButton href={back}>Go back</BackButton>
-        <h1 className="mt-5 text-heading font-medium leading-tight">
-          We’ll ask a helper to join you
-        </h1>
-        <p className="mt-3 text-body text-dim">
-          Helpers are trained volunteers. So they can help quickly, they will see:
-        </p>
+        <BackButton href={back}>{t.back}</BackButton>
+        <h1 className="mt-5 text-heading font-medium leading-tight">{t.consentTitle}</h1>
+        <p className="mt-3 text-body text-dim">{t.consentIntro}</p>
 
         <ul className="mt-5 flex flex-col gap-3">
           {shared.map((s) => (
@@ -99,18 +89,18 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
           <span aria-hidden="true" className="text-accent">
             🛡
           </span>
-          They will not see your email, and will never ask for a password or a code.
+          {t.helperPrivacy}
         </p>
 
         <form action={askForHelp} className="mt-auto pt-8">
           <input type="hidden" name="q" value={asked} />
           {/* the button says exactly what it does */}
           <button type="submit" className={`${BTN_PRIMARY} text-body`}>
-            Share this and ask for help
+            {t.share}
           </button>
         </form>
         <Link href={back} className={`${BTN_SECONDARY} mt-4 text-body`}>
-          Not now
+          {t.notNow}
         </Link>
       </main>
     </Screen>

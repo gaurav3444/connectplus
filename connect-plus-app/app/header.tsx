@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { dict } from "./i18n";
 import { CTRL, HEADER, HeaderControls } from "./ui";
 
 // Apart from ui.tsx because it reads cookies: ui.tsx is also imported by the
@@ -10,6 +11,8 @@ import { CTRL, HEADER, HeaderControls } from "./ui";
 // primary action.
 export async function AppHeader({ back, help = true }: { back: string; help?: boolean }) {
   const jar = await cookies();
+  const lang = jar.get("lang")?.value ?? "en";
+  const t = dict(lang);
   return (
     <header className={HEADER}>
       {/* desktop only: on a phone the space goes to the controls */}
@@ -20,20 +23,21 @@ export async function AppHeader({ back, help = true }: { back: string; help?: bo
         CONNECT Plus
       </Link>
       <HeaderControls
-        lang={jar.get("lang")?.value ?? "en"}
+        lang={lang}
         big={["lg", "xl"].includes(jar.get("text-size")?.value ?? "")}
         back={back}
+        t={t}
       />
       {/* Settings sits in the header where there is room; on a phone it is a
           quiet link at the bottom of Home */}
       <Link href="/settings" className={`${CTRL} hidden text-body lg:flex`}>
         <span aria-hidden="true">⚙</span>
-        Settings
+        {t.settings}
       </Link>
       {help && (
         <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body lg:ml-0`}>
           <span aria-hidden="true">🤝</span>
-          I need help
+          {t.needHelp}
         </Link>
       )}
     </header>

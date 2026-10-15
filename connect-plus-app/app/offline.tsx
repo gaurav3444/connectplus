@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { usePageDict } from "./page-lang";
 
 // The offline state, as a banner over whatever screen is open — the screen
 // itself stays readable. No timer: it goes when the connection comes back.
@@ -20,6 +21,7 @@ const subscribe = (cb: () => void) => {
 
 export default function Offline() {
   const offline = useSyncExternalStore(subscribe, () => !navigator.onLine, () => false);
+  const t = usePageDict();
   if (!offline) return null;
   return (
     <div
@@ -28,10 +30,11 @@ export default function Offline() {
     >
       <p className="mx-auto max-w-2xl">
         <span className="font-medium">
-          <span aria-hidden="true">📶 </span>You are not connected.
+          <span aria-hidden="true">📶 </span>
+          {t.offline}
         </span>{" "}
         <span className="text-dim">
-          What is on this screen still works. New answers and lessons need the internet.
+          {t.offlineBody}
         </span>
       </p>
     </div>

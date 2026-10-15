@@ -28,11 +28,14 @@ const VOICE: Record<string, string> = { zh: "zh-CN", vi: "vi-VN", en: "en-AU" };
 export default function Speak({
   target,
   lang,
+  labels,
   className,
   compact,
 }: {
   target: string;
   lang: string;
+  // from the dictionary (app/i18n.ts), passed down as plain strings
+  labels: { label: string; idle: string; busy: string; announce: string };
   className: string;
   compact?: boolean;
 }) {
@@ -62,17 +65,17 @@ export default function Speak({
         type="button"
         onClick={listen}
         disabled={listening}
-        aria-label="Speak your question"
+        aria-label={labels.label}
         className={className}
       >
         <span aria-hidden="true" className="text-[1.4rem]">
           🎤
         </span>
-        {!compact && <span aria-hidden="true">{listening ? "Listening" : "Speak"}</span>}
+        {!compact && <span aria-hidden="true">{listening ? labels.busy : labels.idle}</span>}
       </button>
       {/* the recording state is announced in words, never shown by colour alone */}
       <span aria-live="polite" className="sr-only">
-        {listening ? "Listening. Say your question now." : ""}
+        {listening ? labels.announce : ""}
       </span>
     </>
   );

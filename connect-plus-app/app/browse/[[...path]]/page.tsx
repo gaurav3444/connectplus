@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { catalogue, resourceIds, type Topic } from "../../content";
 import { AppHeader } from "../../header";
+import { getT } from "../../t";
 import { BackButton, BTN_SECONDARY, Screen } from "../../ui";
 
 // Screen 3a. One route for all three levels — /browse, /browse/phone,
@@ -22,25 +23,26 @@ const CARD =
   `transition-colors ${FOCUS}`;
 
 export default async function Browse({ params }: PageProps<"/browse/[[...path]]">) {
-  const [{ path = [] }, jar, { categories, resources: all }] = await Promise.all([
+  const [{ path = [] }, jar, { categories, resources: all }, t] = await Promise.all([
     params,
     cookies(),
     catalogue(),
+    getT(),
   ]);
   if (path.length > 2) notFound();
 
   const cat = path[0] ? categories.find((c) => c.slug === path[0]) : undefined;
-  const sub = path[1] ? cat?.topics?.find((t) => t.slug === path[1]) : undefined;
+  const sub = path[1] ? cat?.topics?.find((x) => x.slug === path[1]) : undefined;
   if ((path[0] && !cat) || (path[1] && !sub)) notFound();
 
   // Written by the resource screen when a lesson is finished.
   const read = new Set(jar.get("read")?.value.split(",") ?? []);
 
   const here = sub ?? cat;
-  const title = here?.title ?? "Browse topics";
+  const title = here?.title ?? t.browse;
   const trail = [
-    { href: "/home", label: "Home" },
-    { href: "/browse", label: "Browse topics" },
+    { href: "/home", label: t.home },
+    { href: "/browse", label: t.browse },
     ...(cat ? [{ href: `/browse/${cat.slug}`, label: cat.title }] : []),
     ...(sub ? [{ href: `/browse/${cat!.slug}/${sub.slug}`, label: sub.title }] : []),
   ];
@@ -59,20 +61,20 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
       <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
         {/* side by side where there is room, as in the mockup's desktop Browse */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
-          <BackButton href={up.href}>Back to {up.label}</BackButton>
+          <BackButton href={up.href}>{t.backTo(up.label)}</BackButton>
 
-          <nav aria-label="Breadcrumb" className="text-latin text-muted">
+          <nav aria-label={t.breadcrumb} className="text-latin text-muted">
             <ol className="flex flex-wrap gap-x-2">
-              {trail.map((t, i) => {
+              {trail.map((crumb, i) => {
                 const last = i === trail.length - 1;
                 return (
-                  <li key={t.href} className="flex gap-2">
+                  <li key={crumb.href} className="flex gap-2">
                     {last ? (
-                      <span aria-current="page">{t.label}</span>
+                      <span aria-current="page">{crumb.label}</span>
                     ) : (
                       <>
-                        <Link href={t.href} className="hover:text-accent hover:underline">
-                          {t.label}
+                        <Link href={crumb.href} className="hover:text-accent hover:underline">
+                          {crumb.label}
                         </Link>
                         <span aria-hidden="true">›</span>
                       </>
@@ -86,26 +88,27 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
 
         <h1 className="mt-2 text-heading font-medium leading-tight lg:mt-6">{title}</h1>
         {cat && !sub && !empty && (
-          <p className="mt-1 text-body text-dim">What would you like to learn about?</p>
+          <p className="mt-1 text-body text-dim">{t.learnAbout}</p>
         )}
 
         {empty ? (
           <div className="mt-8 flex flex-col gap-3">
-            <h2 className="text-body font-medium">Nothing here yet</h2>
-            <p className="text-body text-dim">We are still adding lessons to this topic.</p>
+            <h2 className="text-body font-medium">{t.emptyTitle}</h2>
+            <p className="text-body text-dim">{t.emptyBody}</p>
             <Link href={up.href} className={`${BTN_SECONDARY} mt-2 text-body`}>
-              Choose another topic
+              {t.chooseAnother}
             </Link>
           </div>
         ) : topics ? (
           // one per row on a phone, two at most on a wide screen
           <ul className="mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-5">
-            {topics.map((t) => (
-              <li key={t.slug}>
+            {topics.map((topic) => (
+              <li key={topic.slug}>
                 <TopicTile
-                  topic={t}
-                  href={cat ? `/browse/${cat.slug}/${t.slug}` : `/browse/${t.slug}`}
-                  visited={resourceIds(t).some((id) => read.has(id))}
+                  topic={topic}
+                  href={cat ? `/browse/${cat.slug}/${topic.slug}` : `/browse/${topic.slug}`}
+                  visited={resourceIds(topic).some((id) => read.has(id))}
+                  label={t.visited}
                 />
               </li>
             ))}
@@ -128,20 +131,22 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
                     <span className="text-body font-medium">{r.title}</span>
                     {/* which approved site it comes from — provenance on the
                         menu too, not only on answers */}
-                    {r.domain && <span className="text-latin text-muted">From {r.domain}</span>}
+                    {r.domain && <span className="text-latin text-muted">{t.from(r.domain)}</span>}
                     <span className="text-latin text-dim">
-                      {r.steps.length} {r.steps.length === 1 ? "step" : "steps"}
-                      {r.steps.some((st) => st.practice) ? ", with practice" : ""}
+                      {t.steps(r.steps.length)}
+                      {r.steps.some((st) => st.practice) ? t.withPractice : ""}
                     </span>
                     {/* a word and a mark, never colour alone */}
                     {start && (
                       <span className="text-latin font-medium text-link">
-                        <span aria-hidden="true">▶ </span>Start here
+                        <span aria-hidden="true">▶ </span>
+                        {t.startHere}
                       </span>
                     )}
                     {done && (
                       <span className="text-latin font-medium text-link">
-                        <span aria-hidden="true">✓ </span>You have read this
+                        <span aria-hidden="true">✓ </span>
+                        {t.haveRead}
                       </span>
                     )}
                   </Link>
@@ -155,7 +160,17 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
   );
 }
 
-function TopicTile({ topic, href, visited }: { topic: Topic; href: string; visited: boolean }) {
+function TopicTile({
+  topic,
+  href,
+  visited,
+  label,
+}: {
+  topic: Topic;
+  href: string;
+  visited: boolean;
+  label: string;
+}) {
   return (
     <Link href={href} className={TILE}>
       {topic.icon && (
@@ -166,7 +181,8 @@ function TopicTile({ topic, href, visited }: { topic: Topic; href: string; visit
       <span className="flex-1 text-body font-medium">{topic.title}</span>
       {visited ? (
         <span className="flex flex-none items-center gap-1 text-latin font-medium text-link">
-          <span aria-hidden="true">✓</span>Visited
+          <span aria-hidden="true">✓</span>
+          {label}
         </span>
       ) : (
         <span aria-hidden="true" className="flex-none text-body text-faint">

@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Speak from "../../ask/speak";
 import { AppHeader } from "../../header";
-import { backTo, getRequest, helperAvailable, minutes } from "../../helpdesk";
+import { backTo, elapsed, getRequest, helperAvailable } from "../../helpdesk";
+import { dict } from "../../i18n";
 import Poll from "../../poll";
 import { BTN_PRIMARY, BTN_SECONDARY, CTRL, HEADER, Screen } from "../../ui";
 import { cancelHelp, endHelp, leaveHelp, notifyMe, sayToHelper } from "../actions";
@@ -20,6 +21,7 @@ export default async function HelpSession() {
   const r = getRequest(jar.get("help")?.value);
   if (!r) redirect("/help");
   const lang = jar.get("lang")?.value ?? "en";
+  const t = dict(lang);
   const back = backTo(r);
 
   if (r.ended) {
@@ -27,13 +29,13 @@ export default async function HelpSession() {
       <Screen>
         <AppHeader back="/help/session" help={false} />
         <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
-          <h1 className="text-heading font-medium leading-tight">The session has ended</h1>
+          <h1 className="text-heading font-medium leading-tight">{t.sessionEnded}</h1>
           <p className="mt-3 text-body text-dim">
-            Thank you for asking. You can ask for help again at any time.
+            {t.sessionEndedBody}
           </p>
           <form action={leaveHelp} className="mt-8">
             <button type="submit" className={`${BTN_PRIMARY} text-body`}>
-              {r.lesson ? "Go back to my step" : "Go back"}
+              {r.lesson ? t.backToStep : t.back}
             </button>
           </form>
         </main>
@@ -56,35 +58,32 @@ export default async function HelpSession() {
           </span>
           {free ? (
             <>
-              <h1 className="mt-5 text-heading font-medium leading-tight">Looking for a helper</h1>
+              <h1 className="mt-5 text-heading font-medium leading-tight">{t.looking}</h1>
               <p className="mt-3 text-body text-dim">
-                This usually takes a few minutes. You can stay on this screen.
+                {t.lookingBody}
               </p>
               <p role="status" className="mt-4 self-start rounded-full bg-panel px-4 py-1.5 text-latin text-dim">
-                Waiting {minutes(r.created)}
+                {t.waiting(elapsed(r.created))}
               </p>
               <p className="mt-6 text-body text-muted">
-                While you wait, you can keep reading the step. We will tell you when someone
-                joins.
+                {t.whileWait}
               </p>
             </>
           ) : (
             <>
-              <h1 className="mt-5 text-heading font-medium leading-tight">
-                No helper is free right now
-              </h1>
+              <h1 className="mt-5 text-heading font-medium leading-tight">{t.noHelper}</h1>
               <p className="mt-3 text-body text-dim">
-                Helpers are usually here between 9am and 8pm. We can send you a message when
-                someone is free.
+                {t.noHelperBody}
               </p>
               {r.notify ? (
                 <p className="mt-6 text-body text-link">
-                  <span aria-hidden="true">✓ </span>We will tell you when someone is free.
+                  <span aria-hidden="true">✓ </span>
+                  {t.willTell}
                 </p>
               ) : (
                 <form action={notifyMe} className="mt-6">
                   <button type="submit" className={`${BTN_PRIMARY} text-body`}>
-                    Tell me when someone is free
+                    {t.tellMe}
                   </button>
                 </form>
               )}
@@ -93,14 +92,14 @@ export default async function HelpSession() {
 
           <div className="mt-auto flex flex-col gap-4 pt-8">
             <Link href={back} className={`${BTN_SECONDARY} text-body`}>
-              {r.lesson ? "Go back to my step" : "Go back"}
+              {r.lesson ? t.backToStep : t.back}
             </Link>
             <form action={cancelHelp}>
               <button
                 type="submit"
                 className={`min-h-[2.8rem] w-full text-body font-medium text-link underline-offset-4 hover:underline ${FOCUS}`}
               >
-                Cancel this request
+                {t.cancelRequest}
               </button>
             </form>
           </div>
@@ -122,11 +121,11 @@ export default async function HelpSession() {
         </span>
         <span className="flex flex-col leading-tight">
           <span className="text-body font-medium">{r.helper}</span>
-          <span className="text-latin text-link">Helper · here now</span>
+          <span className="text-latin text-link">{t.helperHere}</span>
         </span>
         <form action={endHelp} className="ml-auto">
           <button type="submit" className={`${CTRL} text-body`}>
-            End
+            {t.end}
           </button>
         </form>
       </header>
@@ -134,21 +133,20 @@ export default async function HelpSession() {
       {r.lesson && (
         <div className="flex items-center gap-3 bg-panel px-6 py-3 sm:px-10">
           <span className="flex-1 text-latin text-dim">
-            Your step: <span className="text-ink">{r.lesson.stepTitle}</span>
+            {t.yourStep} <span className="text-ink">{r.lesson.stepTitle}</span>
           </span>
           <Link href={back} className="min-h-[2.4rem] content-center text-latin font-medium text-link underline underline-offset-4">
-            View
+            {t.view}
           </Link>
         </div>
       )}
 
       <main className="flex flex-1 flex-col px-6 py-5 sm:px-10">
         {/* a log, so a screen reader hears each new message as it arrives */}
-        <ol role="log" aria-label="Conversation" className="flex flex-1 flex-col gap-3">
+        <ol role="log" aria-label={t.conversation} className="flex flex-1 flex-col gap-3">
           {r.messages.length === 0 && (
             <li className="text-body text-muted">
-              {r.helper} has joined and can see your step. Say hello, or wait for them to
-              start.
+              {t.helperJoined(r.helper)}
             </li>
           )}
           {r.messages.map((m, i) => (
@@ -160,7 +158,7 @@ export default async function HelpSession() {
                   : "self-start rounded-bl-[0.2rem] bg-surface"
               }`}
             >
-              <span className="sr-only">{m.from === "senior" ? "You" : r.helper}: </span>
+              <span className="sr-only">{m.from === "senior" ? t.you : r.helper}: </span>
               {m.text}
             </li>
           ))}
@@ -168,24 +166,25 @@ export default async function HelpSession() {
 
         <form action={sayToHelper} className="mt-5 flex gap-3">
           <label htmlFor="say" className="sr-only">
-            Write a message
+            {t.writeMessage}
           </label>
           <input
             id="say"
             name="text"
             required
             autoComplete="off"
-            placeholder="Write a message…"
+            placeholder={t.writeMessagePlaceholder}
             className={`min-h-[2.8rem] w-full rounded-[0.6rem] border-2 border-line bg-surface px-4 text-body text-ink placeholder:text-faint focus:border-accent ${FOCUS}`}
           />
           <Speak
             target="say"
             lang={lang}
+            labels={t.speak}
             compact
             className={`flex w-[2.8rem] flex-none items-center justify-center rounded-[0.6rem] border-2 border-line hover:border-accent disabled:border-accent ${FOCUS}`}
           />
           <button type="submit" className={`${BTN_PRIMARY.replace("w-full", "")} flex-none text-body`}>
-            Send
+            {t.send}
           </button>
         </form>
       </main>

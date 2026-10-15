@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { ask, blocks, SUGGESTIONS, type Inline } from "../answers";
+import { ask, blocks, type Inline } from "../answers";
+import { dict } from "../i18n";
 import { AppHeader } from "../header";
 import { BackButton, BTN_PRIMARY, BTN_SECONDARY, Screen } from "../ui";
 import Speak from "./speak";
@@ -31,15 +32,16 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
   const q = (typeof sp.q === "string" ? sp.q : "").trim();
   const helpful = sp.helpful;
   const lang = jar.get("lang")?.value ?? "en";
+  const t = dict(lang);
 
   if (!q) {
     return (
       <Screen wide>
         <AppHeader back="/ask" />
         <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
-          <BackButton href="/home">Back to Home</BackButton>
+          <BackButton href="/home">{t.backTo(t.home)}</BackButton>
           <h1 className="mt-4 text-heading font-medium leading-tight">
-            <label htmlFor="q">Ask a question</label>
+            <label htmlFor="q">{t.ask}</label>
           </h1>
 
           {/* on a laptop: the question on the left, ideas beside it */}
@@ -52,40 +54,41 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                   name="q"
                   rows={4}
                   required
-                  placeholder="For example: how do I know if a text message is a scam?"
+                  placeholder={t.askPlaceholder}
                   className={`${BOX} min-h-[6.6rem] text-body`}
                 />
-                <Speak target="q" lang={lang} className={`${MIC} w-[4.4rem]`} />
+                <Speak target="q" lang={lang} labels={t.speak} className={`${MIC} w-[4.4rem]`} />
               </div>
               {"q" in sp && (
                 <p role="alert" className="mt-2 text-latin text-dim">
-                  ⚠ Type or say your question first.
+                  ⚠ {t.askEmpty}
                 </p>
               )}
               <button type="submit" className={`${BTN_PRIMARY} mt-4 text-body`}>
-                Get an answer
+                {t.getAnswer}
               </button>
             </form>
 
             <section aria-labelledby="ideas" className="lg:border-l lg:border-line lg:pl-10">
-            <h2 id="ideas" className="mt-8 text-body font-medium text-dim lg:mt-0">
-              Or try one of these
-            </h2>
-            {/* chips are buttons that ask the question, not links */}
-            <form action="/ask" className="mt-3">
-              <ul className="flex flex-col gap-3">
-                {SUGGESTIONS.map((s) => (
-                  <li key={s}>
-                    <button type="submit" name="q" value={s} className={CHIP}>
-                      <span aria-hidden="true" className="text-accent">
-                        ⌕
-                      </span>
-                      {s}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </form>
+              <h2 id="ideas" className="mt-8 text-body font-medium text-dim lg:mt-0">
+                {t.tryThese}
+              </h2>
+              {/* chips are buttons that ask the question, not links; they are in
+                  the senior's language, which connectplus-llm answers in */}
+              <form action="/ask" className="mt-3">
+                <ul className="flex flex-col gap-3">
+                  {t.suggestions.map((s) => (
+                    <li key={s}>
+                      <button type="submit" name="q" value={s} className={CHIP}>
+                        <span aria-hidden="true" className="text-accent">
+                          ⌕
+                        </span>
+                        {s}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </form>
             </section>
           </div>
         </main>
@@ -107,9 +110,9 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
     <Screen wide>
       <AppHeader back={`/ask?q=${encodeURIComponent(q)}`} />
       <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
-        <BackButton href="/ask">Back to Ask a question</BackButton>
+        <BackButton href="/ask">{t.backTo(t.ask)}</BackButton>
         <p className="mt-5 rounded-[0.6rem] bg-panel px-4 py-3 text-body text-dim">
-          You asked: {q}
+          {t.youAsked} {q}
         </p>
 
         {a.refused ? (
@@ -128,55 +131,56 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                 ℹ
               </span>
               <h1 className="mt-4 text-heading font-medium leading-tight">
-                We don’t have a trusted answer for this
+                {t.noAnswerTitle}
               </h1>
               {/* the service's own sentence is in the senior's language */}
               <p className="mt-3 text-body text-dim">
-                {a.message ??
-                  "We would rather say nothing than guess. Money and scam questions are too important to get wrong."}
+                {a.message ?? t.noAnswerBody}
               </p>
               {unsupported ? (
                 <Link href="/" className={`${BTN_SECONDARY} mt-4 text-body`}>
-                  <span aria-hidden="true">🌐</span>Choose your language
+                  <span aria-hidden="true">🌐</span>
+                  {t.chooseLang}
                 </Link>
               ) : (
-                <p className="mt-2 text-body text-muted">A real person can look at it with you.</p>
+                <p className="mt-2 text-body text-muted">{t.realPerson}</p>
               )}
             </div>
 
             {/* the mentor offer is the one primary action on this screen */}
             <div className="mt-6 rounded-[0.6rem] border-2 border-accent bg-surface p-4 lg:col-start-2 lg:row-start-1 lg:mt-0 lg:self-start">
               <h2 className="flex items-center gap-2 text-body font-medium">
-                <span aria-hidden="true">🤝</span>Talk to a person
+                <span aria-hidden="true">🤝</span>
+                {t.talkTitle}
               </h2>
               <p className="mt-1 text-latin text-dim">
-                A trained volunteer, usually within a few minutes.
+                {t.talkSub}
               </p>
               <Link href={`/help?q=${encodeURIComponent(q)}`} className={`${BTN_PRIMARY} mt-4 text-body`}>
-                Ask for help
+                {t.askForHelp}
               </Link>
             </div>
             <Link href="/ask" className={`${BTN_SECONDARY} mt-4 text-body lg:col-start-1 lg:row-start-4 lg:mt-6 lg:self-start lg:px-8`}>
-              Ask in a different way
+              {t.askDifferent}
             </Link>
 
             <p className="mt-6 flex gap-3 rounded-[0.5rem] bg-panel p-4 text-latin text-dim lg:col-start-2 lg:row-start-2 lg:mt-4 lg:self-start">
               <span aria-hidden="true" className="text-accent">
                 🛡
               </span>
-              Never send a password or a code to anyone, including us.
+              {t.safety}
             </p>
           </div>
         ) : (
           // the mockup's desktop answer: the answer on the left, where it came
           // from and what to do next beside it
           <div className="mt-5 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
-            <h1 className="sr-only">Answer</h1>
+            <h1 className="sr-only">{t.answer}</h1>
             <div className="flex flex-col gap-4">
               {blocks(a.md).map((blk, i) =>
                 blk.kind === "p" ? (
                   <p key={i} className="text-body leading-relaxed">
-                    <Parts parts={blk.parts} />
+                    <Parts parts={blk.parts} sourceWord={t.source} />
                   </p>
                 ) : (
                   <blk.kind key={i} className="flex flex-col gap-3">
@@ -189,7 +193,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                           {blk.kind === "ol" ? j + 1 : "•"}
                         </span>
                         <span className="text-body text-dim">
-                          <Parts parts={item} />
+                          <Parts parts={item} sourceWord={t.source} />
                         </span>
                       </li>
                     ))}
@@ -203,7 +207,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                   mechanism, numbered to match the markers in the answer */}
               <section aria-labelledby="sources" className="flex flex-col gap-3">
                 <h2 id="sources" className="text-latin text-muted">
-                  Where this came from
+                  {t.sources}
                 </h2>
                 {sources.map((c) => (
                   <div
@@ -225,48 +229,53 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                         rel="noopener noreferrer"
                         className="text-latin text-link underline underline-offset-4"
                       >
-                        Read the original page
-                        <span className="sr-only"> (source {c.ns.join(", ")}, opens in a new tab)</span>
+                        {t.readOriginal}
+                        <span className="sr-only">
+                          {" "}
+                          ({t.source} {c.ns.join(", ")}) {t.newTab}
+                        </span>
                       </a>
                     </div>
                   </div>
                 ))}
               </section>
 
-              <h2 className="mt-6 text-body font-medium">Was this helpful?</h2>
+              <h2 className="mt-6 text-body font-medium">{t.helpful}</h2>
               {helpful === "yes" ? (
                 <p role="status" className="mt-2 text-body text-dim">
-                  ✓ Thank you. We are glad it helped.
+                  ✓ {t.thanks}
                 </p>
               ) : helpful === "no" ? (
                 <div role="status" className="mt-2 flex flex-col">
                   <p className="text-body text-dim">
-                    Sorry it did not help. A real person can go through it with you.
+                    {t.sorry}
                   </p>
                   <Link href={`/help?q=${encodeURIComponent(q)}`} className={`${BTN_PRIMARY} mt-3 text-body`}>
-                    Ask a person
+                    {t.askPerson}
                   </Link>
                 </div>
               ) : (
                 <form action="/ask" className="mt-3 flex gap-4">
                   <input type="hidden" name="q" value={q} />
                   <button type="submit" name="helpful" value="yes" className={`${BTN_SECONDARY} flex-1 text-body`}>
-                    <span aria-hidden="true">👍</span>Yes
+                    <span aria-hidden="true">👍</span>
+                    {t.yes}
                   </button>
                   <button type="submit" name="helpful" value="no" className={`${BTN_SECONDARY} flex-1 text-body`}>
-                    <span aria-hidden="true">👎</span>No
+                    <span aria-hidden="true">👎</span>
+                    {t.no}
                   </button>
                 </form>
               )}
 
               {/* the mockup's desktop panel ends with a quiet way to a person */}
               <p className="mt-6 hidden rounded-[0.6rem] bg-panel p-4 text-latin text-dim lg:block">
-                Still unsure?{" "}
+                {t.stillUnsure}{" "}
                 <Link
                   href={`/help?q=${encodeURIComponent(q)}`}
                   className="font-medium text-link underline underline-offset-4"
                 >
-                  Ask a person
+                  {t.askPerson}
                 </Link>
               </p>
             </aside>
@@ -278,24 +287,22 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
             answer column, not the panel beside it */}
         <form
           action="/ask"
-          className={`sticky bottom-0 mt-auto flex gap-3 bg-bg pt-4 pb-4 shadow-[0_-1px_0_var(--color-line)] ${
-            "lg:max-w-[calc(100%-25rem)]"
-          }`}
+          className="sticky bottom-0 mt-auto flex gap-3 bg-bg pt-4 pb-4 shadow-[0_-1px_0_var(--color-line)] lg:max-w-[calc(100%-25rem)]"
         >
           <label htmlFor="again" className="sr-only">
-            Ask something else
+            {t.askElse}
           </label>
           <input
             id="again"
             name="q"
             type="text"
             required
-            placeholder="Ask something else…"
+            placeholder={t.askElsePlaceholder}
             className={`${BOX} min-h-[2.8rem] text-body`}
           />
-          <Speak target="again" lang={lang} compact className={`${MIC} w-[2.8rem] px-0`} />
+          <Speak target="again" lang={lang} labels={t.speak} compact className={`${MIC} w-[2.8rem] px-0`} />
           <button type="submit" className={`${MIC} px-4 text-body`}>
-            Ask
+            {t.askButton}
           </button>
         </form>
       </main>
@@ -305,7 +312,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
 
 // One line of answer text. Citation markers become small numbered badges that
 // match the source cards — read aloud as "source 1", never as "[1]".
-function Parts({ parts }: { parts: Inline[] }) {
+function Parts({ parts, sourceWord }: { parts: Inline[]; sourceWord: string }) {
   return parts.map((p, i) =>
     "bold" in p ? (
       <strong key={i} className="font-semibold text-ink">
@@ -316,7 +323,7 @@ function Parts({ parts }: { parts: Inline[] }) {
         key={i}
         className="ml-1 inline-grid h-[1.2rem] min-w-[1.2rem] place-items-center rounded-full bg-panel px-1 align-middle text-[0.9rem] font-medium text-link"
       >
-        <span className="sr-only">source </span>
+        <span className="sr-only">{sourceWord} </span>
         {p.cite}
       </span>
     ) : (

@@ -10,6 +10,7 @@ import {
   HeaderControls,
   Screen,
 } from "../ui";
+import { dict } from "../i18n";
 
 // Screen 1. One job: an email address. No password to remember and no account
 // wall — "Look around first" keeps the app usable for someone who will not, or
@@ -39,25 +40,26 @@ export default async function SignIn({ searchParams }: PageProps<"/signin">) {
   const [{ error }, jar] = await Promise.all([searchParams, cookies()]);
   const lang = jar.get("lang")?.value ?? "en";
   const big = ["lg", "xl"].includes(jar.get("text-size")?.value ?? "");
+  const t = dict(lang);
 
   return (
     <Screen>
       <header className={HEADER}>
-        <BackLink href="/" label="Go back" />
+        <BackLink href="/" label={t.back} />
         <div className="ml-auto flex items-center gap-2">
-          <HeaderControls lang={lang} big={big} back="/signin" />
+          <HeaderControls lang={lang} big={big} back="/signin" t={t} />
         </div>
       </header>
 
       <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
-        <h1 className="text-heading font-medium leading-tight">Sign in</h1>
+        <h1 className="text-heading font-medium leading-tight">{t.signIn}</h1>
         <p className="mt-3 max-w-[30ch] text-body text-dim">
-          We will email you a link to tap. There is no password to remember.
+          {t.signInIntro}
         </p>
 
         <form action={sendLink} className="mt-7 flex flex-col" noValidate>
           <label htmlFor="email" className="mb-2 text-body font-medium text-dim">
-            Your email address
+            {t.emailLabel}
           </label>
           <input
             id="email"
@@ -74,25 +76,24 @@ export default async function SignIn({ searchParams }: PageProps<"/signin">) {
           {/* plain words, no error jargon, and never colour alone */}
           {error === "email" && (
             <p id="email-error" role="alert" className="mt-2 text-latin text-dim">
-              ⚠ That does not look like an email address. It should look like
-              name@example.com.
+              ⚠ {t.emailError}
             </p>
           )}
           <button type="submit" className={`${BTN_PRIMARY} mt-5 text-body`}>
-            Send me a link
+            {t.sendLink}
           </button>
         </form>
 
         <hr className="my-8 h-px border-0 bg-line" />
 
-        <p className="text-body text-muted">Not ready to sign in?</p>
+        <p className="text-body text-muted">{t.notReady}</p>
         <Link href="/home" className={`${BTN_SECONDARY} mt-3 text-body`}>
           <span aria-hidden="true">👁</span>
-          Look around first
+          {t.lookAround}
         </Link>
 
         <p className="mt-auto pt-8 text-latin text-faint">
-          You only need an account to save your progress or talk to a helper.
+          {t.accountWhy}
         </p>
       </main>
     </Screen>

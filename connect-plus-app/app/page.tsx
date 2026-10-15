@@ -77,7 +77,11 @@ export default async function LanguageSelect() {
         </ul>
 
         <p className="mt-8 text-center text-latin text-muted">
-          You can change this at any time.
+          <span lang="en">You can change this at any time.</span>
+          <span aria-hidden="true"> · </span>
+          <span lang="zh">您可以随时更改。</span>
+          <span aria-hidden="true"> · </span>
+          <span lang="vi">Ông/bà có thể đổi bất cứ lúc nào.</span>
         </p>
       </main>
     </div>

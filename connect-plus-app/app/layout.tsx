@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
+import { HTML_LANG } from "./i18n";
 import Offline from "./offline";
 
 // Inter to match the CW2 hi-fi mockup. Vietnamese subset included; 中文 falls
@@ -26,10 +27,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const jar = await cookies();
   const size = SIZES[jar.get("text-size")?.value ?? ""];
   const high = jar.get("contrast")?.value === "high";
+  // the chosen language, so screen readers switch voice and CJK text gets
+  // CJK line breaking
+  const lang = HTML_LANG[jar.get("lang")?.value ?? ""] ?? "en";
 
   return (
     <html
-      lang="en"
+      lang={lang}
       className={`${inter.variable} h-full antialiased`}
       style={size ? { fontSize: size } : undefined}
       data-contrast={high ? "high" : undefined}

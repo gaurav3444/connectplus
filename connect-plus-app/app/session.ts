@@ -35,9 +35,11 @@ export async function getUser() {
   return { email, name: first.charAt(0).toUpperCase() + first.slice(1) };
 }
 
+// A key into the dictionary (app/i18n.ts), so the greeting follows the
+// chosen language.
 export function greeting(now = new Date()) {
   const h = now.getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return "morning";
+  if (h < 18) return "afternoon";
+  return "evening";
 }

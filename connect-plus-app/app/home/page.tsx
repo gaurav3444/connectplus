@@ -3,6 +3,7 @@ import { AppHeader } from "../header";
 import { Screen } from "../ui";
 import { getUser, greeting } from "../session";
 import { getProgress } from "../progress";
+import { getT } from "../t";
 
 // Screen 2. Two paths, not three: mentor help lives in the header at all times
 // rather than as a third equal card, so it is always one tap away without
@@ -21,7 +22,7 @@ const ICON =
   "lg:h-[4rem] lg:w-[4rem] lg:text-[1.9rem]";
 
 export default async function Home() {
-  const [user, last] = await Promise.all([getUser(), getProgress()]);
+  const [user, last, t] = await Promise.all([getUser(), getProgress(), getT()]);
 
   return (
     <Screen wide>
@@ -29,11 +30,11 @@ export default async function Home() {
 
       <main className="flex flex-1 flex-col px-6 py-8 sm:px-10 lg:py-14">
         <p className="text-body text-muted">
-          {greeting()}
+          {t[greeting()]}
           {user ? `, ${user.name}` : ""}
         </p>
         <h1 className="mt-1 text-heading font-medium leading-tight">
-          What would you like to do?
+          {t.homeQuestion}
         </h1>
 
         {/* two columns is the maximum, and only from 640px: the same content in
@@ -45,8 +46,8 @@ export default async function Home() {
               ▦
             </span>
             <span className="flex flex-col gap-1">
-              <span className="text-body font-medium lg:text-[1.5rem]">Browse topics</span>
-              <span className="text-latin text-dim lg:text-body">Pick what you want to learn</span>
+              <span className="text-body font-medium lg:text-[1.5rem]">{t.browse}</span>
+              <span className="text-latin text-dim lg:text-body">{t.browseSub}</span>
             </span>
           </Link>
 
@@ -55,8 +56,8 @@ export default async function Home() {
               💬
             </span>
             <span className="flex flex-col gap-1">
-              <span className="text-body font-medium lg:text-[1.5rem]">Ask a question</span>
-              <span className="text-latin text-dim lg:text-body">Type it or say it out loud</span>
+              <span className="text-body font-medium lg:text-[1.5rem]">{t.ask}</span>
+              <span className="text-latin text-dim lg:text-body">{t.askSub}</span>
             </span>
           </Link>
         </div>
@@ -68,7 +69,7 @@ export default async function Home() {
           className="mt-8 flex min-h-[2.8rem] items-center gap-2 self-start text-latin lg:hidden text-muted underline-offset-4 hover:text-accent hover:underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
         >
           <span aria-hidden="true">⚙</span>
-          Settings
+          {t.settings}
         </Link>
 
         {/* only shown when there is something to resume — an empty "carry on
@@ -83,9 +84,9 @@ export default async function Home() {
               ↺
             </span>
             <span className="flex-1 text-latin text-dim">
-              Last time you were learning{" "}
-              <span className="text-ink">{last.resource.title}</span>. Carry on
-              from step {last.step}.
+              {t.lastPre}
+              <span className="text-ink">{last.resource.title}</span>
+              {t.lastPost(last.step)}
             </span>
           </Link>
         )}
