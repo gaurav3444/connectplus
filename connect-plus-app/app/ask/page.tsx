@@ -34,7 +34,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
 
   if (!q) {
     return (
-      <Screen>
+      <Screen wide>
         <AppHeader back="/ask" />
         <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
           <BackButton href="/home">Back to Home</BackButton>
@@ -42,45 +42,52 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
             <label htmlFor="q">Ask a question</label>
           </h1>
 
-          <form action="/ask" className="mt-4 flex flex-col">
-            <div className="flex items-stretch gap-3">
-              {/* a real label (the heading) and a real example as placeholder */}
-              <textarea
-                id="q"
-                name="q"
-                rows={4}
-                required
-                placeholder="For example: how do I know if a text message is a scam?"
-                className={`${BOX} min-h-[6.6rem] text-body`}
-              />
-              <Speak target="q" lang={lang} className={`${MIC} w-[4.4rem]`} />
-            </div>
-            {"q" in sp && (
-              <p role="alert" className="mt-2 text-latin text-dim">
-                ⚠ Type or say your question first.
-              </p>
-            )}
-            <button type="submit" className={`${BTN_PRIMARY} mt-4 text-body`}>
-              Get an answer
-            </button>
-          </form>
+          {/* on a laptop: the question on the left, ideas beside it */}
+          <div className="lg:mt-4 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
+            <form action="/ask" className="mt-4 flex flex-col lg:mt-0">
+              <div className="flex items-stretch gap-3">
+                {/* a real label (the heading) and a real example as placeholder */}
+                <textarea
+                  id="q"
+                  name="q"
+                  rows={4}
+                  required
+                  placeholder="For example: how do I know if a text message is a scam?"
+                  className={`${BOX} min-h-[6.6rem] text-body`}
+                />
+                <Speak target="q" lang={lang} className={`${MIC} w-[4.4rem]`} />
+              </div>
+              {"q" in sp && (
+                <p role="alert" className="mt-2 text-latin text-dim">
+                  ⚠ Type or say your question first.
+                </p>
+              )}
+              <button type="submit" className={`${BTN_PRIMARY} mt-4 text-body`}>
+                Get an answer
+              </button>
+            </form>
 
-          <h2 className="mt-8 text-body font-medium text-dim">Or try one of these</h2>
-          {/* chips are buttons that ask the question, not links */}
-          <form action="/ask" className="mt-3">
-            <ul className="flex flex-col gap-3">
-              {SUGGESTIONS.map((s) => (
-                <li key={s}>
-                  <button type="submit" name="q" value={s} className={CHIP}>
-                    <span aria-hidden="true" className="text-accent">
-                      ⌕
-                    </span>
-                    {s}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </form>
+            <section aria-labelledby="ideas" className="lg:border-l lg:border-line lg:pl-10">
+            <h2 id="ideas" className="mt-8 text-body font-medium text-dim lg:mt-0">
+              Or try one of these
+            </h2>
+            {/* chips are buttons that ask the question, not links */}
+            <form action="/ask" className="mt-3">
+              <ul className="flex flex-col gap-3">
+                {SUGGESTIONS.map((s) => (
+                  <li key={s}>
+                    <button type="submit" name="q" value={s} className={CHIP}>
+                      <span aria-hidden="true" className="text-accent">
+                        ⌕
+                      </span>
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </form>
+            </section>
+          </div>
         </main>
       </Screen>
     );
@@ -97,8 +104,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
       ).map((cs) => ({ ...cs[0], ns: cs.map((c) => c.n) }));
 
   return (
-    // an answer opens into two columns on a laptop; a refusal stays one
-    <Screen wide={!a.refused}>
+    <Screen wide>
       <AppHeader back={`/ask?q=${encodeURIComponent(q)}`} />
       <main className="flex flex-1 flex-col px-6 py-6 sm:px-10">
         <BackButton href="/ask">Back to Ask a question</BackButton>
@@ -108,31 +114,38 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
 
         {a.refused ? (
           // role=status so a screen reader hears the refusal, not just a page
-          <div role="status" className="mt-6 flex flex-col">
-            <span
-              aria-hidden="true"
-              className="grid h-[3rem] w-[3rem] place-items-center rounded-full bg-line text-[1.4rem]"
-            >
-              ℹ
-            </span>
-            <h1 className="mt-4 text-heading font-medium leading-tight">
-              We don’t have a trusted answer for this
-            </h1>
-            {/* the service's own sentence is in the senior's language */}
-            <p className="mt-3 text-body text-dim">
-              {a.message ??
-                "We would rather say nothing than guess. Money and scam questions are too important to get wrong."}
-            </p>
-            {unsupported ? (
-              <Link href="/" className={`${BTN_SECONDARY} mt-4 text-body`}>
-                <span aria-hidden="true">🌐</span>Choose your language
-              </Link>
-            ) : (
-              <p className="mt-2 text-body text-muted">A real person can look at it with you.</p>
-            )}
+          // on a laptop: why there is no answer on the left, the person who can
+          // help beside it — phones read it top to bottom in this order
+          <div
+            role="status"
+            className="mt-6 flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_auto_1fr_auto] lg:gap-x-12"
+          >
+            <div className="flex flex-col lg:col-start-1 lg:row-span-3 lg:row-start-1">
+              <span
+                aria-hidden="true"
+                className="grid h-[3rem] w-[3rem] place-items-center rounded-full bg-line text-[1.4rem]"
+              >
+                ℹ
+              </span>
+              <h1 className="mt-4 text-heading font-medium leading-tight">
+                We don’t have a trusted answer for this
+              </h1>
+              {/* the service's own sentence is in the senior's language */}
+              <p className="mt-3 text-body text-dim">
+                {a.message ??
+                  "We would rather say nothing than guess. Money and scam questions are too important to get wrong."}
+              </p>
+              {unsupported ? (
+                <Link href="/" className={`${BTN_SECONDARY} mt-4 text-body`}>
+                  <span aria-hidden="true">🌐</span>Choose your language
+                </Link>
+              ) : (
+                <p className="mt-2 text-body text-muted">A real person can look at it with you.</p>
+              )}
+            </div>
 
             {/* the mentor offer is the one primary action on this screen */}
-            <div className="mt-6 rounded-[0.6rem] border-2 border-accent bg-surface p-4">
+            <div className="mt-6 rounded-[0.6rem] border-2 border-accent bg-surface p-4 lg:col-start-2 lg:row-start-1 lg:mt-0 lg:self-start">
               <h2 className="flex items-center gap-2 text-body font-medium">
                 <span aria-hidden="true">🤝</span>Talk to a person
               </h2>
@@ -143,11 +156,11 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                 Ask for help
               </Link>
             </div>
-            <Link href="/ask" className={`${BTN_SECONDARY} mt-4 text-body`}>
+            <Link href="/ask" className={`${BTN_SECONDARY} mt-4 text-body lg:col-start-1 lg:row-start-4 lg:mt-6 lg:self-start lg:px-8`}>
               Ask in a different way
             </Link>
 
-            <p className="mt-6 flex gap-3 rounded-[0.5rem] bg-panel p-4 text-latin text-dim">
+            <p className="mt-6 flex gap-3 rounded-[0.5rem] bg-panel p-4 text-latin text-dim lg:col-start-2 lg:row-start-2 lg:mt-4 lg:self-start">
               <span aria-hidden="true" className="text-accent">
                 🛡
               </span>
@@ -266,7 +279,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
         <form
           action="/ask"
           className={`sticky bottom-0 mt-auto flex gap-3 bg-bg pt-4 pb-4 shadow-[0_-1px_0_var(--color-line)] ${
-            a.refused ? "" : "lg:max-w-[calc(100%-25rem)]"
+            "lg:max-w-[calc(100%-25rem)]"
           }`}
         >
           <label htmlFor="again" className="sr-only">
