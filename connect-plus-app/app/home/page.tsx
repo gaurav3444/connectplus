@@ -41,7 +41,7 @@ export default async function Home() {
             the same order, nothing extra revealed by a wider screen */}
         <div className="mt-7 grid gap-5 sm:grid-cols-2 lg:mt-10 lg:gap-8">
           {/* one primary action per screen — Browse carries the accent border */}
-          <Link href="/browse" className={`${CARD} border-accent hover:bg-[#2b2741]`}>
+          <Link href="/browse" className={`${CARD} border-accent hover:bg-tint`}>
             <span aria-hidden="true" className={`${ICON} bg-fill text-on-fill`}>
               ▦
             </span>

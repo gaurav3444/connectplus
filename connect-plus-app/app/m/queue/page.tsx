@@ -30,7 +30,7 @@ export default async function Queue({ searchParams }: PageProps<"/m/queue">) {
       <Poll />
       <header className="flex flex-wrap items-center gap-3 border-b border-line pb-4">
         <h1 className="text-[1.25rem] font-medium">Helper dashboard</h1>
-        <span className="ml-auto flex items-center gap-2 rounded-full bg-[#2b2741] px-3 py-1 text-[0.7rem] font-medium text-link">
+        <span className="ml-auto flex items-center gap-2 rounded-full bg-tint px-3 py-1 text-[0.7rem] font-medium text-link">
           <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent" />
           Available
         </span>
@@ -53,7 +53,7 @@ export default async function Queue({ searchParams }: PageProps<"/m/queue">) {
               <li key={r.id}>
                 <Link
                   href={`/m/session/${r.id}`}
-                  className={`inline-flex rounded-md border border-accent px-3 py-1.5 text-link hover:bg-[#2b2741] ${FOCUS}`}
+                  className={`inline-flex rounded-md border border-accent px-3 py-1.5 text-link hover:bg-tint ${FOCUS}`}
                 >
                   Back to {r.senior}
                 </Link>

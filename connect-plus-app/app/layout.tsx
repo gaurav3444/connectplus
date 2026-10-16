@@ -27,6 +27,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const jar = await cookies();
   const size = SIZES[jar.get("text-size")?.value ?? ""];
   const high = jar.get("contrast")?.value === "high";
+  const light = jar.get("theme")?.value === "light";
   // the chosen language, so screen readers switch voice and CJK text gets
   // CJK line breaking
   const lang = HTML_LANG[jar.get("lang")?.value ?? ""] ?? "en";
@@ -37,6 +38,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} h-full antialiased`}
       style={size ? { fontSize: size } : undefined}
       data-contrast={high ? "high" : undefined}
+      data-theme={light ? "light" : undefined}
     >
       <body className="min-h-full">
         {children}

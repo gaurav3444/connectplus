@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { endSession, setTextSize, toggleContrast } from "../actions";
-import { dict, LANG_LABEL } from "../i18n";
+import { endSession, setTextSize, toggleContrast, toggleTheme } from "../actions";
+import { dict, LANG_LABEL, type Dict } from "../i18n";
 import { getUser } from "../session";
 import { BackButton, BTN_SECONDARY, HEADER, Screen } from "../ui";
 
@@ -18,12 +18,53 @@ const SIZES = [
   { value: "xl", label: "sizeBiggest", scale: "text-[1.7rem]" },
 ] as const;
 
+// An on/off setting: the state is said in words, the track only repeats it.
+function Switch({
+  action,
+  on,
+  label,
+  sub,
+  t,
+}: {
+  action: () => Promise<void>;
+  on: boolean;
+  label: string;
+  sub: string;
+  t: Dict;
+}) {
+  return (
+    <form action={action}>
+      <button
+        type="submit"
+        role="switch"
+        aria-checked={on}
+        className={`flex min-h-[3rem] w-full items-center gap-4 rounded-[0.6rem] border-2 border-line bg-surface px-4 py-3 text-left hover:border-accent ${FOCUS}`}
+      >
+        <span className="flex flex-1 flex-col">
+          <span className="text-body font-medium">{label}</span>
+          <span className="text-latin text-dim">{sub}</span>
+        </span>
+        <span className="text-body font-medium">{on ? t.on : t.off}</span>
+        <span
+          aria-hidden="true"
+          className={`flex h-[1.7rem] w-[3rem] flex-none items-center rounded-full border p-[0.15rem] ${
+            on ? "justify-end border-accent bg-fill" : "border-faint bg-line"
+          }`}
+        >
+          <span className={`h-[1.3rem] w-[1.3rem] rounded-full ${on ? "bg-on-fill" : "bg-muted"}`} />
+        </span>
+      </button>
+    </form>
+  );
+}
+
 export default async function Settings() {
   const [jar, user] = await Promise.all([cookies(), getUser()]);
   const lang = jar.get("lang")?.value ?? "en";
   const t = dict(lang);
   const size = jar.get("text-size")?.value ?? "md";
   const high = jar.get("contrast")?.value === "high";
+  const light = jar.get("theme")?.value === "light";
 
   return (
     <Screen>
@@ -66,7 +107,7 @@ export default async function Settings() {
                   value={s.value}
                   aria-pressed={on}
                   className={`flex min-h-[3.4rem] flex-1 flex-col items-center justify-center rounded-[0.6rem] border-2 px-2 py-2 ${
-                    on ? "border-accent bg-[#2b2741]" : "border-line hover:border-accent"
+                    on ? "border-accent bg-tint" : "border-line hover:border-accent"
                   } ${FOCUS}`}
                 >
                   <span aria-hidden="true" className={`${s.scale} font-medium leading-none`}>
@@ -83,29 +124,9 @@ export default async function Settings() {
           </form>
         </section>
 
-        <section>
-          <form action={toggleContrast}>
-            <button
-              type="submit"
-              role="switch"
-              aria-checked={high}
-              className={`flex min-h-[3rem] w-full items-center gap-4 rounded-[0.6rem] border-2 border-line bg-surface px-4 py-3 text-left hover:border-accent ${FOCUS}`}
-            >
-              <span className="flex flex-1 flex-col">
-                <span className="text-body font-medium">{t.contrast}</span>
-                <span className="text-latin text-dim">{t.contrastSub}</span>
-              </span>
-              <span className="text-body font-medium">{high ? t.on : t.off}</span>
-              <span
-                aria-hidden="true"
-                className={`flex h-[1.7rem] w-[3rem] flex-none items-center rounded-full border p-[0.15rem] ${
-                  high ? "justify-end border-accent bg-fill" : "border-faint bg-line"
-                }`}
-              >
-                <span className={`h-[1.3rem] w-[1.3rem] rounded-full ${high ? "bg-on-fill" : "bg-muted"}`} />
-              </span>
-            </button>
-          </form>
+        <section className="flex flex-col gap-3">
+          <Switch action={toggleTheme} on={light} label={t.light} sub={t.lightSub} t={t} />
+          <Switch action={toggleContrast} on={high} label={t.contrast} sub={t.contrastSub} t={t} />
         </section>
 
         {user && (

@@ -168,11 +168,11 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
         {offer ? (
           <section
             aria-labelledby="offer"
-            className="mt-6 rounded-[0.8rem] lg:col-start-1 border-2 border-accent bg-[#262a60] p-5 shadow-[0_16px_40px_rgba(0,0,0,0.65)]"
+            className="mt-6 rounded-[0.8rem] lg:col-start-1 border-2 border-accent bg-callout p-5 shadow-[0_16px_40px_var(--color-shadow)]"
           >
             <span
               aria-hidden="true"
-              className="grid h-[3rem] w-[3rem] place-items-center rounded-[0.7rem] bg-[#353b80] text-[1.4rem]"
+              className="grid h-[3rem] w-[3rem] place-items-center rounded-[0.7rem] bg-callout-mark text-[1.4rem]"
             >
               🤝
             </span>

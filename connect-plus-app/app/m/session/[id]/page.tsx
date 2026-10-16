@@ -124,7 +124,7 @@ export default async function HelperSession({ params }: PageProps<"/m/session/[i
           </section>
 
           {/* guidance stays open for the whole session */}
-          <section className="rounded-r-md border-l-2 border-accent bg-[#2b2741] p-4">
+          <section className="rounded-r-md border-l-2 border-accent bg-tint p-4">
             <h2 className="text-[0.65rem] font-medium uppercase tracking-wider text-link">
               How to help well
             </h2>

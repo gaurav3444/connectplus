@@ -19,6 +19,10 @@
   --color-fill-hover: #5d5294;
   --color-on-fill: #f5f4ff; /* text on the filled button */
   --color-link: #d2cefd; /* plain-text link, e.g. "send it again" */
+  --color-tint: #2b2741; /* selected tile / highlighted row background */
+  --color-callout: #262a60; /* the "want a hand?" offer card */
+  --color-callout-mark: #353b80; /* the icon square on that card */
+  --color-shadow: rgba(0, 0, 0, 0.65);
 
   /* Base is 20px (see html below), so 1rem = 20px and everything scales with zoom.
      Fluid between phone and desktop: the mockup's phone sizes are the floor,
@@ -56,9 +60,40 @@ body {
   }
 }
 
+html {
+  color-scheme: dark;
+}
+
+/* Settings → "Light background": dark writing on a light background, for
+   readers who find light-on-dark text blurs (common with astigmatism).
+   Same 7:1 target: ink 17:1, muted 9:1, faint 5.4:1+, borders 3:1+ on every
+   surface. Sits before high contrast so that one still wins when both are on. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f7f6fb;
+  --color-shell: #e9e8f0;
+  --color-surface: #ffffff;
+  --color-line: #7d8091;
+  --color-accent: #5a4cb8;
+  --color-ink: #16182a;
+  --color-dim: #2e3142;
+  --color-muted: #3f4256;
+  --color-faint: #575a6e;
+  --color-panel: #ecebf3;
+  --color-fill: #4a3f99;
+  --color-fill-hover: #3a3080;
+  --color-on-fill: #ffffff;
+  --color-link: #3d2fa0;
+  --color-tint: #e7e3fa;
+  --color-callout: #e9e7fb;
+  --color-callout-mark: #d6d1f6;
+  --color-shadow: rgba(22, 24, 42, 0.18);
+}
+
 /* Settings → "Stronger contrast": black background, white writing. Same token
    names, so every screen follows without knowing about it. */
 html[data-contrast="high"] {
+  color-scheme: dark;
   --color-bg: #000;
   --color-shell: #000;
   --color-surface: #000;
@@ -73,4 +108,8 @@ html[data-contrast="high"] {
   --color-fill-hover: #e6e6e6;
   --color-on-fill: #000;
   --color-link: #ffff66; /* links stand out as yellow, plus their underline */
+  --color-tint: #000;
+  --color-callout: #000;
+  --color-callout-mark: #111;
+  --color-shadow: transparent;
 }

@@ -124,7 +124,7 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
                     href={`/resource/${r.id}`}
                     className={`${CARD} ${
                       start
-                        ? "border-accent hover:bg-[#2b2741]"
+                        ? "border-accent hover:bg-tint"
                         : "border-line hover:border-accent"
                     }`}
                   >

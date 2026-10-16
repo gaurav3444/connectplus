@@ -32,6 +32,13 @@ export async function toggleContrast() {
   redirect("/settings");
 }
 
+// Settings: dark writing on a light background.
+export async function toggleTheme() {
+  const jar = await cookies();
+  jar.set("theme", jar.get("theme")?.value === "light" ? "dark" : "light", YEAR);
+  redirect("/settings");
+}
+
 // Sign out. Free-standing so any screen's header can post to it.
 export async function endSession() {
   await signOut();
