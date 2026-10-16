@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { dict } from "./i18n";
 import { CTRL, HEADER, HeaderControls } from "./ui";
+import { Icon } from "./icons";
 
 // Apart from ui.tsx because it reads cookies: ui.tsx is also imported by the
 // client-side code input, and next/headers cannot follow it there.
@@ -31,12 +32,12 @@ export async function AppHeader({ back, help = true }: { back: string; help?: bo
       {/* Settings sits in the header where there is room; on a phone it is a
           quiet link at the bottom of Home */}
       <Link href="/settings" className={`${CTRL} hidden text-body lg:flex`}>
-        <span aria-hidden="true">⚙</span>
+        <Icon name="settings" />
         {t.settings}
       </Link>
       {help && (
         <Link href="/help" className={`${CTRL} ml-auto whitespace-nowrap text-body lg:ml-0`}>
-          <span aria-hidden="true">🤝</span>
+          <Icon name="handshake" />
           {t.needHelp}
         </Link>
       )}

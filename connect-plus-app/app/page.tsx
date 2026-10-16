@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { Icon } from "./icons";
 
 // Screen 0. Language comes before login: a senior who reads no English must be
 // able to get past this screen unaided. So: native script first and largest,
@@ -66,7 +67,7 @@ export default async function LanguageSelect() {
                     </span>
                     <span className="text-latin text-muted">
                       {/* tick, not colour alone, marks the current choice */}
-                      {selected && <span aria-label="current">✓ </span>}
+                      {selected && <span aria-label="current"><Icon name="check" className="mr-[0.3em]" /></span>}
                       {l.latin}
                     </span>
                   </button>

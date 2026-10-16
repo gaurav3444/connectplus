@@ -8,6 +8,7 @@ import { dict } from "../../i18n";
 import Poll from "../../poll";
 import { BTN_PRIMARY, BTN_SECONDARY, CTRL, HEADER, Screen } from "../../ui";
 import { cancelHelp, endHelp, leaveHelp, notifyMe, sayToHelper } from "../actions";
+import { Icon } from "../../icons";
 
 // Screen 3d after consent: waiting, then the conversation. The waiting state
 // says how long it has been instead of spinning forever, and the session keeps
@@ -52,9 +53,9 @@ export default async function HelpSession() {
         <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
           <span
             aria-hidden="true"
-            className="grid h-[4rem] w-[4rem] place-items-center rounded-full bg-fill text-[1.8rem]"
+            className="grid h-[4rem] w-[4rem] place-items-center rounded-full bg-fill text-[1.8rem] text-on-fill"
           >
-            {free ? "⏳" : "🌙"}
+            <Icon name={free ? "hourglass" : "moon"} />
           </span>
           {free ? (
             <>
@@ -77,7 +78,7 @@ export default async function HelpSession() {
               </p>
               {r.notify ? (
                 <p className="mt-6 text-body text-link">
-                  <span aria-hidden="true">✓ </span>
+                  <Icon name="check" className="mr-[0.3em]" />
                   {t.willTell}
                 </p>
               ) : (

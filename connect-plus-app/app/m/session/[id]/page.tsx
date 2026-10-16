@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { describe, getRequest, HELPER, LANG_NAMES, minutes } from "../../../helpdesk";
 import Poll from "../../../poll";
 import { finishSession, reply } from "../../actions";
+import { Icon } from "../../../icons";
 
 // Screen 4, the session: the chat, with where the senior is and what they
 // have tried beside it, and the guidance panel open the whole time rather
@@ -42,7 +43,7 @@ export default async function HelperSession({ params }: PageProps<"/m/session/[i
       <Poll />
       <header className="flex flex-wrap items-center gap-3 border-b border-line pb-4">
         <Link href="/m/queue" aria-label="Back to the queue" className={`rounded-md border border-line px-2.5 py-1 hover:border-accent ${FOCUS}`}>
-          <span aria-hidden="true">←</span>
+          <Icon name="arrow-left" />
         </Link>
         <div className="flex flex-col leading-tight">
           <h1 className="text-[1.1rem] font-medium">{r.senior}</h1>

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { toggleTextSize } from "./actions";
 import { LANG_LABEL, type Dict } from "./i18n";
+import { Icon } from "./icons";
 
 // Shared chrome for every senior screen. Sizes are the mockup's (48px controls,
 // 60px actions, 10px radius) expressed in rem so they grow with the A+ setting.
@@ -31,7 +32,7 @@ export const BTN_SECONDARY =
 export function BackLink({ href, label }: { href: string; label: string }) {
   return (
     <Link href={href} aria-label={label} className={`${CTRL} w-[2.4rem] px-0`}>
-      <span aria-hidden="true">←</span>
+      <Icon name="arrow-left" />
     </Link>
   );
 }
@@ -75,7 +76,7 @@ export function HeaderControls({
   return (
     <>
       <Link href="/" className={`${CTRL} text-body`}>
-        <span aria-hidden="true">🌐</span>
+        <Icon name="globe" />
         <span className="uppercase lg:hidden">{lang}</span>
         <span lang={lang} className="hidden lg:inline">
           {LANG_LABEL[lang] ?? lang}
@@ -113,7 +114,7 @@ export function BackButton({ href, children }: { href: string; children: React.R
         `hover:border-accent hover:text-accent ${FOCUS}`
       }
     >
-      <span aria-hidden="true">←</span>
+      <Icon name="arrow-left" />
       {children}
     </Link>
   );

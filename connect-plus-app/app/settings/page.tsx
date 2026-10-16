@@ -4,6 +4,7 @@ import { endSession, setTextSize, toggleContrast, toggleTheme } from "../actions
 import { dict, LANG_LABEL, type Dict } from "../i18n";
 import { getUser } from "../session";
 import { BackButton, BTN_SECONDARY, HEADER, Screen } from "../ui";
+import { Icon } from "../icons";
 
 // Screen 5, settings. Every control shows its current state in words as well
 // as by look, and each change applies the moment it is pressed — no Save
@@ -81,7 +82,7 @@ export default async function Settings() {
             href="/"
             className={`flex min-h-[3rem] items-center gap-3 rounded-[0.6rem] border-2 border-line bg-surface px-4 text-body hover:border-accent ${FOCUS}`}
           >
-            <span aria-hidden="true">🌐</span>
+            <Icon name="globe" />
             <span lang={lang} className="flex-1">
               {LANG_LABEL[lang] ?? lang}
             </span>
@@ -115,7 +116,7 @@ export default async function Settings() {
                   </span>
                   {/* the word says which is chosen; the border only repeats it */}
                   <span className="mt-1 text-latin text-dim">
-                    {on && <span aria-hidden="true">✓ </span>}
+                    {on && <Icon name="check" className="mr-[0.3em]" />}
                     {t[s.label]}
                   </span>
                 </button>
@@ -132,7 +133,7 @@ export default async function Settings() {
         {user && (
           <form action={endSession} className="mt-auto">
             <button type="submit" className={`${BTN_SECONDARY} text-body`}>
-              <span aria-hidden="true">↪</span>
+              <Icon name="log-out" />
               {t.signOut}
             </button>
             <p className="mt-2 text-center text-latin text-muted">{t.signedInAs(user.email)}</p>

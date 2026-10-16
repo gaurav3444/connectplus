@@ -4,6 +4,7 @@ import { Screen } from "../ui";
 import { getUser, greeting } from "../session";
 import { getProgress } from "../progress";
 import { getT } from "../t";
+import { Icon } from "../icons";
 
 // Screen 2. Two paths, not three: mentor help lives in the header at all times
 // rather than as a third equal card, so it is always one tap away without
@@ -43,7 +44,7 @@ export default async function Home() {
           {/* one primary action per screen — Browse carries the accent border */}
           <Link href="/browse" className={`${CARD} border-accent hover:bg-tint`}>
             <span aria-hidden="true" className={`${ICON} bg-fill text-on-fill`}>
-              ▦
+              <Icon name="layout-grid" />
             </span>
             <span className="flex flex-col gap-1">
               <span className="text-body font-medium lg:text-[1.5rem]">{t.browse}</span>
@@ -53,7 +54,7 @@ export default async function Home() {
 
           <Link href="/ask" className={`${CARD} border-line hover:border-accent`}>
             <span aria-hidden="true" className={`${ICON} bg-panel text-ink`}>
-              💬
+              <Icon name="message-circle" />
             </span>
             <span className="flex flex-col gap-1">
               <span className="text-body font-medium lg:text-[1.5rem]">{t.ask}</span>
@@ -68,7 +69,7 @@ export default async function Home() {
           href="/settings"
           className="mt-8 flex min-h-[2.8rem] items-center gap-2 self-start text-latin lg:hidden text-muted underline-offset-4 hover:text-accent hover:underline focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
         >
-          <span aria-hidden="true">⚙</span>
+          <Icon name="settings" />
           {t.settings}
         </Link>
 
@@ -81,7 +82,7 @@ export default async function Home() {
             className="mt-auto flex min-h-[2.8rem] items-center gap-3 rounded-[0.6rem] bg-panel p-4 transition-colors hover:bg-line focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-accent"
           >
             <span aria-hidden="true" className="text-body text-accent">
-              ↺
+              <Icon name="rotate-ccw" />
             </span>
             <span className="flex-1 text-latin text-dim">
               {t.lastPre}

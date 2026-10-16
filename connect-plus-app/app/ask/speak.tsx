@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import { Icon } from "../icons";
 
 // Voice input, at the same weight as typing. Web Speech API: no dependency and
 // no key. It fills the question box rather than submitting, so the senior can
@@ -69,7 +70,7 @@ export default function Speak({
         className={className}
       >
         <span aria-hidden="true" className="text-[1.4rem]">
-          🎤
+          <Icon name="mic" />
         </span>
         {!compact && <span aria-hidden="true">{listening ? labels.busy : labels.idle}</span>}
       </button>

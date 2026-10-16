@@ -8,6 +8,7 @@ import { getProgress } from "../progress";
 import { getUser } from "../session";
 import { BackButton, BTN_PRIMARY, BTN_SECONDARY, Screen } from "../ui";
 import { askForHelp } from "./actions";
+import { Icon } from "../icons";
 
 // Screen 3d, consent. Nothing is shared until the senior has seen exactly
 // what will be shared, item by item, with its real value — informed consent,
@@ -50,17 +51,17 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
 
   const shared = [
     lesson && {
-      icon: "📖",
+      icon: "book-open" as const,
       label: t.learning,
       value: t.learningValue(lesson.resource.title, lesson.step),
     },
     lesson && {
-      icon: "👣",
+      icon: "footprints" as const,
       label: t.tried,
       value: lesson.tries === 0 ? t.triedNone : t.tries(lesson.tries),
     },
-    asked && { icon: "💬", label: t.whatAsked, value: asked },
-    { icon: "🌐", label: t.yourLanguage, value: LANG_LABEL[lang] ?? lang },
+    asked && { icon: "message-circle" as const, label: t.whatAsked, value: asked },
+    { icon: "globe" as const, label: t.yourLanguage, value: LANG_LABEL[lang] ?? lang },
   ].filter((x) => !!x);
 
   return (
@@ -74,8 +75,8 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
         <ul className="mt-5 flex flex-col gap-3">
           {shared.map((s) => (
             <li key={s.label} className="flex items-start gap-4 rounded-[0.6rem] bg-surface p-4">
-              <span aria-hidden="true" className="text-[1.3rem]">
-                {s.icon}
+              <span aria-hidden="true" className="text-[1.3rem] text-accent">
+                <Icon name={s.icon} />
               </span>
               <span className="flex flex-col">
                 <span className="text-body font-medium">{s.label}</span>
@@ -87,7 +88,7 @@ export default async function HelpConsent({ searchParams }: PageProps<"/help">) 
 
         <p className="mt-5 flex gap-3 rounded-[0.5rem] bg-panel p-4 text-latin text-dim">
           <span aria-hidden="true" className="text-accent">
-            🛡
+            <Icon name="shield" />
           </span>
           {t.helperPrivacy}
         </p>

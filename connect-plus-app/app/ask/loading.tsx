@@ -1,5 +1,6 @@
 import { getT } from "../t";
 import { Screen } from "../ui";
+import { Icon } from "../icons";
 
 // The loading state, shown while an answer is found. Words, not a bare
 // spinner: say what is happening and that waiting is the right thing to do.
@@ -9,7 +10,7 @@ export default async function Loading() {
     <Screen>
       <main role="status" className="flex flex-1 flex-col justify-center px-6 py-8 sm:px-10">
         <span aria-hidden="true" className="text-[2rem] text-accent motion-safe:animate-pulse">
-          ⌕
+          <Icon name="search" />
         </span>
         <h1 className="mt-3 text-heading font-medium leading-tight">{t.finding}</h1>
         <p className="mt-2 text-body text-dim">{t.findingBody}</p>

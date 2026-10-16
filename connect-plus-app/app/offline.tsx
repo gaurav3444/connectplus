@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { usePageDict } from "./page-lang";
+import { Icon } from "./icons";
 
 // The offline state, as a banner over whatever screen is open — the screen
 // itself stays readable. No timer: it goes when the connection comes back.
@@ -30,7 +31,7 @@ export default function Offline() {
     >
       <p className="mx-auto max-w-2xl">
         <span className="font-medium">
-          <span aria-hidden="true">📶 </span>
+          <Icon name="wifi" className="mr-[0.3em]" />
           {t.offline}
         </span>{" "}
         <span className="text-dim">

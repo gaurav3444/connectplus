@@ -10,6 +10,8 @@
 // Resources live in one map keyed by id, so the same lesson can sit under two
 // topics without being written twice.
 
+import type { IconName } from "./icons";
+
 // One screen each. `picture` is the alt text for the screenshot that will sit
 // there — it describes where the button is, never just "screenshot".
 export type Step = {
@@ -35,7 +37,7 @@ export type Catalogue = { categories: Topic[]; resources: Record<string, Resourc
 export type Topic = {
   slug: string;
   title: string;
-  icon?: string;
+  icon?: IconName;
   // a category holds topics, a subcategory holds resource ids
   topics?: Topic[];
   resources?: string[];
@@ -122,34 +124,34 @@ const CATEGORIES: Topic[] = [
   {
     slug: "phone",
     title: "Phone & Tablet",
-    icon: "📱",
+    icon: "smartphone",
     topics: [
-      { slug: "calls", title: "Calls", icon: "📞" },
+      { slug: "calls", title: "Calls", icon: "phone" },
       {
         slug: "messages",
         title: "Messages",
-        icon: "💬",
+        icon: "message-circle",
         resources: ["send-text", "scam-text", "bigger-writing"],
       },
-      { slug: "camera", title: "Camera & photos", icon: "📷" },
-      { slug: "apps", title: "Apps", icon: "▦" },
-      { slug: "settings", title: "Settings", icon: "⚙" },
-      { slug: "wifi", title: "Wi-Fi", icon: "📶" },
+      { slug: "camera", title: "Camera & photos", icon: "camera" },
+      { slug: "apps", title: "Apps", icon: "layout-grid" },
+      { slug: "settings", title: "Settings", icon: "settings" },
+      { slug: "wifi", title: "Wi-Fi", icon: "wifi" },
     ],
   },
-  { slug: "computer", title: "Computer", icon: "💻", topics: [] },
+  { slug: "computer", title: "Computer", icon: "laptop", topics: [] },
   {
     slug: "safety",
     title: "Staying Safe Online",
-    icon: "🛡",
+    icon: "shield",
     topics: [
-      { slug: "scams", title: "Scam texts and emails", icon: "⚠", resources: ["scam-text"] },
+      { slug: "scams", title: "Scam texts and emails", icon: "triangle-alert", resources: ["scam-text"] },
     ],
   },
-  { slug: "government", title: "Government & Health", icon: "🏥", topics: [] },
-  { slug: "family", title: "Talking to Family", icon: "👪", topics: [] },
-  { slug: "money", title: "Money & Shopping", icon: "👛", topics: [] },
-  { slug: "ai", title: "AI & New Technology", icon: "✨", topics: [] },
+  { slug: "government", title: "Government & Health", icon: "hospital", topics: [] },
+  { slug: "family", title: "Talking to Family", icon: "users", topics: [] },
+  { slug: "money", title: "Money & Shopping", icon: "wallet", topics: [] },
+  { slug: "ai", title: "AI & New Technology", icon: "sparkles", topics: [] },
 ];
 
 // Every resource id under a topic, at any depth — a category counts as
@@ -227,14 +229,14 @@ export type Row = {
 };
 
 // rag's category ids, given the icons the design puts beside them
-const ICONS: Record<string, string> = {
-  "phone-tablet": "📱",
-  computer: "💻",
-  "staying-safe": "🛡",
-  "government-health": "🏥",
-  "talking-to-family": "👪",
-  "money-shopping": "👛",
-  "ai-new-tech": "✨",
+const ICONS: Record<string, IconName> = {
+  "phone-tablet": "smartphone",
+  computer: "laptop",
+  "staying-safe": "shield",
+  "government-health": "hospital",
+  "talking-to-family": "users",
+  "money-shopping": "wallet",
+  "ai-new-tech": "sparkles",
 };
 
 // A subcategory with no resources has no rows, so it does not appear: the

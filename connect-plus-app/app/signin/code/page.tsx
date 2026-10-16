@@ -4,6 +4,7 @@ import { BackLink, BTN_PRIMARY, Screen } from "../../ui";
 import { signIn } from "../../session";
 import CodeInput from "./code-input";
 import { getT } from "../../t";
+import { Icon } from "../../icons";
 
 // Screen 1b. Six numbers, one action, and the scam warning sits on the screen
 // where the code is typed — that is the moment someone is talked into reading
@@ -57,7 +58,7 @@ export default async function EnterCode({
           <CodeInput invalid={error === "code"} label={t.codeLabel} />
           {error === "code" && (
             <p id="code-error" role="alert" className="mt-3 text-latin text-dim">
-              ⚠ {t.codeError}
+              <Icon name="triangle-alert" className="mr-[0.3em]" />{t.codeError}
             </p>
           )}
           <button type="submit" className={`${BTN_PRIMARY} mt-6 text-body`}>
@@ -81,7 +82,7 @@ export default async function EnterCode({
 
         <div className="mt-auto flex gap-3 rounded-[0.5rem] bg-panel p-4">
           <span aria-hidden="true" className="text-body text-accent">
-            🛡
+            <Icon name="shield" />
           </span>
           <p className="text-latin text-dim">
             {t.codeScam}

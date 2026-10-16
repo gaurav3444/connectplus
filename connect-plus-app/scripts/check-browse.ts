@@ -30,7 +30,7 @@ const { categories, resources } = fromRows([
 ]);
 
 assert.deepEqual(categories.map((c) => c.slug), ["phone-tablet", "staying-safe"], "categories by position");
-assert.equal(categories[0].icon, "📱", "known category gets its icon");
+assert.equal(categories[0].icon, "smartphone", "known category gets its icon");
 const pw = categories[1].topics![0];
 assert.equal(pw.title, "Passwords");
 assert.deepEqual(pw.resources!.map((id) => resources[id].title), ["Managing passwords", "Second"], "resources by position");

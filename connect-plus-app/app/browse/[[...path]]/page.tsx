@@ -5,6 +5,7 @@ import { catalogue, resourceIds, type Topic } from "../../content";
 import { AppHeader } from "../../header";
 import { getT } from "../../t";
 import { BackButton, BTN_SECONDARY, Screen } from "../../ui";
+import { Icon } from "../../icons";
 
 // Screen 3a. One route for all three levels — /browse, /browse/phone,
 // /browse/phone/messages — so the breadcrumb is just the URL read back.
@@ -139,13 +140,13 @@ export default async function Browse({ params }: PageProps<"/browse/[[...path]]"
                     {/* a word and a mark, never colour alone */}
                     {start && (
                       <span className="text-latin font-medium text-link">
-                        <span aria-hidden="true">▶ </span>
+                        <Icon name="play" className="mr-[0.3em]" />
                         {t.startHere}
                       </span>
                     )}
                     {done && (
                       <span className="text-latin font-medium text-link">
-                        <span aria-hidden="true">✓ </span>
+                        <Icon name="check" className="mr-[0.3em]" />
                         {t.haveRead}
                       </span>
                     )}
@@ -175,13 +176,13 @@ function TopicTile({
     <Link href={href} className={TILE}>
       {topic.icon && (
         <span aria-hidden="true" className="w-[1.6rem] flex-none text-center text-[1.4rem] text-accent">
-          {topic.icon}
+          <Icon name={topic.icon} />
         </span>
       )}
       <span className="flex-1 text-body font-medium">{topic.title}</span>
       {visited ? (
         <span className="flex flex-none items-center gap-1 text-latin font-medium text-link">
-          <span aria-hidden="true">✓</span>
+          <Icon name="check" />
           {label}
         </span>
       ) : (

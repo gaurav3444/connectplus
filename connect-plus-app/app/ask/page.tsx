@@ -5,6 +5,7 @@ import { dict } from "../i18n";
 import { AppHeader } from "../header";
 import { BackButton, BTN_PRIMARY, BTN_SECONDARY, Screen } from "../ui";
 import Speak from "./speak";
+import { Icon } from "../icons";
 
 // Screen 3b. The question travels in the URL (?q=), so this is a plain GET
 // form: it works with JavaScript off, and Back and refresh both land on the
@@ -61,7 +62,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
               </div>
               {"q" in sp && (
                 <p role="alert" className="mt-2 text-latin text-dim">
-                  ⚠ {t.askEmpty}
+                  <Icon name="triangle-alert" className="mr-[0.3em]" />{t.askEmpty}
                 </p>
               )}
               <button type="submit" className={`${BTN_PRIMARY} mt-4 text-body`}>
@@ -81,7 +82,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                     <li key={s}>
                       <button type="submit" name="q" value={s} className={CHIP}>
                         <span aria-hidden="true" className="text-accent">
-                          ⌕
+                          <Icon name="search" />
                         </span>
                         {s}
                       </button>
@@ -139,7 +140,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
               </p>
               {unsupported ? (
                 <Link href="/" className={`${BTN_SECONDARY} mt-4 text-body`}>
-                  <span aria-hidden="true">🌐</span>
+                  <Icon name="globe" />
                   {t.chooseLang}
                 </Link>
               ) : (
@@ -150,7 +151,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
             {/* the mentor offer is the one primary action on this screen */}
             <div className="mt-6 rounded-[0.6rem] border-2 border-accent bg-surface p-4 lg:col-start-2 lg:row-start-1 lg:mt-0 lg:self-start">
               <h2 className="flex items-center gap-2 text-body font-medium">
-                <span aria-hidden="true">🤝</span>
+                <Icon name="handshake" />
                 {t.talkTitle}
               </h2>
               <p className="mt-1 text-latin text-dim">
@@ -166,7 +167,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
 
             <p className="mt-6 flex gap-3 rounded-[0.5rem] bg-panel p-4 text-latin text-dim lg:col-start-2 lg:row-start-2 lg:mt-4 lg:self-start">
               <span aria-hidden="true" className="text-accent">
-                🛡
+                <Icon name="shield" />
               </span>
               {t.safety}
             </p>
@@ -243,7 +244,7 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
               <h2 className="mt-6 text-body font-medium">{t.helpful}</h2>
               {helpful === "yes" ? (
                 <p role="status" className="mt-2 text-body text-dim">
-                  ✓ {t.thanks}
+                  <Icon name="check" className="mr-[0.3em]" />{t.thanks}
                 </p>
               ) : helpful === "no" ? (
                 <div role="status" className="mt-2 flex flex-col">
@@ -258,11 +259,11 @@ export default async function Ask({ searchParams }: PageProps<"/ask">) {
                 <form action="/ask" className="mt-3 flex gap-4">
                   <input type="hidden" name="q" value={q} />
                   <button type="submit" name="helpful" value="yes" className={`${BTN_SECONDARY} flex-1 text-body`}>
-                    <span aria-hidden="true">👍</span>
+                    <Icon name="thumbs-up" />
                     {t.yes}
                   </button>
                   <button type="submit" name="helpful" value="no" className={`${BTN_SECONDARY} flex-1 text-body`}>
-                    <span aria-hidden="true">👎</span>
+                    <Icon name="thumbs-down" />
                     {t.no}
                   </button>
                 </form>

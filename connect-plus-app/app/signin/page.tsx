@@ -11,6 +11,7 @@ import {
   Screen,
 } from "../ui";
 import { dict } from "../i18n";
+import { Icon } from "../icons";
 
 // Screen 1. One job: an email address. No password to remember and no account
 // wall — "Look around first" keeps the app usable for someone who will not, or
@@ -76,7 +77,7 @@ export default async function SignIn({ searchParams }: PageProps<"/signin">) {
           {/* plain words, no error jargon, and never colour alone */}
           {error === "email" && (
             <p id="email-error" role="alert" className="mt-2 text-latin text-dim">
-              ⚠ {t.emailError}
+              <Icon name="triangle-alert" className="mr-[0.3em]" />{t.emailError}
             </p>
           )}
           <button type="submit" className={`${BTN_PRIMARY} mt-5 text-body`}>
@@ -88,7 +89,7 @@ export default async function SignIn({ searchParams }: PageProps<"/signin">) {
 
         <p className="text-body text-muted">{t.notReady}</p>
         <Link href="/home" className={`${BTN_SECONDARY} mt-3 text-body`}>
-          <span aria-hidden="true">👁</span>
+          <Icon name="eye" />
           {t.lookAround}
         </Link>
 

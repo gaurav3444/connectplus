@@ -6,6 +6,7 @@ import type { Dict } from "../../i18n";
 import { getT } from "../../t";
 import { BTN_PRIMARY, BTN_SECONDARY, Screen } from "../../ui";
 import { finish, go, practise, stuck } from "./actions";
+import { Icon } from "../../icons";
 
 // Screen 3c. One step per screen, in plain words, with "I'm stuck" on every
 // step at a quiet weight. Each stumble is counted; after a few on the same
@@ -33,7 +34,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
         <AppHeader back={`/resource/${id}?finished=1`} />
         <main className="flex flex-1 flex-col px-6 py-8 sm:px-10">
           <p role="status" className="text-body text-link">
-            <span aria-hidden="true">✓ </span>
+            <Icon name="check" className="mr-[0.3em]" />
             {t.lessonFinished}
           </p>
           <h1 className="mt-2 text-heading font-medium leading-tight">{t.wellDone}</h1>
@@ -97,7 +98,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
 
           {step.practice && (
             <span className="mt-4 self-start rounded-full bg-fill px-3 py-1 text-latin font-medium text-on-fill">
-              <span aria-hidden="true">✋ </span>
+              <Icon name="hand" className="mr-[0.3em]" />
               {t.yourTurn}
             </span>
           )}
@@ -118,7 +119,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
                 rel="noopener noreferrer"
                 className={`${BTN_SECONDARY} text-body`}
               >
-                <span aria-hidden="true">↗</span>
+                <Icon name="external-link" />
                 {t.openStep}
                 <span className="sr-only"> {t.newTab}</span>
               </a>
@@ -149,7 +150,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
         <div className={`flex flex-col lg:col-start-1 ${dim}`}>
           {step.practice && sp.got && (
             <p role="status" className="mt-4 text-body text-link">
-              <span aria-hidden="true">✓ </span>
+              <Icon name="check" className="mr-[0.3em]" />
               {t.practiceGot}
             </p>
           )}
@@ -174,7 +175,7 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
               aria-hidden="true"
               className="grid h-[3rem] w-[3rem] place-items-center rounded-[0.7rem] bg-callout-mark text-[1.4rem]"
             >
-              🤝
+              <Icon name="handshake" />
             </span>
             <h2 id="offer" role="status" className="mt-4 text-heading font-medium leading-tight">
               {t.tricky}
@@ -196,25 +197,25 @@ export default async function Lesson({ params, searchParams }: PageProps<"/resou
               <input type="hidden" name="id" value={id} />
               {n === 1 ? (
                 <Link href={topic.href} className={`${BTN_SECONDARY} flex-1 text-body`}>
-                  <span aria-hidden="true">←</span>
+                  <Icon name="arrow-left" />
                   {t.stepBack}
                 </Link>
               ) : (
                 // Back is equal in size to Next, not in weight
                 <button type="submit" name="step" value={n - 1} className={`${BTN_SECONDARY} flex-1 text-body`}>
-                  <span aria-hidden="true">←</span>
+                  <Icon name="arrow-left" />
                   {t.stepBack}
                 </button>
               )}
               {n < total ? (
                 <button type="submit" name="step" value={n + 1} className={`${BTN_PRIMARY} flex-1 text-body`}>
                   {t.next}
-                  <span aria-hidden="true">→</span>
+                  <Icon name="arrow-right" />
                 </button>
               ) : (
                 <button type="submit" formAction={finish} className={`${BTN_PRIMARY} flex-1 text-body`}>
                   {t.finish}
-                  <span aria-hidden="true">✓</span>
+                  <Icon name="check" />
                 </button>
               )}
             </form>
@@ -259,7 +260,7 @@ function PracticePhone({ id, step, offer, t }: { id: string; step: number; offer
             aria-label={t.phoneNew}
             className={`grid h-[2.4rem] w-[2.4rem] place-items-center rounded-[0.5rem] border border-line text-body hover:border-accent ${FOCUS}`}
           >
-            <span aria-hidden="true">✎</span>
+            <Icon name="pencil" />
           </button>
         </div>
         <button type="submit" name="ok" value="0" className={ROW}>
